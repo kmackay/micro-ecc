@@ -5,8 +5,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-extern EccPoint curve_G;
-
 extern void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar);
 
 void vli_print(uint32_t *p_vli, unsigned int p_size)
@@ -30,6 +28,15 @@ void getRandomBytes(void *p_dest, unsigned p_size)
 
 int main()
 {
+    EccPoint l_Q1, l_Q2; /* public keys */
+	uint32_t l_secret1[NUM_ECC_DIGITS];
+	uint32_t l_secret2[NUM_ECC_DIGITS];
+	uint64_t l_total;
+	int i;
+	
+	uint32_t l_shared1[NUM_ECC_DIGITS];
+	uint32_t l_shared2[NUM_ECC_DIGITS];
+	
     randfd = open("/dev/urandom", O_RDONLY);
 	if(randfd == -1)
 	{
@@ -37,15 +44,9 @@ int main()
         return -1;
 	}
 	
-    
-	EccPoint l_Q1, l_Q2; // public keys
-	uint32_t l_secret1[NUM_ECC_DIGITS];
-	uint32_t l_secret2[NUM_ECC_DIGITS];
 	printf("Testing 256 random private key pairs\n");
 	
-    uint64_t l_total = 0;
-
-	int i;
+    l_total = 0;
 	for(i=0; i<256; ++i)
 	{
 		printf(".");
@@ -53,18 +54,16 @@ int main()
 		getRandomBytes((char *)l_secret1, NUM_ECC_DIGITS * sizeof(uint32_t));
 		getRandomBytes((char *)l_secret2, NUM_ECC_DIGITS * sizeof(uint32_t));
 		
-		EccPoint_mult(&l_Q1, &curve_G, l_secret1);
-		EccPoint_mult(&l_Q2, &curve_G, l_secret2);
+        ecdh_make_key(&l_Q1, l_secret1, l_secret1);
+        ecdh_make_key(&l_Q2, l_secret2, l_secret2);
 
-		uint32_t l_shared1[NUM_ECC_DIGITS];
-		if(!ecdh_shared_secret((uint8_t *)l_shared1, sizeof(l_shared1), &l_Q1, l_secret2))
+		if(!ecdh_shared_secret(l_shared1, &l_Q1, l_secret2))
 		{
 			printf("shared_secret() failed (1)\n");
 			return 1;
 		}
 
-		uint32_t l_shared2[NUM_ECC_DIGITS];
-		if(!ecdh_shared_secret((uint8_t *)l_shared2, sizeof(l_shared2), &l_Q2, l_secret1))
+		if(!ecdh_shared_secret(l_shared2, &l_Q2, l_secret1))
 		{
 			printf("shared_secret() failed (2)\n");
 			return 1;

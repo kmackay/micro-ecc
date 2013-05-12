@@ -1,7 +1,7 @@
 c, link = emk.module("c", "link")
 
-default_flags = ["-fno-common", "-Wall", "-Wextra"]
-opt_flags = {"prf":["-pg", "-O2"], "dbg":["-g"], "std":["-O1", "-DNDEBUG"], "opt":["-O2", "-DNDEBUG"], "max":["-O3", "-DNDEBUG"]}
+default_flags = ["-fno-common", "-Wall", "-Wextra", "-Werror", "-Wno-unused", "-ansi", "-pedantic"]
+opt_flags = {"dbg":["-g"], "std":["-O1", "-DNDEBUG"], "opt":["-O2", "-DNDEBUG"], "max":["-O3", "-DNDEBUG"]}
 
 opt_level = "dbg"
 if "opt" in emk.options:
