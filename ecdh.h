@@ -11,6 +11,7 @@ ECC_USE_NAF - If enabled, this will convert the private key to a non-adjacent fo
 */
 #define ECC_SQUARE_FUNC 1
 #define ECC_USE_NAF 1
+#define ECC_MULT64 1
 
 #define ECC_CURVE secp160r1
 
