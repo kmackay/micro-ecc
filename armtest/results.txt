@@ -1,0 +1,65 @@
+LPC1114 at 48MHz (ARM Cortex-M0, 32-cycle 32x32 bit multiply)
+128 bits
+All off: avg time = 169 ms
+size = 1962 (including aeabi_lmul)
+
+ECC_SOFT_MULT64 enabled: avg time = 164 ms
+size = 1942 (does not include aeabi_lmul)
+
+ECC_USE_NAF enabled: avg time = 147 ms
+size = 2258
+
+ECC_SQUARE_FUNC enabled: avg time = 137 ms
+size = 2538
+
+160 bits
+All off: avg time = 269 ms
+size = 1864 (including aeabi_lmul)
+
+ECC_SOFT_MULT64 enabled: avg time = 255 ms
+size = 1842 (does not include aeabi_lmul)
+
+ECC_USE_NAF enabled: avg time = 224 ms
+size = 2158
+
+ECC_SQUARE_FUNC enabled: avg time = 205 ms
+size = 2434
+
+192 bits
+All off: avg time = 439 ms
+size = 1808 (including aeabi_lmul)
+
+ECC_SOFT_MULT64 enabled: avg time = 414 ms
+size = 1786 (does not include aeabi_lmul)
+
+ECC_USE_NAF enabled: avg time = 364 ms
+size = 2102
+
+ECC_SQUARE_FUNC enabled: avg time = 325 ms
+size = 2378
+
+224 bits
+All off: avg time = 674 ms
+size = 1866 (including aeabi_lmul)
+
+ECC_SOFT_MULT64 enabled: avg time = 649 ms
+size = 1842 (does not include aeabi_lmul)
+
+ECC_USE_NAF enabled: avg time = 571 ms
+size = 2158
+
+ECC_SQUARE_FUNC enabled: avg time = 500 ms
+size = 2438
+
+256 bits
+All off: avg time = 1092 ms
+size = 2128 (including aeabi_lmul)
+
+ECC_SOFT_MULT64 enabled: avg time = 1058 ms
+size = 2110 (does not include aeabi_lmul)
+
+ECC_USE_NAF enabled: avg time = 916 ms
+size = 2426
+
+ECC_SQUARE_FUNC enabled: avg time = 810 ms
+size = 2718
