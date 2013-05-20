@@ -20,7 +20,7 @@ int randfd;
 
 void getRandomBytes(void *p_dest, unsigned p_size)
 {
-    if(read(randfd, p_dest, p_size) != p_size)
+    if(read(randfd, p_dest, p_size) != (int)p_size)
     {
         printf("Failed to get random bytes.\n");
     }

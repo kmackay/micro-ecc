@@ -5,15 +5,18 @@
 
 /* Optimization settings. Define as 1 to enable an optimization, 0 to disable it.
 ECC_SQUARE_FUNC - If enabled, this will cause a specific function to be used for (scalar) squaring instead of the generic
-                  multiplication function. Improves speed by about 1-4% (or more if 32-bit multiplications are slow).
+                  multiplication function. Improves speed by about 8% .
 ECC_USE_NAF - If enabled, this will convert the private key to a non-adjacent form before point multiplication.
               Improves speed by about 10%.
+ECC_SOFT_MULT64 - For platforms that do not have instructions to allow a fast 64x64 bit multiply (eg Cortex-M0), this option
+                  enables code to do 64x64 bit multiplies faster than libgcc does. Improves speed by about 6% on Cortex-M0
+                  (with 32-cycle multiply instruction). Do not enable on other platforms since it will lead to larger and slower code!
 */
 #define ECC_SQUARE_FUNC 1
 #define ECC_USE_NAF 1
-#define ECC_MULT64 1
+#define ECC_SOFT_MULT64 1
 
-#define ECC_CURVE secp160r1
+#define ECC_CURVE secp128r1
 
 #define secp128r1 4
 #define secp160r1 5

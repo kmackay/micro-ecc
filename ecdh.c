@@ -43,12 +43,12 @@ static uint32_t curve_p[NUM_ECC_DIGITS] = CONCAT(Curve_P_, ECC_CURVE);
 static EccPoint curve_G = CONCAT(Curve_G_, ECC_CURVE);
 static uint32_t curve_n[NUM_ECC_DIGITS] = CONCAT(Curve_N_, ECC_CURVE);
 
-static void fast_clear(uint32_t *p_array)
+static void vli_clear(uint32_t *p_vli)
 {
     uint i;
     for(i=0; i<NUM_ECC_DIGITS; ++i)
     {
-        p_array[i] = 0;
+        p_vli[i] = 0;
     }
 }
 
@@ -210,7 +210,6 @@ static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 }
 
 /* Computes p_result = p_left * p_right. */
-#if ECC_MULT64
 static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 {
     uint64_t r01 = 0;
@@ -224,37 +223,16 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
         uint l_min = (k < NUM_ECC_DIGITS ? 0 : (k + 1) - NUM_ECC_DIGITS);
         for(i=l_min; i<=k && i<NUM_ECC_DIGITS; ++i)
         {
-            uint64_t l_product = (uint64_t)p_left[i] * p_right[k-i];
-            r01 += l_product;
-            r2 += (r01 < l_product);
-        }
-        p_result[k] = (uint32_t)r01;
-        r01 = (r01 >> 32) | (((uint64_t)r2) << 32);
-        r2 = 0;
-    }
-    
-    p_result[NUM_ECC_DIGITS*2 - 1] = (uint32_t)r01;
-}
-#else
-static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
-{
-    uint64_t r01 = 0;
-    uint32_t r2 = 0;
-    
-    uint i, k;
-    
-    /* Compute each digit of p_result in sequence, maintaining the carries. */
-    for(k=0; k < NUM_ECC_DIGITS*2 - 1; ++k)
-    {
-        uint l_min = (k < NUM_ECC_DIGITS ? 0 : (k + 1) - NUM_ECC_DIGITS);
-        for(i=l_min; i<=k && i<NUM_ECC_DIGITS; ++i)
-        {
+        #if ECC_SOFT_MULT64
             uint32_t a0 = p_left[i] & 0xffff;
             uint32_t a1 = p_left[i] >> 16;
             uint32_t b0 = p_right[k-i] & 0xffff;
             uint32_t b1 = p_right[k-i] >> 16;
             
             uint64_t l_product = (a0 * b0) + (((uint64_t)(a0 * b1) + a1 * b0) << 16) + (((uint64_t)(a1 * b1)) << 32);
+        #else
+            uint64_t l_product = (uint64_t)p_left[i] * p_right[k-i];
+        #endif
             r01 += l_product;
             r2 += (r01 < l_product);
         }
@@ -265,7 +243,6 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
     
     p_result[NUM_ECC_DIGITS*2 - 1] = (uint32_t)r01;
 }
-#endif
 
 /* Computes p_result = (p_left + p_right) % p_mod.
    Assumes that p_left < p_mod and p_right < p_mod, p_result != p_mod. */
@@ -583,7 +560,6 @@ static void vli_modMult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right,
 #if ECC_SQUARE_FUNC
 
 /* Computes p_result = p_left^2. */
-#if ECC_MULT64
 static void vli_square(uint32_t *p_result, uint32_t *p_left)
 {
     uint64_t r01 = 0;
@@ -595,41 +571,16 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
         uint l_min = (k < NUM_ECC_DIGITS ? 0 : (k + 1) - NUM_ECC_DIGITS);
         for(i=l_min; i<=k && i<=k-i; ++i)
         {
-            uint64_t l_product = (uint64_t)p_left[i] * p_left[k-i];
-            if(i < k-i)
-            {
-                r2 += l_product >> 63;
-                l_product *= 2;
-            }
-            r01 += l_product;
-            r2 += (r01 < l_product);
-        }
-        p_result[k] = (uint32_t)r01;
-        r01 = (r01 >> 32) | (((uint64_t)r2) << 32);
-        r2 = 0;
-    }
-    
-    p_result[NUM_ECC_DIGITS*2 - 1] = (uint32_t)r01;
-}
-#else
-static void vli_square(uint32_t *p_result, uint32_t *p_left)
-{
-    uint64_t r01 = 0;
-    uint32_t r2 = 0;
-    
-    uint i, k;
-    for(k=0; k < NUM_ECC_DIGITS*2 - 1; ++k)
-    {
-        uint l_min = (k < NUM_ECC_DIGITS ? 0 : (k + 1) - NUM_ECC_DIGITS);
-        for(i=l_min; i<=k && i<=k-i; ++i)
-        {
+        #if ECC_SOFT_MULT64
             uint32_t a0 = p_left[i] & 0xffff;
             uint32_t a1 = p_left[i] >> 16;
             uint32_t b0 = p_left[k-i] & 0xffff;
             uint32_t b1 = p_left[k-i] >> 16;
 
             uint64_t l_product = (a0 * b0) + (((uint64_t)(a0 * b1) + a1 * b0) << 16) + (((uint64_t)(a1 * b1)) << 32);
-            
+        #else
+            uint64_t l_product = (uint64_t)p_left[i] * p_left[k-i];
+        #endif
             if(i < k-i)
             {
                 r2 += l_product >> 63;
@@ -645,7 +596,6 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
     
     p_result[NUM_ECC_DIGITS*2 - 1] = (uint32_t)r01;
 }
-#endif
 
 /* Computes p_result = p_left^2 % p_mod. */
 static void vli_modSquare(uint32_t *p_result, uint32_t *p_left, uint32_t *p_mod)
@@ -674,7 +624,7 @@ static void vli_modDiv(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right, 
 	vli_set(a, p_right);
 	vli_set(b, p_mod);
 	vli_set(u, p_left);
-    fast_clear(v);
+    vli_clear(v);
 	
 	while ((l_cmpResult = vli_cmp(a, b)) != 0)
 	{
@@ -753,7 +703,7 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
 {
     uint32_t n[NUM_ECC_DIGITS];
     
-    fast_clear(n);
+    vli_clear(n);
     n[0] = 1;
 	
 	vli_modDiv(p_result, n, p_input, p_mod);
@@ -764,8 +714,8 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
 /* Clears a point (set it to the point at infinity). */
 static void EccPoint_clear(EccPoint *p_point)
 {
-    fast_clear(p_point->x);
-    fast_clear(p_point->y);
+    vli_clear(p_point->x);
+    vli_clear(p_point->y);
 }
 
 /* Copies a point. */
@@ -796,7 +746,7 @@ static void EccPoint_double_projective(EccPoint *P3, uint32_t *Z3, EccPoint *P1,
 	
 	if(vli_zero(Z1))
 	{
-        fast_clear(Z3);
+        vli_clear(Z3);
 		return;
 	}
 	
@@ -852,7 +802,7 @@ static void EccPoint_add_mixed(EccPoint *P3, uint32_t *Z3, EccPoint *P1, uint32_
 	if(vli_zero(Z1))
 	{
 		EccPoint_copy(P3, P2);
-        fast_clear(Z3);
+        vli_clear(Z3);
 		Z3[0] = 1;
 		return;
 	}
@@ -875,7 +825,7 @@ static void EccPoint_add_mixed(EccPoint *P3, uint32_t *Z3, EccPoint *P1, uint32_
 		}
 		else
 		{
-            fast_clear(Z3);
+            vli_clear(Z3);
 		}
 		return;
 	}
@@ -915,9 +865,9 @@ void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar)
     uint l_carry;
 	int i;
 	
-    fast_clear(Z1);
-    fast_clear(l_plus);
-    fast_clear(l_minus);
+    vli_clear(Z1);
+    vli_clear(l_plus);
+    vli_clear(l_minus);
 	
     EccPoint l_neg;
     vli_set(l_neg.x, p_point->x);
@@ -986,7 +936,7 @@ void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar)
 	uint l_numBits = vli_numBits(p_scalar);
 	int i;
 	
-    fast_clear(Z1);
+    vli_clear(Z1);
 	EccPoint_clear(p_result);
 
     for(i = l_numBits - 1; i >= 0; --i)
