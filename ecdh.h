@@ -16,7 +16,7 @@ ECC_SOFT_MULT64 - For platforms that do not have instructions to allow a fast 64
 #define ECC_USE_NAF 1
 #define ECC_SOFT_MULT64 1
 
-#define ECC_CURVE secp128r1
+#define ECC_CURVE secp160r1
 
 #define secp128r1 4
 #define secp160r1 5
@@ -38,5 +38,15 @@ typedef struct EccPoint
 
 int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS]);
 int ecdh_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS]);
+int ecc_valid_public_key(EccPoint *p_publicKey);
+
+/* Note: It is recommended that you hash the result of ecdh_shared_secret before using it for symmetric encryption or HMAC.
+If you do not hash the shared secret, you must call ecc_valid_public_key() to verify that the remote side's public key is valid.
+If this is not done, an attacker could create a public key that would cause your use of the shared secret to leak information
+about your private key. */
+
+int ecdsa_sign(uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS], uint32_t p_hash[NUM_ECC_DIGITS],
+    uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS]);
+int ecdsa_verify(EccPoint *p_publicKey, uint32_t p_hash[NUM_ECC_DIGITS], uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS]);
 
 #endif /* _MICRO_ECDH_H_ */
