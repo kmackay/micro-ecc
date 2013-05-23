@@ -10,21 +10,20 @@ ECC_USE_NAF - If enabled, this will convert the private key to a non-adjacent fo
               Improves speed by about 10%.
 ECC_SOFT_MULT64 - For platforms that do not have instructions to allow a fast 64x64 bit multiply (eg Cortex-M0), this option
                   enables code to do 64x64 bit multiplies faster than libgcc does. Improves speed by about 6% on Cortex-M0
-                  (with 32-cycle multiply instruction). Do not enable on platforms with a fast 64x64 bit multiply.
+                  (with 32-cycle multiply instruction). Do not enable on platforms that have a fast 64x64 bit multiply.
 */
-#define ECC_SQUARE_FUNC 1
-#define ECC_USE_NAF 1
+#define ECC_SQUARE_FUNC 0
+#define ECC_USE_NAF 0
 #define ECC_SOFT_MULT64 1
 
 #define ECC_CURVE secp192r1
 
 #define secp128r1 4
-#define secp160r1 5
 #define secp192r1 6
-#define secp224r1 7
 #define secp256r1 8
+#define secp384r1 12
 
-#if (ECC_CURVE != secp128r1 && ECC_CURVE != secp160r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp224r1 && ECC_CURVE != secp256r1)
+#if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256r1 && ECC_CURVE != secp384r1)
     #error "Must define ECC_CURVE to one of the available curves"
 #endif
 
