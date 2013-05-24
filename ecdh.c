@@ -89,7 +89,7 @@ static uint vli_numDigits(uint32_t *p_vli)
     int i;
     /* Search from the end until we find a non-zero digit.
        We do it in reverse because we expect that most digits will be nonzero. */
-    for (i = NUM_ECC_DIGITS - 1; i >= 0 && p_vli[i] == 0; --i)
+    for(i = NUM_ECC_DIGITS - 1; i >= 0 && p_vli[i] == 0; --i)
     {
     }
 
@@ -489,7 +489,7 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
 {
     uint32_t l_tmp[2*NUM_ECC_DIGITS];
      
-    while (!vli_isZero(p_product + NUM_ECC_DIGITS)) /* While c1 != 0 */
+    while(!vli_isZero(p_product + NUM_ECC_DIGITS)) /* While c1 != 0 */
     {
         uint32_t l_carry = 0;
         uint i;
@@ -511,7 +511,7 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
         }
     }
     
-    while (vli_cmp(p_product, curve_p) > 0)
+    while(vli_cmp(p_product, curve_p) > 0)
     {
         vli_sub(p_product, p_product, curve_p);
     }
@@ -599,7 +599,7 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
     vli_clear(v);
     
     int l_cmpResult;
-    while ((l_cmpResult = vli_cmp(a, b)) != 0)
+    while((l_cmpResult = vli_cmp(a, b)) != 0)
     {
         l_carry = 0;
         if(EVEN(a))
@@ -1063,8 +1063,8 @@ static uint max(uint a, uint b)
     return (a > b ? a : b);
 }
 
-int ecdsa_sign(uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS], uint32_t p_hash[NUM_ECC_DIGITS],
-    uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS])
+int ecdsa_sign(uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS], uint32_t p_privateKey[NUM_ECC_DIGITS],
+    uint32_t p_random[NUM_ECC_DIGITS], uint32_t p_hash[NUM_ECC_DIGITS])
 {
     uint32_t k[NUM_ECC_DIGITS];
     EccPoint p;

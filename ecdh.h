@@ -12,11 +12,11 @@ ECC_SOFT_MULT64 - For platforms that do not have instructions to allow a fast 64
                   enables code to do 64x64 bit multiplies faster than libgcc does. Improves speed by about 6% on Cortex-M0
                   (with 32-cycle multiply instruction). Do not enable on platforms that have a fast 64x64 bit multiply.
 */
-#define ECC_SQUARE_FUNC 0
-#define ECC_USE_NAF 0
+#define ECC_SQUARE_FUNC 1
+#define ECC_USE_NAF 1
 #define ECC_SOFT_MULT64 1
 
-#define ECC_CURVE secp384r1
+#define ECC_CURVE secp192r1
 
 #define secp128r1 4
 #define secp192r1 6
@@ -43,10 +43,8 @@ int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey,
 int ecdh_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS]);
 int ecc_valid_public_key(EccPoint *p_publicKey);
 
-
-
-int ecdsa_sign(uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS],
-    uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS], uint32_t p_hash[NUM_ECC_DIGITS]);
+int ecdsa_sign(uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS], uint32_t p_privateKey[NUM_ECC_DIGITS],
+    uint32_t p_random[NUM_ECC_DIGITS], uint32_t p_hash[NUM_ECC_DIGITS]);
 int ecdsa_verify(EccPoint *p_publicKey, uint32_t p_hash[NUM_ECC_DIGITS], uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS]);
 
 #endif /* _MICRO_ECDH_H_ */
