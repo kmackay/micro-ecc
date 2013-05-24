@@ -9,17 +9,20 @@ typedef unsigned int uint;
 
 #define Curve_P_4 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFD}
 #define Curve_P_6 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
-#define Curve_P_7 {0x00000001, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_P_8 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
+#define Curve_P_12 {0xFFFFFFFF, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, \
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
 #define Curve_A_4 {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFD}
 #define Curve_B_4 {0x2CEE5ED3, 0xD824993C, 0x1079F43D, 0xE87579C1}
 #define Curve_A_6 {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_B_6 {0xC146B9B1, 0xFEB8DEEC, 0x72243049, 0x0FA7E9AB, 0xE59C80E7, 0x64210519}
-#define Curve_A_7 {0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
-#define Curve_B_7 {0x2355FFB4, 0x270B3943, 0xD7BFD8BA, 0x5044B0B7, 0xF5413256, 0x0C04B3AB, 0xB4050A85}
 #define Curve_A_8 {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
 #define Curve_B_8 {0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7, 0x5AC635D8}
+#define Curve_A_12 {0xFFFFFFFC, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, \
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_B_12 {0xD3EC2AEF, 0x2A85C8ED, 0x8A2ED19D, 0xC656398D, 0x5013875A, 0x0314088F, 0xFE814112, 0x181D9C6E, \
+    0xE3F82D19, 0x988E056B, 0xE23EE7E4, 0xB3312FA7}
 
 #define Curve_G_4 { \
 	{0xA52C5B86, 0x0C28607C, 0x8B899B2D, 0x161FF752}, \
@@ -28,19 +31,22 @@ typedef unsigned int uint;
 #define Curve_G_6 { \
 	{0x82FF1012, 0xF4FF0AFD, 0x43A18800, 0x7CBF20EB, 0xB03090F6, 0x188DA80E}, \
 	{0x1E794811, 0x73F977A1, 0x6B24CDD5, 0x631011ED, 0xFFC8DA78, 0x07192B95}}
-
-#define Curve_G_7 { \
-	{0x115C1D21, 0x343280D6, 0x56C21122, 0x4A03C1D3, 0x321390B9, 0x6BB4BF7F, 0xB70E0CBD}, \
-	{0x85007E34, 0x44D58199, 0x5A074764, 0xCD4375A0, 0x4C22DFE6, 0xB5F723FB, 0xBD376388}}
 	
 #define Curve_G_8 { \
 	{0xD898C296, 0xF4A13945, 0x2DEB33A0, 0x77037D81, 0x63A440F2, 0xF8BCE6E5, 0xE12C4247, 0x6B17D1F2}, \
 	{0x37BF51F5, 0xCBB64068, 0x6B315ECE, 0x2BCE3357, 0x7C0F9E16, 0x8EE7EB4A, 0xFE1A7F9B, 0x4FE342E2}}
 
+#define Curve_G_12 { \
+	{0x72760AB7, 0x3A545E38, 0xBF55296C, 0x5502F25D, 0x82542A38, 0x59F741E0, 0x8BA79B98, 0x6E1D3B62, \
+	    0xF320AD74, 0x8EB1C71E, 0xBE8B0537, 0xAA87CA22}, \
+	{0x90EA0E5F, 0x7A431D7C, 0x1D7E819D, 0x0A60B1CE, 0xB5F0B8C0, 0xE9DA3113, 0x289A147C, 0xF8F41DBD, \
+	    0x9292DC29, 0x5D9E98BF, 0x96262C6F, 0x3617DE4A}}
+
 #define Curve_N_4 {0x9038A115, 0x75A30D1B, 0x00000000, 0xFFFFFFFE}
 #define Curve_N_6 {0xB4D22831, 0x146BC9B1, 0x99DEF836, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
-#define Curve_N_7 {0x5C5C2A3D, 0x13DD2945, 0xE0B8F03E, 0xFFFF16A2, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_N_8 {0xD0364141, 0xBFD25E8C, 0xAF48A03B, 0xBAAEDCE6, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_N_12 {0xCCC52973, 0xECEC196A, 0x48B0A77A, 0x581A0DB2, 0xF4372DDF, 0xC7634D81, 0xFFFFFFFF, 0xFFFFFFFF, \
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
 static uint32_t curve_p[NUM_ECC_DIGITS] = CONCAT(Curve_P_, ECC_CURVE);
 static uint32_t curve_a[NUM_ECC_DIGITS] = CONCAT(Curve_A_, ECC_CURVE);
@@ -469,33 +475,44 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
 
 static void omega_mult(uint32_t *p_result, uint32_t *p_right)
 {
-	/* Multiply by (2^128 + 2^96 - 2^32 + 1). */
-	vli_set(p_result, p_right, NUM_ECC_DIGITS); /* 1 */
-	p_result[2 + NUM_ECC_DIGITS] -= vli_sub(p_result + 1, p_result + 1, p_right, NUM_ECC_DIGITS); /* -2^32 + 1 */
-	p_result[4 + NUM_ECC_DIGITS] = vli_add(p_result + 3, p_result + 3, p_right, NUM_ECC_DIGITS); /* 2^96 - 2^32 + 1 */
-	// TODO
+    /* Multiply by (2^128 + 2^96 - 2^32 + 1). */
+    vli_set(p_result, p_right, NUM_ECC_DIGITS); /* 1 */
+    p_result[4 + NUM_ECC_DIGITS] = vli_add(p_result + 3, p_result + 3, p_right, NUM_ECC_DIGITS); /* 2^96 + 1 */
+    p_result[5 + NUM_ECC_DIGITS] = vli_add(p_result + 4, p_result + 4, p_right, NUM_ECC_DIGITS); /* 2^128 + 2^96 + 1 */
+    if(vli_sub(p_result + 1, p_result + 1, p_right, NUM_ECC_DIGITS)) /* 2^128 + 2^96 - 2^32 + 1 */
+    { /* Propagate borrow if necessary. */
+        uint i;
+        for(i = 1 + NUM_ECC_DIGITS; ; ++i)
+        {
+            --p_result[i];
+            if(p_result[i] != 0xffffffff)
+            {
+                break;
+            }
+        }
+    }
 }
 
 /* Computes p_result = p_product % curve_p
-   see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
-   section "Curve-Specific Optimizations" */
+    see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
+    section "Curve-Specific Optimizations" */
 static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
 {
-	uint32_t l_tmp[2*NUM_ECC_DIGITS];
-	 
-	while (!vli_zero(p_product + NUM_ECC_DIGITS)) /* While c1 != 0 */
-	{
+    uint32_t l_tmp[2*NUM_ECC_DIGITS];
+     
+    while (!vli_isZero(p_product + NUM_ECC_DIGITS, NUM_ECC_DIGITS)) /* While c1 != 0 */
+    {
         vli_clear(l_tmp, 2*NUM_ECC_DIGITS);
-		omega_mult(l_tmp, p_product + NUM_ECC_DIGITS); /* tmp = w * c1 */
-		vli_clear(p_product + NUM_ECC_DIGITS, NUM_ECC_DIGITS); /* p = c0 */
-		vli_add(p_product, l_tmp, p_product, NUM_ECC_DIGITS + 5); /* (c1, c0) = w * c1 + c0 */
-	}
-	
-	while (vli_cmp(l_tmp1, curve_p, NUM_ECC_DIGITS) > 0) 
-	{
-		vli_sub(l_tmp1, l_tmp1, curve_p, NUM_ECC_DIGITS);
-	}
-	vli_set(p_result, l_tmp1, NUM_ECC_DIGITS);
+        omega_mult(l_tmp, p_product + NUM_ECC_DIGITS); /* tmp = w * c1 */
+        vli_clear(p_product + NUM_ECC_DIGITS, NUM_ECC_DIGITS); /* p = c0 */
+        vli_add(p_product, l_tmp, p_product, NUM_ECC_DIGITS + 5); /* (c1, c0) = w * c1 + c0 */
+    }
+    
+    while (vli_cmp(p_product, curve_p, NUM_ECC_DIGITS) > 0)
+    {
+        vli_sub(p_product, p_product, curve_p, NUM_ECC_DIGITS);
+    }
+    vli_set(p_result, p_product, NUM_ECC_DIGITS);
 }
 
 #endif
