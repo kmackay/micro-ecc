@@ -1,9 +1,35 @@
 #include "ecdh.h"
 
+#if TARGET_LPC11XX
 #include "peripherals/uart.h"
 #include "peripherals/time.h"
+#else
+
+#include <sys/time.h>
+
+#define uartInit(rate)
+#define initTime()
+
+uint64_t getTimeMs(void)
+{
+    struct timeval l_now;
+    gettimeofday(&l_now, NULL);
+    uint64_t l_time = ((uint64_t)(l_now.tv_sec)) * 1000 + l_now.tv_usec / 1000;
+    return l_time;
+}
+
+#endif
 
 #include <stdio.h>
+
+void vli_print(uint32_t *p_vli)
+{
+    unsigned i;
+    for(i=0; i<NUM_ECC_DIGITS; ++i)
+	{
+		printf("%08X ", (unsigned)p_vli[i]);
+	}
+}
 
 #if (ECC_CURVE == secp128r1)
 uint32_t l_private[10][NUM_ECC_DIGITS] = {
@@ -245,6 +271,8 @@ int main()
         uint64_t l_start = getTimeMs();
         ecdh_shared_secret(l_shared, &l_public[i], l_private[i]);
         uint64_t l_diff = getTimeMs() - l_start;
+        vli_print(l_shared);
+        printf("\n");
         printf("Time = %llu\n", l_diff);
         l_total += l_diff;
     }
