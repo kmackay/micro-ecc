@@ -13,14 +13,9 @@ typedef unsigned int uint;
 #define Curve_P_12 {0xFFFFFFFF, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, \
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
-#define Curve_A_4 {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFD}
 #define Curve_B_4 {0x2CEE5ED3, 0xD824993C, 0x1079F43D, 0xE87579C1}
-#define Curve_A_6 {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_B_6 {0xC146B9B1, 0xFEB8DEEC, 0x72243049, 0x0FA7E9AB, 0xE59C80E7, 0x64210519}
-#define Curve_A_8 {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
 #define Curve_B_8 {0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7, 0x5AC635D8}
-#define Curve_A_12 {0xFFFFFFFC, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, \
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_B_12 {0xD3EC2AEF, 0x2A85C8ED, 0x8A2ED19D, 0xC656398D, 0x5013875A, 0x0314088F, 0xFE814112, 0x181D9C6E, \
     0xE3F82D19, 0x988E056B, 0xE23EE7E4, 0xB3312FA7}
 
@@ -49,7 +44,6 @@ typedef unsigned int uint;
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
 static uint32_t curve_p[NUM_ECC_DIGITS] = CONCAT(Curve_P_, ECC_CURVE);
-static uint32_t curve_a[NUM_ECC_DIGITS] = CONCAT(Curve_A_, ECC_CURVE);
 static uint32_t curve_b[NUM_ECC_DIGITS] = CONCAT(Curve_B_, ECC_CURVE);
 static EccPoint curve_G = CONCAT(Curve_G_, ECC_CURVE);
 static uint32_t curve_n[NUM_ECC_DIGITS] = CONCAT(Curve_N_, ECC_CURVE);
@@ -178,6 +172,34 @@ static void vli_rshift1(uint32_t *p_vli)
 /* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
 static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_thumb || ECC_ASM == ecc_asm_thumb2 || ECC_ASM == ecc_asm_arm)
+    uint32_t l_counter = NUM_ECC_DIGITS;
+    uint32_t l_carry = 0; /* carry = 0 initially */
+    uint32_t l_left;
+    uint32_t l_right;
+    
+    asm volatile (
+        ".syntax unified \n\t"
+        "1: \n\t"
+        "ldmia %[lptr]!, {%[left]} \n\t"  /* Load left word. */
+        "ldmia %[rptr]!, {%[right]} \n\t" /* Load right word. */
+        "lsrs %[carry], #1 \n\t"          /* Set up carry flag (l_carry = 0 after this). */
+        "adcs %[left], %[right] \n\t"     /* Add with carry. */
+        "adcs %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
+        "stmia %[dptr]!, {%[left]} \n\t"  /* Store result word. */
+        "subs %[ctr], #1 \n\t"            /* Decrement index. */
+        "bne 1b \n\t"                     /* Loop until index == 0. */
+    #if (ECC_ASM != ecc_asm_thumb2)
+        ".syntax divided \n\t"
+    #endif
+        : [dptr] "+l" (p_result), [lptr] "+l" (p_left), [rptr] "+l" (p_right), [ctr] "+l" (l_counter), [carry] "+l" (l_carry), [left] "=l" (l_left), [right] "=l" (l_right)
+        :
+        : "cc", "memory"
+    );
+    return l_carry;
+    
+#else
+
     uint32_t l_carry = 0;
     uint i;
     for(i=0; i<NUM_ECC_DIGITS; ++i)
@@ -190,11 +212,40 @@ static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
         p_result[i] = l_sum;
     }
     return l_carry;
+#endif
 }
 
 /* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
 static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_thumb || ECC_ASM == ecc_asm_thumb2 || ECC_ASM == ecc_asm_arm)
+    uint32_t l_counter = NUM_ECC_DIGITS;
+    uint32_t l_carry = 1; /* carry = 1 initially (means don't borrow) */
+    uint32_t l_left;
+    uint32_t l_right;
+    
+    asm volatile (
+        ".syntax unified \n\t"
+        "1: \n\t"
+        "ldmia %[lptr]!, {%[left]} \n\t"  /* Load left word. */
+        "ldmia %[rptr]!, {%[right]} \n\t" /* Load right word. */
+        "lsrs %[carry], #1 \n\t"          /* Set up carry flag (l_carry = 0 after this). */
+        "sbcs %[left], %[right] \n\t"     /* Subtract with borrow. */
+        "adcs %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
+        "stmia %[dptr]!, {%[left]} \n\t"  /* Store result word. */
+        "subs %[ctr], #1 \n\t"            /* Decrement index. */
+        "bne 1b \n\t"                     /* Loop until index == 0. */
+    #if (ECC_ASM != ecc_asm_thumb2)
+        ".syntax divided \n\t"
+    #endif
+        : [dptr] "+l" (p_result), [lptr] "+l" (p_left), [rptr] "+l" (p_right), [ctr] "+l" (l_counter), [carry] "+l" (l_carry), [left] "=l" (l_left), [right] "=l" (l_right)
+        :
+        : "cc", "memory"
+    );
+    return !l_carry;
+
+#else
+
     uint32_t l_borrow = 0;
     uint i;
     for(i=0; i<NUM_ECC_DIGITS; ++i)
@@ -207,11 +258,165 @@ static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
         p_result[i] = l_diff;
     }
     return l_borrow;
+#endif
 }
 
 /* Computes p_result = p_left * p_right. */
 static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_thumb2 || ECC_ASM == ecc_asm_arm)
+    uint32_t c0 = 0;
+    uint32_t c1 = 0;
+    uint32_t c2 = 0;
+    uint32_t k = 0;
+    uint32_t i;
+    uint32_t t0, t1;
+    
+    asm volatile (
+        ".syntax unified \n\t"
+        
+        "1: \n\t" /* outer loop (k < NUM_ECC_DIGITS) */
+        "movs %[i], #0 \n\t" /* i = 0 */
+        "b 3f \n\t"
+        
+        "2: \n\t" /* outer loop (k >= NUM_ECC_DIGITS) */
+        "movs %[i], %[k] \n\t"      /* i = k */
+        "subs %[i], %[eccdm1] \n\t" /* i = k - (NUM_ECC_DIGITS - 1) (times 4) */
+        
+        "3: \n\t" /* inner loop */
+        "subs %[t0], %[k], %[i] \n\t" /* t0 = k-i */
+        
+        "ldr %[t1], [%[right], %[t0]] \n\t" /* t1 = p_right[k-i] */
+        "ldr %[t0], [%[left], %[i]] \n\t"   /* t0 = p_left[i] */
+        
+        "umull %[t0], %[t1], %[t0], %[t1] \n\t" /* (t0, t1) = p_left[i] * p_right[k-i] */
+        
+        "adds %[c0], %[t0] \n\t" /* add low word to c0 */
+        "adcs %[c1], %[t1] \n\t" /* add high word to c1, including carry */
+        "adcs %[c2], #0 \n\t"    /* add carry to c2 */
+
+        "adds %[i], #4 \n\t"     /* i += 4 */
+        "cmp %[i], %[eccd] \n\t" /* i < NUM_ECC_DIGITS (times 4)? */
+        "bge 4f \n\t" /* if not, exit the loop */
+        "cmp %[i], %[k] \n\t"    /* i <= k? */
+        "ble 3b \n\t" /* if so, continue looping */
+        
+        "4: \n\t" /* end inner loop */
+        
+        "str %[c0], [%[result], %[k]] \n\t" /* p_result[k] = c0 */
+        "mov %[c0], %[c1] \n\t"     /* c0 = c1 */
+        "mov %[c1], %[c2] \n\t"     /* c1 = c2 */
+        "movs %[c2], #0 \n\t"       /* c2 = 0 */
+        "adds %[k], #4 \n\t"        /* k += 4 */
+        "cmp %[k], %[eccd] \n\t"    /* k < NUM_ECC_DIGITS (times 4) ? */
+        "blt 1b \n\t" /* if not, loop back, start with i = 0 */
+        "cmp %[k], %[eccd2m1] \n\t" /* k < NUM_ECC_DIGITS * 2 - 1 (times 4) ? */
+        "blt 2b \n\t" /* if not, loop back, start with i = (k+1) - NUM_ECC_DIGITS */
+        /* end outer loop */
+        
+        "str %[c0], [%[result], %[k]] \n\t" /* p_result[NUM_ECC_DIGITS * 2 - 1] = c0 */
+    #if (ECC_ASM != ecc_asm_thumb2)
+        ".syntax divided \n\t"
+    #endif
+        : [c0] "+r" (c0), [c1] "+r" (c1), [c2] "+r" (c2), [k] "+r" (k), [i] "=&r" (i), [t0] "=&r" (t0), [t1] "=&r" (t1)
+        : [result] "r" (p_result), [left] "r" (p_left), [right] "r" (p_right),
+          [eccd] "I" (NUM_ECC_DIGITS * 4), [eccdm1] "I" ((NUM_ECC_DIGITS-1) * 4), [eccd2m1] "I" ((NUM_ECC_DIGITS * 2 - 1) * 4)
+        : "cc", "memory"
+    );
+    
+#elif (ECC_ASM == ecc_asm_thumb)
+
+    register uint32_t *r0 asm("r0") = p_result;
+    register uint32_t *r1 asm("r1") = p_left;
+    register uint32_t *r2 asm("r2") = p_right;
+    
+    asm volatile (
+        ".syntax unified \n\t"
+        "movs r3, #0 \n\t" /* c0 = 0 */
+        "movs r4, #0 \n\t" /* c1 = 0 */
+        "movs r5, #0 \n\t" /* c2 = 0 */
+        "movs r6, #0 \n\t" /* k = 0 */
+        
+        "push {r0} \n\t" /* keep p_result on the stack */
+        
+        "1: \n\t" /* outer loop (k < NUM_ECC_DIGITS) */
+        "movs r7, #0 \n\t" /* r7 = i = 0 */
+        "b 3f \n\t"
+        
+        "2: \n\t" /* outer loop (k >= NUM_ECC_DIGITS) */
+        "movs r7, r6 \n\t"        /* r7 = k */
+        "subs r7, %[eccdm1] \n\t" /* r7 = i = k - (NUM_ECC_DIGITS - 1) (times 4) */
+        
+        "3: \n\t" /* inner loop */
+        "push {r3, r4, r5, r6} \n\t" /* push things, r3 (c0) is at the top of stack. */
+        "subs r0, r6, r7 \n\t"       /* r0 = k-i */
+        
+        "ldr r4, [r2, r0] \n\t" /* r4 = p_right[k-i] */
+        "ldr r0, [r1, r7] \n\t" /* r0 = p_left[i] */
+        
+        "lsrs r3, r0, #16 \n\t" /* r3 = a1 */
+        "uxth r0, r0 \n\t"      /* r0 = a0 */
+        
+        "lsrs r5, r4, #16 \n\t" /* r5 = b1 */
+        "uxth r4, r4 \n\t"      /* r4 = b0 */
+        
+        "movs r6, r3 \n\t"     /* r6 = a1 */
+        "muls r6, r5, r6 \n\t" /* r6 = a1*b1 */
+        "muls r3, r4, r3 \n\t" /* r3 = b0*a1 */
+        "muls r5, r0, r5 \n\t" /* r5 = a0*b1 */
+        "muls r0, r4, r0 \n\t" /* r0 = a0*b0 */
+        
+        "movs r4, #0 \n\t"  /* r4 = 0 */
+        "adds r3, r5 \n\t"  /* r3 = b0*a1 + a0*b1 */
+        "adcs r4, r4 \n\t"  /* r4 = carry */
+        "lsls r4, #16 \n\t" /* r4 = carry << 16 */
+        "adds r6, r4 \n\t"  /* r6 = a1*b1 + carry */
+        
+        "lsls r4, r3, #16 \n\t" /* r4 = (b0*a1 + a0*b1) << 16 */
+        "lsrs r3, #16 \n\t"     /* r3 = (b0*a1 + a0*b1) >> 16 */
+        "adds r0, r4 \n\t"      /* r0 = low word = a0*b0 + ((b0*a1 + a0*b1) << 16) */
+        "adcs r6, r3 \n\t"      /* r6 = high word = a1*b1 + carry + ((b0*a1 + a0*b1) >> 16) */
+        
+        "pop {r3, r4, r5} \n\t" /* r3 = c0, r4 = c1, r5 = c2 */
+        "adds r3, r0 \n\t"      /* add low word to c0 */
+        "adcs r4, r6 \n\t"      /* add high word to c1, including carry */
+        "movs r0, #0 \n\t"      /* r0 = 0 (does not affect carry bit) */
+        "adcs r5, r0 \n\t"      /* add carry to c2 */
+        
+        "pop {r6} \n\t" /* r6 = k */
+
+        "adds r7, #4 \n\t"     /* i += 4 */
+        "cmp r7, %[eccd] \n\t" /* i < NUM_ECC_DIGITS (times 4)? */
+        "bge 4f \n\t" /* if not, exit the loop */
+        "cmp r7, r6 \n\t"      /* i <= k? */
+        "ble 3b \n\t" /* if so, continue looping */
+        
+        "4: \n\t" /* end inner loop */
+        
+        "ldr r0, [sp, #0] \n\t" /* r0 = p_result */
+        
+        "str r3, [r0, r6] \n\t"   /* p_result[k] = c0 */
+        "mov r3, r4 \n\t"         /* c0 = c1 */
+        "mov r4, r5 \n\t"         /* c1 = c2 */
+        "movs r5, #0 \n\t"        /* c2 = 0 */
+        "adds r6, #4 \n\t"        /* k += 4 */
+        "cmp r6, %[eccd] \n\t"    /* k < NUM_ECC_DIGITS (times 4) ? */
+        "blt 1b \n\t" /* if not, loop back, start with i = 0 */
+        "cmp r6, %[eccd2m1] \n\t" /* k < NUM_ECC_DIGITS * 2 - 1 (times 4) ? */
+        "blt 2b \n\t" /* if not, loop back, start with i = (k+1) - NUM_ECC_DIGITS */
+        /* end outer loop */
+        
+        "str r3, [r0, r6] \n\t" /* p_result[NUM_ECC_DIGITS * 2 - 1] = c0 */
+        "pop {r0} \n\t"         /* pop p_result off the stack */
+        
+        ".syntax divided \n\t"
+        : 
+        : [r0] "l" (r0), [r1] "l" (r1), [r2] "l" (r2), [eccd] "I" (NUM_ECC_DIGITS * 4), [eccdm1] "I" ((NUM_ECC_DIGITS-1) * 4), [eccd2m1] "I" ((NUM_ECC_DIGITS * 2 - 1) * 4)
+        : "r3", "r4", "r5", "r6", "r7", "cc", "memory"
+    );
+
+#else
+
     uint64_t r01 = 0;
     uint32_t r2 = 0;
     
@@ -223,16 +428,7 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
         uint l_min = (k < NUM_ECC_DIGITS ? 0 : (k + 1) - NUM_ECC_DIGITS);
         for(i=l_min; i<=k && i<NUM_ECC_DIGITS; ++i)
         {
-        #if ECC_SOFT_MULT64
-            uint32_t a0 = p_left[i] & 0xffff;
-            uint32_t a1 = p_left[i] >> 16;
-            uint32_t b0 = p_right[k-i] & 0xffff;
-            uint32_t b1 = p_right[k-i] >> 16;
-            
-            uint64_t l_product = (a0 * b0) + (((uint64_t)(a0 * b1) + a1 * b0) << 16) + (((uint64_t)(a1 * b1)) << 32);
-        #else
             uint64_t l_product = (uint64_t)p_left[i] * p_right[k-i];
-        #endif
             r01 += l_product;
             r2 += (r01 < l_product);
         }
@@ -242,6 +438,7 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
     }
     
     p_result[NUM_ECC_DIGITS*2 - 1] = (uint32_t)r01;
+#endif
 }
 
 /* Computes p_result = (p_left + p_right) % p_mod.
@@ -533,6 +730,180 @@ static void vli_modMult_fast(uint32_t *p_result, uint32_t *p_left, uint32_t *p_r
 /* Computes p_result = p_left^2. */
 static void vli_square(uint32_t *p_result, uint32_t *p_left)
 {
+#if (ECC_ASM == ecc_asm_thumb2 || ECC_ASM == ecc_asm_arm)
+    uint32_t c0 = 0;
+    uint32_t c1 = 0;
+    uint32_t c2 = 0;
+    uint32_t k = 0;
+    uint32_t i, tt;
+    uint32_t t0, t1;
+    
+    asm volatile (
+        ".syntax unified \n\t"
+        
+        "1: \n\t" /* outer loop (k < NUM_ECC_DIGITS) */
+        "movs %[i], #0 \n\t" /* i = 0 */
+        "b 3f \n\t"
+        
+        "2: \n\t" /* outer loop (k >= NUM_ECC_DIGITS) */
+        "movs %[i], %[k] \n\t"      /* i = k */
+        "subs %[i], %[eccdm1] \n\t" /* i = k - (NUM_ECC_DIGITS - 1) (times 4) */
+        
+        "3: \n\t" /* inner loop */
+        "subs %[tt], %[k], %[i] \n\t" /* tt = k-i */
+        
+        "ldr %[t1], [%[left], %[tt]] \n\t" /* t1 = p_left[k-i] */
+        "ldr %[t0], [%[left], %[i]] \n\t"  /* t0 = p_left[i] */
+        
+        "umull %[t0], %[t1], %[t0], %[t1] \n\t" /* (t0, t1) = p_left[i] * p_right[k-i] */
+        
+        "cmp %[i], %[tt] \n\t"   /* (i < k-i) ? */
+        "bge 4f \n\t" /* if i >= k-i, skip */
+        "lsls %[t1], #1 \n\t"    /* high word << 1 */
+        "adc %[c2], #0 \n\t"     /* add carry bit to c2 */
+        "lsls r0, #1 \n\t"       /* low word << 1 */
+        "adc %[t1], #0 \n\t"     /* add carry bit to high word */
+        
+        "4: \n\t"
+
+        "adds %[c0], %[t0] \n\t" /* add low word to c0 */
+        "adcs %[c1], %[t1] \n\t" /* add high word to c1, including carry */
+        "adc %[c2], #0 \n\t"     /* add carry to c2 */
+        
+        "adds %[i], #4 \n\t"          /* i += 4 */
+        "cmp %[i], %[k] \n\t"         /* i <= k? */
+        "bge 5f \n\t" /* if not, exit the loop */
+        "subs %[tt], %[k], %[i] \n\t" /* r7 = k-i */
+        "cmp %[i], %[tt] \n\t"        /* i <= k-i? */
+        "ble 3b \n\t" /* if so, continue looping */
+        
+        "5: \n\t" /* end inner loop */
+        
+        "str %[c0], [%[result], %[k]] \n\t" /* p_result[k] = c0 */
+        "mov %[c0], %[c1] \n\t"     /* c0 = c1 */
+        "mov %[c1], %[c2] \n\t"     /* c1 = c2 */
+        "movs %[c2], #0 \n\t"       /* c2 = 0 */
+        "adds %[k], #4 \n\t"        /* k += 4 */
+        "cmp %[k], %[eccd] \n\t"    /* k < NUM_ECC_DIGITS (times 4) ? */
+        "blt 1b \n\t" /* if not, loop back, start with i = 0 */
+        "cmp %[k], %[eccd2m1] \n\t" /* k < NUM_ECC_DIGITS * 2 - 1 (times 4) ? */
+        "blt 2b \n\t" /* if not, loop back, start with i = (k+1) - NUM_ECC_DIGITS */
+        /* end outer loop */
+        
+        "str %[c0], [%[result], %[k]] \n\t" /* p_result[NUM_ECC_DIGITS * 2 - 1] = c0 */
+    #if (ECC_ASM != ecc_asm_thumb2)
+        ".syntax divided \n\t"
+    #endif
+        : [c0] "+r" (c0), [c1] "+r" (c1), [c2] "+r" (c2), [k] "+r" (k), [i] "=&r" (i), [tt] "=&r" (tt), [t0] "=&r" (t0), [t1] "=&r" (t1)
+        : [result] "r" (p_result), [left] "r" (p_left),
+          [eccd] "I" (NUM_ECC_DIGITS * 4), [eccdm1] "I" ((NUM_ECC_DIGITS-1) * 4), [eccd2m1] "I" ((NUM_ECC_DIGITS * 2 - 1) * 4)
+        : "cc", "memory"
+    );
+    
+#elif (ECC_ASM == ecc_asm_thumb)
+
+    register uint32_t *r0 asm("r0") = p_result;
+    register uint32_t *r1 asm("r1") = p_left;
+    
+    asm volatile (
+        ".syntax unified \n\t"
+        "movs r2, #0 \n\t" /* c0 = 0 */
+        "movs r3, #0 \n\t" /* c1 = 0 */
+        "movs r4, #0 \n\t" /* c2 = 0 */
+        "movs r5, #0 \n\t" /* k = 0 */
+        
+        "push {r0} \n\t" /* keep p_result on the stack */
+        
+        "1: \n\t" /* outer loop (k < NUM_ECC_DIGITS) */
+        "movs r6, #0 \n\t" /* r6 = i = 0 */
+        "b 3f \n\t"
+        
+        "2: \n\t" /* outer loop (k >= NUM_ECC_DIGITS) */
+        "movs r6, r5 \n\t"        /* r6 = k */
+        "subs r6, %[eccdm1] \n\t" /* r6 = i = k - (NUM_ECC_DIGITS - 1) (times 4) */
+        
+        "3: \n\t" /* inner loop */
+        "push {r2, r3, r4, r5} \n\t" /* push things, r2 (c0) is at the top of stack. */
+        "subs r7, r5, r6 \n\t"       /* r7 = k-i */
+        
+        "ldr r3, [r1, r7] \n\t" /* r3 = p_left[k-i] */
+        "ldr r0, [r1, r6] \n\t" /* r0 = p_left[i] */
+        
+        "lsrs r2, r0, #16 \n\t" /* r2 = a1 */
+        "uxth r0, r0 \n\t"      /* r0 = a0 */
+        
+        "lsrs r4, r3, #16 \n\t" /* r4 = b1 */
+        "uxth r3, r3 \n\t"      /* r3 = b0 */
+        
+        "movs r5, r2 \n\t"     /* r5 = a1 */
+        "muls r5, r4, r5 \n\t" /* r5 = a1*b1 */
+        "muls r2, r3, r2 \n\t" /* r2 = b0*a1 */
+        "muls r4, r0, r4 \n\t" /* r4 = a0*b1 */
+        "muls r0, r3, r0 \n\t" /* r0 = a0*b0 */
+        
+        "movs r3, #0 \n\t"  /* r3 = 0 */
+        "adds r2, r4 \n\t"  /* r2 = b0*a1 + a0*b1 */
+        "adcs r3, r3 \n\t"  /* r3 = carry */
+        "lsls r3, #16 \n\t" /* r3 = carry << 16 */
+        "adds r5, r3 \n\t"  /* r5 = a1*b1 + carry */
+        
+        "lsls r3, r2, #16 \n\t" /* r3 = (b0*a1 + a0*b1) << 16 */
+        "lsrs r2, #16 \n\t"     /* r2 = (b0*a1 + a0*b1) >> 16 */
+        "adds r0, r3 \n\t"      /* r0 = low word = a0*b0 + ((b0*a1 + a0*b1) << 16) */
+        "adcs r5, r2 \n\t"      /* r5 = high word = a1*b1 + carry + ((b0*a1 + a0*b1) >> 16) */
+    
+        "movs r3, #0 \n\t"  /* r3 = 0 */
+        "cmp r6, r7 \n\t"   /* (i < k-i) ? */
+        "mov r7, r3 \n\t"   /* r7 = 0 (does not affect condition)*/
+        "bge 4f \n\t" /* if i >= k-i, skip */
+        "lsls r5, #1 \n\t"  /* high word << 1 */
+        "adcs r7, r3 \n\t"  /* r7 = carry bit for c2 */
+        "lsls r0, #1 \n\t"  /* low word << 1 */
+        "adcs r5, r3 \n\t"  /* add carry from shift to high word */
+        
+        "4: \n\t"
+        "pop {r2, r3, r4} \n\t" /* r2 = c0, r3 = c1, r4 = c2 */
+        "adds r2, r0 \n\t"      /* add low word to c0 */
+        "adcs r3, r5 \n\t"      /* add high word to c1, including carry */
+        "movs r0, #0 \n\t"      /* r0 = 0 (does not affect carry bit) */
+        "adcs r4, r0 \n\t"      /* add carry to c2 */
+        "adds r4, r7 \n\t"      /* add carry from doubling (if any) */
+        
+        "pop {r5} \n\t" /* r5 = k */
+        
+        "adds r6, #4 \n\t"     /* i += 4 */
+        "cmp r6, r5 \n\t"      /* i <= k? */
+        "bge 5f \n\t" /* if not, exit the loop */
+        "subs r7, r5, r6 \n\t" /* r7 = k-i */
+        "cmp r6, r7 \n\t"      /* i <= k-i? */
+        "ble 3b \n\t" /* if so, continue looping */
+        
+        "5: \n\t" /* end inner loop */
+        
+        "ldr r0, [sp, #0] \n\t" /* r0 = p_result */
+        
+        "str r2, [r0, r5] \n\t"   /* p_result[k] = c0 */
+        "mov r2, r3 \n\t"         /* c0 = c1 */
+        "mov r3, r4 \n\t"         /* c1 = c2 */
+        "movs r4, #0 \n\t"        /* c2 = 0 */
+        "adds r5, #4 \n\t"        /* k += 4 */
+        "cmp r5, %[eccd] \n\t"    /* k < NUM_ECC_DIGITS (times 4) ? */
+        "blt 1b \n\t" /* if not, loop back, start with i = 0 */
+        "cmp r5, %[eccd2m1] \n\t" /* k < NUM_ECC_DIGITS * 2 - 1 (times 4) ? */
+        "blt 2b \n\t" /* if not, loop back, start with i = (k+1) - NUM_ECC_DIGITS */
+        /* end outer loop */
+        
+        "str r2, [r0, r5] \n\t" /* p_result[NUM_ECC_DIGITS * 2 - 1] = c0 */
+        "pop {r0} \n\t"         /* pop p_result off the stack */
+
+        ".syntax divided \n\t"
+        : [r0] "+l" (r0), [r1] "+l" (r1)
+        : [eccd] "I" (NUM_ECC_DIGITS * 4), [eccdm1] "I" ((NUM_ECC_DIGITS-1) * 4), [eccd2m1] "I" ((NUM_ECC_DIGITS * 2 - 1) * 4)
+        : "r2", "r3", "r4", "r5", "r6", "r7", "cc", "memory"
+    );
+
+#else
+
     uint64_t r01 = 0;
     uint32_t r2 = 0;
     
@@ -542,16 +913,7 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
         uint l_min = (k < NUM_ECC_DIGITS ? 0 : (k + 1) - NUM_ECC_DIGITS);
         for(i=l_min; i<=k && i<=k-i; ++i)
         {
-        #if ECC_SOFT_MULT64
-            uint32_t a0 = p_left[i] & 0xffff;
-            uint32_t a1 = p_left[i] >> 16;
-            uint32_t b0 = p_left[k-i] & 0xffff;
-            uint32_t b1 = p_left[k-i] >> 16;
-
-            uint64_t l_product = (a0 * b0) + (((uint64_t)(a0 * b1) + a1 * b0) << 16) + (((uint64_t)(a1 * b1)) << 32);
-        #else
             uint64_t l_product = (uint64_t)p_left[i] * p_left[k-i];
-        #endif
             if(i < k-i)
             {
                 r2 += l_product >> 63;
@@ -566,6 +928,7 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
     }
     
     p_result[NUM_ECC_DIGITS*2 - 1] = (uint32_t)r01;
+#endif
 }
 
 /* Computes p_result = p_left^2 % curve_p. */
@@ -940,12 +1303,10 @@ int ecdh_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], 
     /* Make sure the private key is in the range [1, n-1].
        For the supported curves, n is always large enough that we only need to subtract once at most. */
     vli_set(p_privateKey, p_random);
-#if (ECC_CURVE != secp160r1)
     if(vli_cmp(curve_n, p_privateKey) != 1)
     {
         vli_sub(p_privateKey, p_privateKey, curve_n);
     }
-#endif
     
     if(vli_isZero(p_privateKey))
     {
@@ -958,6 +1319,7 @@ int ecdh_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], 
 
 int ecc_valid_public_key(EccPoint *p_publicKey)
 {
+    uint32_t na[NUM_ECC_DIGITS] = {3}; /* -a = 3 */
     uint32_t l_tmp1[NUM_ECC_DIGITS];
     uint32_t l_tmp2[NUM_ECC_DIGITS];
     
@@ -974,7 +1336,7 @@ int ecc_valid_public_key(EccPoint *p_publicKey)
     vli_modSquare_fast(l_tmp1, p_publicKey->y); /* tmp1 = y^2 */
     
     vli_modSquare_fast(l_tmp2, p_publicKey->x); /* tmp2 = x^2 */
-    vli_modAdd(l_tmp2, l_tmp2, curve_a, curve_p); /* tmp2 = x^2 + a */
+    vli_modSub(l_tmp2, l_tmp2, na, curve_p); /* tmp2 = x^2 + a = x^2 - 3 */
     vli_modMult_fast(l_tmp2, l_tmp2, p_publicKey->x); /* tmp2 = x^3 + ax */
     vli_modAdd(l_tmp2, l_tmp2, curve_b, curve_p); /* tmp2 = x^3 + ax + b */
     
@@ -997,10 +1359,6 @@ static void vli_modMult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right,
     uint l_digitShift, l_bitShift;
     uint l_productBits;
     uint l_modBits = vli_numBits(p_mod);
-    if(l_modBits == 0)
-    { /* Divide by 0. */
-        return;
-    }
     
     vli_mult(l_product, p_left, p_right);
     l_productBits = vli_numBits(l_product + NUM_ECC_DIGITS);

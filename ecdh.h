@@ -8,20 +8,25 @@ ECC_SQUARE_FUNC - If enabled, this will cause a specific function to be used for
                   multiplication function. Improves speed by about 8% .
 ECC_USE_NAF - If enabled, this will convert the private key to a non-adjacent form before point multiplication.
               Improves speed by about 10%.
-ECC_SOFT_MULT64 - For platforms that do not have instructions to allow a fast 64x64 bit multiply (eg Cortex-M0), this option
-                  enables code to do 64x64 bit multiplies faster than libgcc does. Improves speed by about 6% on Cortex-M0
-                  (with 32-cycle multiply instruction). Do not enable on platforms that have a fast 64x64 bit multiply.
 */
 #define ECC_SQUARE_FUNC 1
 #define ECC_USE_NAF 1
-#define ECC_SOFT_MULT64 1
 
-#define ECC_CURVE secp192r1
+#define ecc_asm_none 0
+#define ecc_asm_thumb 1 /* ARM Thumb assembly (including Cortex-M0) */
+#define ecc_asm_thumb2 2 /* ARM Thumb-2 assembly */
+#define ecc_asm_arm 3 /* Regular ARM assembly */
+#ifndef ECC_ASM
+    #define ECC_ASM ecc_asm_none
+#endif
 
 #define secp128r1 4
 #define secp192r1 6
 #define secp256r1 8
 #define secp384r1 12
+#ifndef ECC_CURVE
+    #define ECC_CURVE secp192r1
+#endif
 
 #if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256r1 && ECC_CURVE != secp384r1)
     #error "Must define ECC_CURVE to one of the available curves"
