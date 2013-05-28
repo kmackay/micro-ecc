@@ -59,7 +59,7 @@ int main()
         getRandomBytes((char *)l_hash, NUM_ECC_DIGITS * sizeof(uint32_t));
         getRandomBytes((char *)l_random, NUM_ECC_DIGITS * sizeof(uint32_t));
         
-        if(!ecdsa_sign(l_private, l_random, l_hash, r, s))
+        if(!ecdsa_sign(r, s, l_private, l_random, l_hash))
         {
             printf("ecdsa_sign() failed\n");
             continue;
