@@ -1,4 +1,4 @@
-#include "ecdh.h"
+
 
 #if TARGET_LPC11XX
 #include "peripherals/uart.h"
@@ -19,6 +19,8 @@ uint64_t getTimeMs(void)
 }
 
 #endif
+
+#include "ecc.h"
 
 #include <stdio.h>
 

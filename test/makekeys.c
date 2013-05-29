@@ -1,4 +1,4 @@
-#include "ecdh.h"
+#include "ecc.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
     for(i=0; i<l_num; ++i)
     {
         getRandomBytes((char *)l_private[i], NUM_ECC_DIGITS * sizeof(uint32_t));
-        ecdh_make_key(&l_public[i], l_private[i], l_private[i]);
+        ecc_make_key(&l_public[i], l_private[i], l_private[i]);
     }
     
     printf("uint32_t l_private[%u][NUM_ECC_DIGITS] = {\n", l_num);

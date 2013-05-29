@@ -1,4 +1,4 @@
-#include "ecdh.h"
+#include "ecc.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -54,8 +54,8 @@ int main()
 		getRandomBytes((char *)l_secret1, NUM_ECC_DIGITS * sizeof(uint32_t));
 		getRandomBytes((char *)l_secret2, NUM_ECC_DIGITS * sizeof(uint32_t));
 		
-        ecdh_make_key(&l_Q1, l_secret1, l_secret1);
-        ecdh_make_key(&l_Q2, l_secret2, l_secret2);
+        ecc_make_key(&l_Q1, l_secret1, l_secret1);
+        ecc_make_key(&l_Q2, l_secret2, l_secret2);
 
 		if(!ecdh_shared_secret(l_shared1, &l_Q1, l_secret2))
 		{

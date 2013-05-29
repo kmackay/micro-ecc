@@ -1,4 +1,4 @@
-#include "ecdh.h"
+#include "ecc.h"
 
 #include <string.h>
 
@@ -1283,22 +1283,7 @@ static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_sca
 
 #endif /* ECC_USE_NAF */
 
-int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS])
-{
-    EccPoint l_product;
-
-    EccPoint_mult(&l_product, p_publicKey, p_privateKey);
-    if(EccPoint_isZero(&l_product))
-    {
-        return 0;
-    }
-    
-    vli_set(p_secret, l_product.x);
-
-    return 1;
-}
-
-int ecdh_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS])
+int ecc_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS])
 {
     /* Make sure the private key is in the range [1, n-1].
        For the supported curves, n is always large enough that we only need to subtract once at most. */
@@ -1346,6 +1331,21 @@ int ecc_valid_public_key(EccPoint *p_publicKey)
         return 0;
     }
     
+    return 1;
+}
+
+int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS])
+{
+    EccPoint l_product;
+
+    EccPoint_mult(&l_product, p_publicKey, p_privateKey);
+    if(EccPoint_isZero(&l_product))
+    {
+        return 0;
+    }
+    
+    vli_set(p_secret, l_product.x);
+
     return 1;
 }
 

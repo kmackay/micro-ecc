@@ -1,4 +1,4 @@
-#include "ecdh.h"
+#include "ecc.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -54,7 +54,7 @@ int main()
 		fflush(stdout);
 		getRandomBytes((char *)l_private, NUM_ECC_DIGITS * sizeof(uint32_t));
 		
-        ecdh_make_key(&l_public, l_private, l_private);
+        ecc_make_key(&l_public, l_private, l_private);
         
         getRandomBytes((char *)l_hash, NUM_ECC_DIGITS * sizeof(uint32_t));
         getRandomBytes((char *)l_random, NUM_ECC_DIGITS * sizeof(uint32_t));

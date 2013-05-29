@@ -1,65 +1,28 @@
 LPC1114 at 48MHz (ARM Cortex-M0, 32-cycle 32x32 bit multiply)
 128 bits
-All off: avg time = 169 ms
-size = 1962 (including aeabi_lmul)
-
-ECC_SOFT_MULT64 enabled: avg time = 164 ms
-size = 1942 (does not include aeabi_lmul)
-
-ECC_USE_NAF enabled: avg time = 147 ms
-size = 2258
-
-ECC_SQUARE_FUNC enabled: avg time = 137 ms
-size = 2538
-
-160 bits
-All off: avg time = 269 ms
-size = 1864 (including aeabi_lmul)
-
-ECC_SOFT_MULT64 enabled: avg time = 255 ms
-size = 1842 (does not include aeabi_lmul)
-
-ECC_USE_NAF enabled: avg time = 224 ms
-size = 2158
-
-ECC_SQUARE_FUNC enabled: avg time = 205 ms
-size = 2434
+asm on (#define ECC_ASM ecc_asm_thumb) (no lmul required)
+ECC_SQUARE_FUNC + ECC_USE_NAF: 75.9 (size = 2316 + 16)
+no opt: 85.5 (size = 1892 + 16)
 
 192 bits
-All off: avg time = 439 ms
-size = 1808 (including aeabi_lmul)
+asm off
+ECC_SQUARE_FUNC + ECC_USE_NAF: 337.2 (size = 2276 + 112 (lmul) + 24)
+ECC_SQUARE_FUNC only: 393.0 (size = 2016 + 112 (lmul) + 24)
+ECC_USE_NAF only: 369.5 (size = 2072 + 112 (lmul) + 24)
+no opt: 431.9 (size = 1812 + 112 (lmul) + 24)
 
-ECC_SOFT_MULT64 enabled: avg time = 414 ms
-size = 1786 (does not include aeabi_lmul)
-
-ECC_USE_NAF enabled: avg time = 364 ms
-size = 2102
-
-ECC_SQUARE_FUNC enabled: avg time = 325 ms
-size = 2378
-
-224 bits
-All off: avg time = 674 ms
-size = 1866 (including aeabi_lmul)
-
-ECC_SOFT_MULT64 enabled: avg time = 649 ms
-size = 1842 (does not include aeabi_lmul)
-
-ECC_USE_NAF enabled: avg time = 571 ms
-size = 2158
-
-ECC_SQUARE_FUNC enabled: avg time = 500 ms
-size = 2438
+asm on (#define ECC_ASM ecc_asm_thumb) (no lmul required)
+ECC_SQUARE_FUNC + ECC_USE_NAF: 147.7 (size = 2156 + 24)
+ECC_SQUARE_FUNC only: 172.6 (size = 1896 + 24)
+ECC_USE_NAF only: 158.2 (size = 2008 + 24)
+no opt: 183.9 (size = 1748 + 24)
 
 256 bits
-All off: avg time = 1092 ms
-size = 2128 (including aeabi_lmul)
+asm on (#define ECC_ASM ecc_asm_thumb) (no lmul required)
+ECC_SQUARE_FUNC + ECC_USE_NAF: 385.8 (size = 2484 + 32)
+no opt: 473.6 (size = 2072 + 32)
 
-ECC_SOFT_MULT64 enabled: avg time = 1058 ms
-size = 2110 (does not include aeabi_lmul)
-
-ECC_USE_NAF enabled: avg time = 916 ms
-size = 2426
-
-ECC_SQUARE_FUNC enabled: avg time = 810 ms
-size = 2718
+384 bits
+asm on (#define ECC_ASM ecc_asm_thumb) (no lmul required)
+ECC_SQUARE_FUNC + ECC_USE_NAF: 1128.2 (size = 2196 + 48)
+no opt: 1405.8 (size = 1784 + 48)
