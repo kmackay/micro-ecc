@@ -14,7 +14,7 @@ ECC_USE_NAF - If enabled, this will convert the private key to a non-adjacent fo
 
 /* Inline assembly options.
 Inline assembly (gcc format) is provided for selected operations for Thumb and Thumb2/ARM.
-Improves speed by about 57% on Cortex-M0.
+Improves speed by about 57% on Cortex-M0 when using ecc_asm_thumb.
 
 Note: You must choose the appropriate option for your target architecture, or compilation will fail
 with strange assembler messages.

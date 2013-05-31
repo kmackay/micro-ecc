@@ -192,7 +192,11 @@ static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
     #if (ECC_ASM != ecc_asm_thumb2)
         ".syntax divided \n\t"
     #endif
+    #if (ECC_ASM == ecc_asm_thumb)
         : [dptr] "+l" (p_result), [lptr] "+l" (p_left), [rptr] "+l" (p_right), [ctr] "+l" (l_counter), [carry] "+l" (l_carry), [left] "=l" (l_left), [right] "=l" (l_right)
+    #else
+        : [dptr] "+r" (p_result), [lptr] "+r" (p_left), [rptr] "+r" (p_right), [ctr] "+r" (l_counter), [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
+    #endif
         :
         : "cc", "memory"
     );
@@ -238,7 +242,11 @@ static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
     #if (ECC_ASM != ecc_asm_thumb2)
         ".syntax divided \n\t"
     #endif
+    #if (ECC_ASM == ecc_asm_thumb)
         : [dptr] "+l" (p_result), [lptr] "+l" (p_left), [rptr] "+l" (p_right), [ctr] "+l" (l_counter), [carry] "+l" (l_carry), [left] "=l" (l_left), [right] "=l" (l_right)
+    #else
+        : [dptr] "+r" (p_result), [lptr] "+r" (p_left), [rptr] "+r" (p_right), [ctr] "+r" (l_counter), [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
+    #endif
         :
         : "cc", "memory"
     );
