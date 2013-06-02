@@ -1,3 +1,5 @@
+#if !TARGET_LPC11XX
+
 #include "ecc.h"
 
 #include <stdio.h>
@@ -90,3 +92,5 @@ int main()
 	
 	return 0;
 }
+
+#endif /* !TARGET_LPC11XX */

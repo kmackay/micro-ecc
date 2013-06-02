@@ -17,6 +17,10 @@ ECC_SQUARE_FUNC only: 172.6 (size = 1896 + 24)
 ECC_USE_NAF only: 158.2 (size = 2008 + 24)
 no opt: 183.9 (size = 1748 + 24)
 
+including ecdsa:
+all opts on: time = 219ms, size = 2822 + 96
+only asm: time = 230.6, size = 2430 + 96
+
 256 bits
 asm on (#define ECC_ASM ecc_asm_thumb) (no lmul required)
 ECC_SQUARE_FUNC + ECC_USE_NAF: 385.8 (size = 2484 + 32)

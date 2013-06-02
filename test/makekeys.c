@@ -1,3 +1,5 @@
+#if !TARGET_LPC11XX
+
 #include "ecc.h"
 
 #include <stdio.h>
@@ -13,9 +15,9 @@ void vli_print(uint32_t *p_vli)
     unsigned i;
     for(i=0; i<NUM_ECC_DIGITS-1; ++i)
     {
-        printf("0x%08X, ", p_vli[i]);
+        printf("0x%08X, ", (unsigned)p_vli[i]);
     }
-    printf("0x%08X", p_vli[i]);
+    printf("0x%08X", (unsigned)p_vli[i]);
 }
 
 int randfd;
@@ -30,7 +32,7 @@ void getRandomBytes(void *p_dest, unsigned p_size)
 
 int main(int argc, char **argv)
 {
-    unsigned l_num = 10;
+    unsigned l_num = 1;
     unsigned i, j;
     
     if(argc > 1)
@@ -45,35 +47,28 @@ int main(int argc, char **argv)
         return -1;
 	}
 	
-	uint32_t l_private[l_num][NUM_ECC_DIGITS];
-    EccPoint l_public[l_num];
+	uint32_t l_private[NUM_ECC_DIGITS];
+    EccPoint l_public;
     
     for(i=0; i<l_num; ++i)
     {
-        getRandomBytes((char *)l_private[i], NUM_ECC_DIGITS * sizeof(uint32_t));
-        ecc_make_key(&l_public[i], l_private[i], l_private[i]);
-    }
-    
-    printf("uint32_t l_private[%u][NUM_ECC_DIGITS] = {\n", l_num);
-    for(i=0; i<l_num; ++i)
-    {
-        printf("    {");
-        vli_print(l_private[i]);
-        printf("},\n");
-    }
-    printf("}\n");
+        getRandomBytes((char *)l_private, NUM_ECC_DIGITS * sizeof(uint32_t));
+        ecc_make_key(&l_public, l_private, l_private);
+        
+        printf("uint32_t private_%u[NUM_ECC_DIGITS] = {", i);
+        vli_print(l_private);
+        printf("};\n");
 
-    printf("EccPoint l_public[%u] = {\n", l_num);
-    for(i=0; i<l_num; ++i)
-    {
-        printf("    {{");
-        vli_print(l_public[i].x);
+        printf("EccPoint public_%u = {\n", i);
+        printf("    {");
+        vli_print(l_public.x);
         printf("},\n");
-        printf("        {");
-        vli_print(l_public[i].y);
-        printf("}},\n");
+        printf("    {");
+        vli_print(l_public.y);
+        printf("}};\n\n");
     }
-    printf("}\n");
 	
 	return 0;
 }
+
+#endif /* !TARGET_LPC11XX */

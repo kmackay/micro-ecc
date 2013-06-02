@@ -1,20 +1,11 @@
+#if !TARGET_LPC11XX
+
 #include "ecc.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-extern void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar);
-
-void vli_print(uint32_t *p_vli, unsigned int p_size)
-{
-	while(p_size)
-	{
-		printf("%08X ", (unsigned)p_vli[p_size - 1]);
-		--p_size;
-	}
-}
 
 int randfd;
 
@@ -79,3 +70,5 @@ int main()
 	
 	return 0;
 }
+
+#endif /* !TARGET_LPC11XX */
