@@ -769,7 +769,7 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
         "bge 4f \n\t" /* if i >= k-i, skip */
         "lsls %[t1], #1 \n\t"    /* high word << 1 */
         "adc %[c2], #0 \n\t"     /* add carry bit to c2 */
-        "lsls r0, #1 \n\t"       /* low word << 1 */
+        "lsls %[t0], #1 \n\t"       /* low word << 1 */
         "adc %[t1], #0 \n\t"     /* add carry bit to high word */
         
         "4: \n\t"
@@ -781,7 +781,7 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
         "adds %[i], #4 \n\t"          /* i += 4 */
         "cmp %[i], %[k] \n\t"         /* i <= k? */
         "bge 5f \n\t" /* if not, exit the loop */
-        "subs %[tt], %[k], %[i] \n\t" /* r7 = k-i */
+        "subs %[tt], %[k], %[i] \n\t" /* tt = k-i */
         "cmp %[i], %[tt] \n\t"        /* i <= k-i? */
         "ble 3b \n\t" /* if so, continue looping */
         
