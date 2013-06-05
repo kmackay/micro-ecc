@@ -1,3 +1,3 @@
 emk.module("c")
 
-emk.subdir("test")
+emk.subdir("apps", "test")
