@@ -198,7 +198,7 @@ In these tests, the measured speed is the time to verify an ECDSA signature. The
 		<th>secp384r1</th>
 	</tr>
 	<tr>
-		<td><em>ECDH time (ms):</em></td>
+		<td><em>ECDSA verify time (ms):</em></td>
 		<td>108.0</td>
 		<td>219.0</td>
 		<td>558.5</td>
