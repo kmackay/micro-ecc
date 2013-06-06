@@ -8,6 +8,7 @@ Features
 
  * Written in C, with optional inline assembly for ARM and Thumb platforms.
  * Small code size: as low as 1800 bytes when compiled for Thumb (eg, Cortex-M0).
+ * No dynamic memory allocation.
  * Reasonably fast: on an LPC1114 at 48MHz (ARM Cortex-M0, 32-cycle 32x32 bit multiply), 192-bit ECDH shared secret calculation takes as little as ~150ms (depending on selected optimizations).
  * Support for 4 standard curves: secp128r1, secp192r1, secp256r1, and secp384r1
  * Optional optimizations so you can choose between code size and speed.
@@ -158,7 +159,57 @@ In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases.
 
 ### ECDSA speed and combined code size ###
 
-In these tests, the measured speed is the time to verify an ECDSA signature. The measured code size is the combined code size for ECDH and ECDSA.
+In these tests, the measured speed is the time to verify an ECDSA signature. The measured code size is the combined code size for ECDH and ECDSA. `ECC_ASM` was defined to `ecc_asm_thumb` in all cases.
 
-TODO
+#### No other optimizations (smallest code size) ####
+
+<table>
+	<tr>
+		<th>Curve:</th>
+		<th>secp128r1</th>
+		<th>secp192r1</th>
+		<th>secp256r1</th>
+		<th>secp384r1</th>
+	</tr>
+	<tr>
+		<td><em>ECDSA verify time (ms):</em></td>
+		<td>108.6</td>
+		<td>230.6</td>
+		<td>590.2</td>
+		<td>1729.7</td>
+	</tr>
+	<tr>
+		<td><em>Code size (bytes):</em></td>
+		<td>2638</td>
+		<td>2526</td>
+		<td>2846</td>
+		<td>2674</td>
+	</tr>
+</table>
+
+#### All optimizations (fastest) ####
+
+<table>
+	<tr>
+		<th>Curve:</th>
+		<th>secp128r1</th>
+		<th>secp192r1</th>
+		<th>secp256r1</th>
+		<th>secp384r1</th>
+	</tr>
+	<tr>
+		<td><em>ECDH time (ms):</em></td>
+		<td>108.0</td>
+		<td>219.0</td>
+		<td>558.5</td>
+		<td>1615.0</td>
+	</tr>
+	<tr>
+		<td><em>Code size (bytes):</em></td>
+		<td>3046</td>
+		<td>2918</td>
+		<td>3248</td>
+		<td>3062</td>
+	</tr>
+</table>
 
