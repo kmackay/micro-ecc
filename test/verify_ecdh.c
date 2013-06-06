@@ -7,8 +7,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-extern void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar);
-
 void vli_print(uint32_t *p_vli, unsigned int p_size)
 {
 	while(p_size)
