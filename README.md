@@ -213,3 +213,100 @@ In these tests, the measured speed is the time to verify an ECDSA signature. The
 	</tr>
 </table>
 
+### Maximum stack usage ###
+
+In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases. The table values are the maximum possible stack usage for each function, in btyes.
+
+#### No other optimizations (smallest code size) ####
+
+<table>
+	<tr>
+		<th>Curve:</th>
+		<th>secp128r1</th>
+		<th>secp192r1</th>
+		<th>secp256r1</th>
+		<th>secp384r1</th>
+	</tr>
+	<tr>
+		<td><em>ecc_make_key()</em></td>
+		<td>392</td>
+		<td>488</td>
+		<td>624</td>
+		<td>848</td>
+	</tr>
+	<tr>
+		<td><em>ecc_valid_public_key()</em></td>
+		<td>184</td>
+		<td>224</td>
+		<td>304</td>
+		<td>416</td>
+	</tr>
+	<tr>
+		<td><em>ecdh_shared_secret()</em></td>
+		<td>416</td>
+		<td>528</td>
+		<td>680</td>
+		<td>936</td>
+	</tr>
+	<tr>
+		<td><em>ecdsa_sign()</em></td>
+		<td>448</td>
+		<td>568</td>
+		<td>728</td>
+		<td>1000</td>
+	</tr>
+	<tr>
+		<td><em>ecdsa_verify()</em></td>
+		<td>480</td>
+		<td>616</td>
+		<td>792</td>
+		<td>1096</td>
+	</tr>
+</table>
+
+#### All optimizations (fastest) ####
+
+<table>
+	<tr>
+		<th>Curve:</th>
+		<th>secp128r1</th>
+		<th>secp192r1</th>
+		<th>secp256r1</th>
+		<th>secp384r1</th>
+	</tr>
+	<tr>
+		<td><em>ecc_make_key()</em></td>
+		<td>472</td>
+		<td>600</td>
+		<td>760</td>
+		<td>1056</td>
+	</tr>
+	<tr>
+		<td><em>ecc_valid_public_key()</em></td>
+		<td>192</td>
+		<td>232</td>
+		<td>304</td>
+		<td>424</td>
+	</tr>
+	<tr>
+		<td><em>ecdh_shared_secret()</em></td>
+		<td>496</td>
+		<td>640</td>
+		<td>816</td>
+		<td>1144</td>
+	</tr>
+	<tr>
+		<td><em>ecdsa_sign()</em></td>
+		<td>528</td>
+		<td>680</td>
+		<td>864</td>
+		<td>1208</td>
+	</tr>
+	<tr>
+		<td><em>ecdsa_verify()</em></td>
+		<td>488</td>
+		<td>624</td>
+		<td>792</td>
+		<td>1104</td>
+	</tr>
+</table>
