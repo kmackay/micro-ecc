@@ -1230,7 +1230,6 @@ static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_sca
     
     if(l_carry)
     {
-        EccPoint_double_projective(p_result, Z1, p_result, Z1);
         EccPoint_add_mixed(p_result, Z1, p_result, Z1, p_point);
     }
     for(i = l_numBits - 1; i >= 0; --i)
