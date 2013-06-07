@@ -6,6 +6,7 @@ A small ECDH and ECDSA implementation for 32-bit microcontrollers.
 Features
 --------
 
+ * BSD 2-clause license.
  * Written in C, with optional inline assembly for ARM and Thumb platforms.
  * Small code size: as low as 1800 bytes when compiled for Thumb (eg, Cortex-M0).
  * No dynamic memory allocation.
