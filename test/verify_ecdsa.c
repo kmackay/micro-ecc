@@ -67,6 +67,7 @@ int main()
             printf("ecdsa_verify() failed\n");
         }
 	}
+	printf("\n");
 	
 	return 0;
 }
