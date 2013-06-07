@@ -53,24 +53,28 @@ These tests were performed using the curve secp192r1. Only ECDH code was used (n
 
 <table>
 	<tr>
-		<th>Optimizations:</th>
-		<th>none</th>
-		<th>ECC_SQUARE_FUNC</th>
-		<th>ECC_USE_NAF</th>
-		<th>both</th>
+		<th>Optimizations</th>
+		<th>ECDH time (ms)</th>
+		<th>Code size (bytes)</th>
 	</tr>
 	<tr>
-		<td><em>ECDH time (ms):</em></td>
+		<td>none</td>
 		<td>431.9</td>
-		<td>393.0</td>
-		<td>369.5</td>
-		<td>337.2</td>
+		<td>1948</td>
 	</tr>
 	<tr>
-		<td><em>Code size (bytes):</em></td>
-		<td>1948</td>
+		<td>ECC_SQUARE_FUNC</td>
+		<td>393.0</td>
 		<td>2152</td>
+	</tr>
+	<tr>
+		<td>ECC_USE_NAF</td>
+		<td>369.5</td>
 		<td>2208</td>
+	</tr>
+	<tr>
+		<td>both</td>
+		<td>337.2</td>
 		<td>2412</td>
 	</tr>
 </table>
@@ -79,24 +83,28 @@ These tests were performed using the curve secp192r1. Only ECDH code was used (n
 
 <table>
 	<tr>
-		<th>Optimizations:</th>
-		<th>none</th>
-		<th>ECC_SQUARE_FUNC</th>
-		<th>ECC_USE_NAF</th>
-		<th>both</th>
+		<th>Optimizations</th>
+		<th>ECDH time (ms)</th>
+		<th>Code size (bytes)</th>
 	</tr>
 	<tr>
-		<td><em>ECDH time (ms):</em></td>
+		<td>none</td>
 		<td>183.9</td>
-		<td>172.6</td>
-		<td>158.2</td>
-		<td>147.7</td>
+		<td>1772</td>
 	</tr>
 	<tr>
-		<td><em>Code size (bytes):</em></td>
-		<td>1772</td>
+		<td>ECC_SQUARE_FUNC</td>
+		<td>172.6</td>
 		<td>1920</td>
+	</tr>
+	<tr>
+		<td>ECC_USE_NAF</td>
+		<td>158.2</td>
 		<td>2032</td>
+	</tr>
+	<tr>
+		<td>both</td>
+		<td>147.7</td>
 		<td>2180</td>
 	</tr>
 </table>
@@ -109,7 +117,7 @@ In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases.
 
 <table>
 	<tr>
-		<th>Curve:</th>
+		<th></th>
 		<th>secp128r1</th>
 		<th>secp192r1</th>
 		<th>secp256r1</th>
@@ -135,7 +143,7 @@ In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases.
 
 <table>
 	<tr>
-		<th>Curve:</th>
+		<th></th>
 		<th>secp128r1</th>
 		<th>secp192r1</th>
 		<th>secp256r1</th>
@@ -165,7 +173,7 @@ In these tests, the measured speed is the time to verify an ECDSA signature. The
 
 <table>
 	<tr>
-		<th>Curve:</th>
+		<th></th>
 		<th>secp128r1</th>
 		<th>secp192r1</th>
 		<th>secp256r1</th>
@@ -191,7 +199,7 @@ In these tests, the measured speed is the time to verify an ECDSA signature. The
 
 <table>
 	<tr>
-		<th>Curve:</th>
+		<th></th>
 		<th>secp128r1</th>
 		<th>secp192r1</th>
 		<th>secp256r1</th>
@@ -215,13 +223,13 @@ In these tests, the measured speed is the time to verify an ECDSA signature. The
 
 ### Maximum stack usage ###
 
-In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases. The table values are the maximum possible stack usage for each function, in btyes.
+In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases. The table values are the maximum possible stack usage for each function, in bytes.
 
 #### No other optimizations (smallest code size) ####
 
 <table>
 	<tr>
-		<th>Curve:</th>
+		<th></th>
 		<th>secp128r1</th>
 		<th>secp192r1</th>
 		<th>secp256r1</th>
@@ -268,7 +276,7 @@ In these tests, `ECC_ASM` was defined to `ecc_asm_thumb` in all cases. The table
 
 <table>
 	<tr>
-		<th>Curve:</th>
+		<th></th>
 		<th>secp128r1</th>
 		<th>secp192r1</th>
 		<th>secp256r1</th>
