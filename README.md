@@ -30,6 +30,8 @@ You can use the `makekeys` program in the `apps` directory to generate keys (on 
 
 I recommend just copying (or symlink) ecc.h and ecc.c into your project. Then just `#include "ecc.h"` to use the micro-ecc functions.
 
+See ecc.h for documentation for each function.
+
 Speed and Size
 --------------
 
