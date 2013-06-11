@@ -29,9 +29,9 @@ void vli_print(uint32_t *p_vli)
 {
     unsigned i;
     for(i=0; i<NUM_ECC_DIGITS; ++i)
-	{
-		printf("%08X ", (unsigned)p_vli[i]);
-	}
+    {
+        printf("%08X ", (unsigned)p_vli[i]);
+    }
 }
 
 #if (ECC_CURVE == secp128r1)
@@ -439,8 +439,8 @@ uint32_t g_dsa_s[10][NUM_ECC_DIGITS] = {
 int main()
 {
     uartInit(BAUD_115200);
-	initTime();
-	
+    initTime();
+    
     uint32_t l_shared[NUM_ECC_DIGITS];
     uint64_t l_total = 0;
     
@@ -472,6 +472,6 @@ int main()
     }
     
     printf("Total ECDSA time: %llu\n", l_total);
-	
-	return 0;
+    
+    return 0;
 }

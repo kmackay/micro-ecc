@@ -41,13 +41,13 @@ int main(int argc, char **argv)
     }
     
     randfd = open("/dev/urandom", O_RDONLY);
-	if(randfd == -1)
-	{
+    if(randfd == -1)
+    {
         printf("No access to urandom\n");
         return -1;
-	}
-	
-	uint32_t l_private[NUM_ECC_DIGITS];
+    }
+    
+    uint32_t l_private[NUM_ECC_DIGITS];
     EccPoint l_public;
     
     for(i=0; i<l_num; ++i)
@@ -67,8 +67,8 @@ int main(int argc, char **argv)
         vli_print(l_public.y);
         printf("}};\n\n");
     }
-	
-	return 0;
+    
+    return 0;
 }
 
 #endif /* !TARGET_LPC11XX */
