@@ -448,7 +448,7 @@ int main()
     for(i=0; i<10; ++i)
     {
         uint64_t l_start = getTimeMs();
-        ecdh_shared_secret(l_shared, &g_public[i], g_private[i]);
+        ecdh_shared_secret(l_shared, &g_public[i], g_private[i], NULL);
         uint64_t l_diff = getTimeMs() - l_start;
         vli_print(l_shared);
         printf("\n");

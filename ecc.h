@@ -6,11 +6,8 @@
 /* Optimization settings. Define as 1 to enable an optimization, 0 to disable it.
 ECC_SQUARE_FUNC - If enabled, this will cause a specific function to be used for (scalar) squaring instead of the generic
                   multiplication function. Improves speed by about 8% .
-ECC_USE_NAF - If enabled, this will convert the private key to a non-adjacent form before point multiplication.
-              Improves speed by about 14%.
 */
 #define ECC_SQUARE_FUNC 1
-#define ECC_USE_NAF 1
 
 /* Inline assembly options.
 Inline assembly (gcc format) is provided for selected operations for Thumb and Thumb2/ARM.
@@ -44,8 +41,8 @@ with strange assembler messages.
 
 typedef struct EccPoint
 {
-	uint32_t x[NUM_ECC_DIGITS];
-	uint32_t y[NUM_ECC_DIGITS];
+    uint32_t x[NUM_ECC_DIGITS];
+    uint32_t y[NUM_ECC_DIGITS];
 } EccPoint;
 
 /* ecc_make_key() function.
@@ -78,12 +75,16 @@ int ecc_valid_public_key(EccPoint *p_publicKey);
 /* ecdh_shared_secret() function.
 Compute a shared secret given your secret key and someone else's public key.
 
+Optionally, you can provide a random multiplier for resistance to DPA attacks. The random multiplier
+should probably be different for each invocation of ecdh_shared_secret().
+
 Outputs:
     p_secret - Will be filled in with the shared secret value.
     
 Inputs:
     p_publicKey  - The public key of the remote party.
     p_privateKey - Your private key.
+    p_random     - An optional random number to resist DPA attacks. Pass in NULL if DPA attacks are not a concern.
 
 Returns 1 if the shared secret was computed successfully, 0 otherwise.
 
@@ -91,7 +92,7 @@ Note: It is recommended that you hash the result of ecdh_shared_secret before us
 If you do not hash the shared secret, you must call ecc_valid_public_key() to verify that the remote side's public key is valid.
 If this is not done, an attacker could create a public key that would cause your use of the shared secret to leak information
 about your private key. */
-int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS]);
+int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS]);
 
 /* ecdsa_sign() function.
 Generate an ECDSA signature for a given hash value.
