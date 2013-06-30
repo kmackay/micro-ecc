@@ -30,7 +30,7 @@ with strange assembler messages.
 #define secp256r1 8
 #define secp384r1 12
 #ifndef ECC_CURVE
-    #define ECC_CURVE secp192r1
+    #define ECC_CURVE secp256r1
 #endif
 
 #if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256r1 && ECC_CURVE != secp384r1)
@@ -129,5 +129,27 @@ Inputs:
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
 int ecdsa_verify(EccPoint *p_publicKey, uint32_t p_hash[NUM_ECC_DIGITS], uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS]);
+
+/* ecc_bytes2int() function.
+Convert an integer in standard octet representation to the native format.
+
+Outputs:
+    p_int - Will be filled in with the native integer value.
+
+Inputs:
+    p_bytes - The standard octet representation of the integer to convert.
+*/
+void ecc_bytes2int(uint32_t p_int[NUM_ECC_DIGITS], uint8_t p_bytes[NUM_ECC_DIGITS*4]);
+
+/* ecc_int2bytes() function.
+Convert an integer in native format to the standard octet representation.
+
+Outputs:
+    p_bytes - Will be filled in with the standard octet representation of the integer.
+
+Inputs:
+    p_int - The native integer value to convert.
+*/
+void ecc_int2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_int[NUM_ECC_DIGITS]);
 
 #endif /* _MICRO_ECC_H_ */
