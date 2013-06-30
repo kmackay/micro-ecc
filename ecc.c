@@ -1495,25 +1495,25 @@ int ecdsa_verify(EccPoint *p_publicKey, uint32_t p_hash[NUM_ECC_DIGITS], uint32_
     return (vli_cmp(rx, r) == 0);
 }
 
-void ecc_bytes2int(uint32_t p_int[NUM_ECC_DIGITS], uint8_t p_bytes[NUM_ECC_DIGITS*4])
+void ecc_bytes2native(uint32_t p_native[NUM_ECC_DIGITS], uint8_t p_bytes[NUM_ECC_DIGITS*4])
 {
     unsigned i;
     for(i=0; i<NUM_ECC_DIGITS; ++i)
     {
         uint8_t *p_digit = p_bytes + 4 * (NUM_ECC_DIGITS - 1 - i);
-        p_int[i] = (p_digit[0] << 24) | (p_digit[1] << 16) | (p_digit[2] << 8) | p_digit[3];
+        p_native[i] = (p_digit[0] << 24) | (p_digit[1] << 16) | (p_digit[2] << 8) | p_digit[3];
     }
 }
 
-void ecc_int2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_int[NUM_ECC_DIGITS])
+void ecc_native2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_native[NUM_ECC_DIGITS])
 {
     unsigned i;
     for(i=0; i<NUM_ECC_DIGITS; ++i)
     {
         uint8_t *p_digit = p_bytes + 4 * (NUM_ECC_DIGITS - 1 - i);
-        p_digit[0] = p_int[i] >> 24;
-        p_digit[1] = p_int[i] >> 16;
-        p_digit[2] = p_int[i] >> 8;
-        p_digit[3] = p_int[i];
+        p_digit[0] = p_native[i] >> 24;
+        p_digit[1] = p_native[i] >> 16;
+        p_digit[2] = p_native[i] >> 8;
+        p_digit[3] = p_native[i];
     }
 }

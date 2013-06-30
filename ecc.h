@@ -130,26 +130,26 @@ Returns 1 if the signature is valid, 0 if it is invalid.
 */
 int ecdsa_verify(EccPoint *p_publicKey, uint32_t p_hash[NUM_ECC_DIGITS], uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS]);
 
-/* ecc_bytes2int() function.
+/* ecc_bytes2native() function.
 Convert an integer in standard octet representation to the native format.
 
 Outputs:
-    p_int - Will be filled in with the native integer value.
+    p_native - Will be filled in with the native integer value.
 
 Inputs:
     p_bytes - The standard octet representation of the integer to convert.
 */
-void ecc_bytes2int(uint32_t p_int[NUM_ECC_DIGITS], uint8_t p_bytes[NUM_ECC_DIGITS*4]);
+void ecc_bytes2native(uint32_t p_native[NUM_ECC_DIGITS], uint8_t p_bytes[NUM_ECC_DIGITS*4]);
 
-/* ecc_int2bytes() function.
+/* ecc_native2bytes() function.
 Convert an integer in native format to the standard octet representation.
 
 Outputs:
     p_bytes - Will be filled in with the standard octet representation of the integer.
 
 Inputs:
-    p_int - The native integer value to convert.
+    p_native - The native integer value to convert.
 */
-void ecc_int2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_int[NUM_ECC_DIGITS]);
+void ecc_native2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_native[NUM_ECC_DIGITS]);
 
 #endif /* _MICRO_ECC_H_ */

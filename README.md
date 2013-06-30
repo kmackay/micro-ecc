@@ -21,6 +21,8 @@ Usage Notes
 
 To reduce code size, all large integers are represented using little-endian words - so the least significant word is first. For example, the standard representation of the prime modulus for the curve secp128r1 is `FFFFFFFD FFFFFFFF FFFFFFFF FFFFFFFF`; in micro-ecc, this would be represented as `uint32_t p[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xfffffffd};`.
 
+You can use the `ecc_bytes2native()` and `ecc_native2bytes()` functions to convert between the native integer representation and the standardized octet representation.
+
 #### Generating Keys ####
 
 You can use the `makekeys` program in the `apps` directory to generate keys (on Linux or OS X). You can run `make` in that directory to build for your native platform (or use [emk](http://kmackay.ca/emk)). To generate a single public/private key pair, run `makekeys`. It will print out the public and private keys in a representation suitable to be copied into your source code. You can generate multiple key pairs at once using `makekeys <n>` to generate n keys.
