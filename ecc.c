@@ -1260,9 +1260,19 @@ int ecc_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], u
     return 1;
 }
 
+/* Compute p_result = x^3 - 3x + b */
+static void curve_x_side(uint32_t p_result[NUM_ECC_DIGITS], uint32_t x[NUM_ECC_DIGITS])
+{
+    uint32_t _3[NUM_ECC_DIGITS] = {3}; /* -a = 3 */
+    
+    vli_modSquare_fast(p_result, x); /* r = x^2 */
+    vli_modSub(p_result, p_result, _3, curve_p); /* r = x^2 - 3 */
+    vli_modMult_fast(p_result, p_result, x); /* r = x^3 - 3x */
+    vli_modAdd(p_result, p_result, curve_b, curve_p); /* r = x^3 - 3x + b */
+}
+
 int ecc_valid_public_key(EccPoint *p_publicKey)
 {
-    uint32_t na[NUM_ECC_DIGITS] = {3}; /* -a = 3 */
     uint32_t l_tmp1[NUM_ECC_DIGITS];
     uint32_t l_tmp2[NUM_ECC_DIGITS];
     
@@ -1278,10 +1288,7 @@ int ecc_valid_public_key(EccPoint *p_publicKey)
     
     vli_modSquare_fast(l_tmp1, p_publicKey->y); /* tmp1 = y^2 */
     
-    vli_modSquare_fast(l_tmp2, p_publicKey->x); /* tmp2 = x^2 */
-    vli_modSub(l_tmp2, l_tmp2, na, curve_p); /* tmp2 = x^2 + a = x^2 - 3 */
-    vli_modMult_fast(l_tmp2, l_tmp2, p_publicKey->x); /* tmp2 = x^3 + ax */
-    vli_modAdd(l_tmp2, l_tmp2, curve_b, curve_p); /* tmp2 = x^3 + ax + b */
+    curve_x_side(l_tmp2, p_publicKey->x); /* tmp2 = x^3 - 3x + b */
     
     /* Make sure that y^2 == x^3 + ax + b */
     if(vli_cmp(l_tmp1, l_tmp2) != 0)
@@ -1515,5 +1522,43 @@ void ecc_native2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_native[NUM_E
         p_digit[1] = p_native[i] >> 16;
         p_digit[2] = p_native[i] >> 8;
         p_digit[3] = p_native[i];
+    }
+}
+
+/* Compute a = sqrt(a) (mod curve_p). */
+static void mod_sqrt(uint32_t a[NUM_ECC_DIGITS])
+{
+    unsigned i;
+    uint32_t p1[NUM_ECC_DIGITS] = {1};
+    uint32_t l_result[NUM_ECC_DIGITS] = {1};
+    
+    /* Since curve_p == 3 (mod 4) for all supported curves, we can
+       compute sqrt(a) = a^((curve_p + 1) / 4) (mod curve_p). */
+    vli_add(p1, curve_p, p1); /* p1 = curve_p + 1 */
+    for(i = vli_numBits(p1) - 1; i > 1; --i)
+    {
+        vli_modSquare_fast(l_result, l_result);
+        if(vli_testBit(p1, i))
+        {
+            vli_modMult_fast(l_result, l_result, a);
+        }
+    }
+    vli_set(a, l_result);
+}
+
+void ecc_point_compress(uint8_t p_compressed[NUM_ECC_DIGITS*4 + 1], EccPoint *p_point)
+{
+    p_compressed[0] = 2 + (p_point->y[0] & 0x01);
+    ecc_native2bytes(p_compressed + 1, p_point->x);
+}
+
+void ecc_point_decompress(EccPoint *p_point, uint8_t p_compressed[NUM_ECC_DIGITS*4 + 1])
+{
+    ecc_bytes2native(p_point->x, p_compressed + 1);
+    curve_x_side(p_point->y, p_point->x);
+    mod_sqrt(p_point->y);
+    if((p_point->y[0] & 0x01) != (p_compressed[0] & 0x01))
+    {
+        vli_sub(p_point->y, curve_p, p_point->y);
     }
 }

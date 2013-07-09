@@ -152,4 +152,26 @@ Inputs:
 */
 void ecc_native2bytes(uint8_t p_bytes[NUM_ECC_DIGITS*4], uint32_t p_native[NUM_ECC_DIGITS]);
 
+/* ecc_point_compress() function.
+Compress a point from native format into the standard compressed octet representation.
+
+Outputs:
+    p_compressed  - Will be filled in with the compressed point representation.
+
+Inputs:
+    p_point - The point to compress.
+*/
+void ecc_point_compress(uint8_t p_compressed[NUM_ECC_DIGITS*4 + 1], EccPoint *p_point);
+
+/* ecc_point_compress() function.
+Decompress a point from the standard compressed octet representation to native format.
+
+Outputs:
+    p_point  - Will be filled in with the native point representation.
+
+Inputs:
+    p_compressed - The standard compressed octet representation of the point.
+*/
+void ecc_point_decompress(EccPoint *p_point, uint8_t p_compressed[NUM_ECC_DIGITS*4 + 1]);
+
 #endif /* _MICRO_ECC_H_ */
