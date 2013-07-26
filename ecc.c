@@ -671,8 +671,8 @@ static void omega_mult(uint32_t *p_result, uint32_t *p_right)
 {
     /* Multiply by (2^128 + 2^96 - 2^32 + 1). */
     vli_set(p_result, p_right); /* 1 */
-    p_result[4 + NUM_ECC_DIGITS] = vli_add(p_result + 3, p_result + 3, p_right); /* 2^96 + 1 */
-    p_result[5 + NUM_ECC_DIGITS] = vli_add(p_result + 4, p_result + 4, p_right); /* 2^128 + 2^96 + 1 */
+    p_result[3 + NUM_ECC_DIGITS] = vli_add(p_result + 3, p_result + 3, p_right); /* 2^96 + 1 */
+    p_result[4 + NUM_ECC_DIGITS] = vli_add(p_result + 4, p_result + 4, p_right); /* 2^128 + 2^96 + 1 */
     if(vli_sub(p_result + 1, p_result + 1, p_right)) /* 2^128 + 2^96 - 2^32 + 1 */
     { /* Propagate borrow if necessary. */
         uint i;
