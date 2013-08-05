@@ -11,6 +11,6 @@ makekeys: ecc.o makekeys.o
 	gcc -o makekeys makekeys.o ecc.o
 
 clean:
-	rm ecc.o makekeys.o makekeys
+	rm -f ecc.o makekeys.o makekeys
 
 .PHONY: default all clean
