@@ -1508,7 +1508,7 @@ void ecc_bytes2native(uint32_t p_native[NUM_ECC_DIGITS], uint8_t p_bytes[NUM_ECC
     for(i=0; i<NUM_ECC_DIGITS; ++i)
     {
         uint8_t *p_digit = p_bytes + 4 * (NUM_ECC_DIGITS - 1 - i);
-        p_native[i] = (p_digit[0] << 24) | (p_digit[1] << 16) | (p_digit[2] << 8) | p_digit[3];
+        p_native[i] = ((uint32_t)p_digit[0] << 24) | ((uint32_t)p_digit[1] << 16) | ((uint32_t)p_digit[2] << 8) | (uint32_t)p_digit[3];
     }
 }
 
