@@ -1207,7 +1207,7 @@ static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_sca
     uint32_t Ry[2][NUM_ECC_DIGITS];
     uint32_t z[NUM_ECC_DIGITS];
     
-    uint i, nb;
+    int i, nb;
     
     vli_set(Rx[1], p_point->x);
     vli_set(Ry[1], p_point->y);
