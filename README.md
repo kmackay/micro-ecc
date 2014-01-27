@@ -11,7 +11,8 @@ Features
  * Small code size: ECDH in as little as 2KB, ECDH + ECDSA in as little as 3KB when compiled for Thumb (eg, Cortex-M0).
  * No dynamic memory allocation.
  * Reasonably fast: on an LPC1114 at 48MHz (ARM Cortex-M0, 32-cycle 32x32 bit multiply), 192-bit ECDH shared secret calculation takes as little as ~175ms (depending on selected optimizations).
- * Support for 4 standard curves: secp128r1, secp192r1, secp256r1, and secp384r1
+ * Support for 4 standard curves: secp128r1, secp192r1, secp256r1, and secp384r1.
+ * Also supports secp256k1.
  * BSD 2-clause license.
 
 Usage Notes
