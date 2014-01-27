@@ -28,23 +28,23 @@ with strange assembler messages.
 #define ECC_CONCAT(a, b) ECC_CONCAT1(a, b)
 
 /* Curve selection options. */
-#define secp128r1 secp128r1
-#define secp192r1 secp192r1
-#define secp256r1 secp256r1
-#define secp384r1 secp384r1
-#define secp256k1 secp256k1
+#define secp128r1 1
+#define secp192r1 2
+#define secp256r1 3
+#define secp384r1 4
+#define secp256k1 5
 
 #ifndef ECC_CURVE
     #define ECC_CURVE secp256r1
 #endif
 
-#define secp128r1_size 4
-#define secp192r1_size 6
-#define secp256r1_size 8
-#define secp384r1_size 12
-#define secp256k1_size 8
+#define ecc_size_1 4
+#define ecc_size_2 6
+#define ecc_size_3 8
+#define ecc_size_4 12
+#define ecc_size_5 8
 
-#define NUM_ECC_DIGITS ECC_CONCAT(ECC_CURVE, _size)
+#define NUM_ECC_DIGITS ECC_CONCAT(ecc_size_, ECC_CURVE)
 
 typedef struct EccPoint
 {
