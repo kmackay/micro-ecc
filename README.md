@@ -1,7 +1,7 @@
 micro-ecc
 ==========
 
-A small ECDH and ECDSA implementation for 32-bit microcontrollers. See [ecc64](https://github.com/kmackay/ecc64) for a 64-bit implementation.
+A small ECDH and ECDSA implementation for 32-bit microcontrollers. See [easy-ecc](https://github.com/kmackay/easy-ecc) for a fast and secure pure-C implementation for *nix and Windows.
 
 Features
 --------
