@@ -25,6 +25,13 @@ uint64_t getTimeMs(void)
 
 #include <stdio.h>
 
+#define secp128r1_id 1
+#define secp192r1_id 2
+#define secp256r1_id 3
+#define secp384r1_id 4
+#define secp256k1_id 5
+#define ECC_ALG ECC_CONCAT(ECC_CURVE, _id)
+
 void vli_print(uint32_t *p_vli)
 {
     unsigned i;
@@ -34,7 +41,7 @@ void vli_print(uint32_t *p_vli)
     }
 }
 
-#if (ECC_CURVE == secp128r1)
+#if (ECC_ALG == secp128r1_id)
 uint32_t g_private[10][NUM_ECC_DIGITS] = {
     {0xB66C17D0, 0xD21CD12E, 0x1885B2F7, 0x71D40584},
     {0x6C99B53A, 0x86686357, 0x3E34C5C4, 0x5314DFA3},
@@ -133,7 +140,7 @@ uint32_t g_dsa_s[10][NUM_ECC_DIGITS] = {
     {0x7A19D7C2, 0x51AE91C0, 0x318DBAD9, 0xE520A100}
 };
 
-#elif (ECC_CURVE == secp192r1)
+#elif (ECC_ALG == secp192r1_id)
 uint32_t g_private[10][NUM_ECC_DIGITS] = {
     {0x8A8590BC, 0xF8FC6B96, 0x216D16F6, 0x5D471999, 0x77B54115, 0xA1C40C96},
     {0x60867073, 0xC781509C, 0x36ACD71C, 0x58F5AD9E, 0xC2DB7360, 0x33BD208D},
@@ -233,7 +240,7 @@ uint32_t g_dsa_s[10][NUM_ECC_DIGITS] = {
 };
 
 
-#elif (ECC_CURVE == secp256r1)
+#elif (ECC_ALG == secp256r1_id)
 
 uint32_t g_private[10][NUM_ECC_DIGITS] = {
     {0x9399E0FA, 0xEB887947, 0xFACC412E, 0xC7AFD411, 0x735EE1E8, 0x2B8AFAF4, 0x986E3E7F, 0x742B1953},
@@ -333,7 +340,7 @@ uint32_t g_dsa_s[10][NUM_ECC_DIGITS] = {
     {0xAFC08C0C, 0x949EF819, 0xB80751E5, 0x9E77D36C, 0x2338ADBF, 0xD3F84E20, 0x10E30B97, 0x617F0EF3}
 };
 
-#elif (ECC_CURVE == secp384r1)
+#elif (ECC_ALG == secp384r1_id)
 
 uint32_t g_private[10][NUM_ECC_DIGITS] = {
     {0x32D5EFC6, 0x0A6E70F1, 0x6CAE9125, 0x78D74ECF, 0x33E423FB, 0x2B9F9991, 0x188E04C0, 0x6FEA1C8E, 0x2B2634A3, 0xDC5C521A, 0xDBF7265D, 0xB2975791},
@@ -438,6 +445,7 @@ uint32_t g_dsa_s[10][NUM_ECC_DIGITS] = {
 
 int main()
 {
+#if (ECC_ALG != secp256k1_id)
     uartInit(BAUD_115200);
     initTime();
     
@@ -472,6 +480,7 @@ int main()
     }
     
     printf("Total ECDSA time: %llu\n", l_total);
+#endif
     
     return 0;
 }

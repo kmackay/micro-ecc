@@ -4,49 +4,60 @@
 
 typedef unsigned int uint;
 
-#define CONCAT1(a, b) a##b
-#define CONCAT(a, b) CONCAT1(a, b)
-
-#define Curve_P_4 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFD}
-#define Curve_P_6 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
-#define Curve_P_8 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
-#define Curve_P_12 {0xFFFFFFFF, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, \
+#define Curve_P_secp128r1 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFD}
+#define Curve_P_secp192r1 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_P_secp256r1 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
+#define Curve_P_secp384r1 {0xFFFFFFFF, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, \
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_P_secp256k1 {0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
-#define Curve_B_4 {0x2CEE5ED3, 0xD824993C, 0x1079F43D, 0xE87579C1}
-#define Curve_B_6 {0xC146B9B1, 0xFEB8DEEC, 0x72243049, 0x0FA7E9AB, 0xE59C80E7, 0x64210519}
-#define Curve_B_8 {0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7, 0x5AC635D8}
-#define Curve_B_12 {0xD3EC2AEF, 0x2A85C8ED, 0x8A2ED19D, 0xC656398D, 0x5013875A, 0x0314088F, 0xFE814112, 0x181D9C6E, \
+#define Curve_B_secp128r1 {0x2CEE5ED3, 0xD824993C, 0x1079F43D, 0xE87579C1}
+#define Curve_B_secp192r1 {0xC146B9B1, 0xFEB8DEEC, 0x72243049, 0x0FA7E9AB, 0xE59C80E7, 0x64210519}
+#define Curve_B_secp256r1 {0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7, 0x5AC635D8}
+#define Curve_B_secp384r1 {0xD3EC2AEF, 0x2A85C8ED, 0x8A2ED19D, 0xC656398D, 0x5013875A, 0x0314088F, 0xFE814112, 0x181D9C6E, \
     0xE3F82D19, 0x988E056B, 0xE23EE7E4, 0xB3312FA7}
+#define Curve_B_secp256k1 {0x00000007, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000}
 
-#define Curve_G_4 { \
+#define Curve_G_secp128r1 { \
     {0xA52C5B86, 0x0C28607C, 0x8B899B2D, 0x161FF752}, \
     {0xDDED7A83, 0xC02DA292, 0x5BAFEB13, 0xCF5AC839}}
 
-#define Curve_G_6 { \
+#define Curve_G_secp192r1 { \
     {0x82FF1012, 0xF4FF0AFD, 0x43A18800, 0x7CBF20EB, 0xB03090F6, 0x188DA80E}, \
     {0x1E794811, 0x73F977A1, 0x6B24CDD5, 0x631011ED, 0xFFC8DA78, 0x07192B95}}
     
-#define Curve_G_8 { \
+#define Curve_G_secp256r1 { \
     {0xD898C296, 0xF4A13945, 0x2DEB33A0, 0x77037D81, 0x63A440F2, 0xF8BCE6E5, 0xE12C4247, 0x6B17D1F2}, \
     {0x37BF51F5, 0xCBB64068, 0x6B315ECE, 0x2BCE3357, 0x7C0F9E16, 0x8EE7EB4A, 0xFE1A7F9B, 0x4FE342E2}}
 
-#define Curve_G_12 { \
+#define Curve_G_secp384r1 { \
     {0x72760AB7, 0x3A545E38, 0xBF55296C, 0x5502F25D, 0x82542A38, 0x59F741E0, 0x8BA79B98, 0x6E1D3B62, \
         0xF320AD74, 0x8EB1C71E, 0xBE8B0537, 0xAA87CA22}, \
     {0x90EA0E5F, 0x7A431D7C, 0x1D7E819D, 0x0A60B1CE, 0xB5F0B8C0, 0xE9DA3113, 0x289A147C, 0xF8F41DBD, \
         0x9292DC29, 0x5D9E98BF, 0x96262C6F, 0x3617DE4A}}
 
-#define Curve_N_4 {0x9038A115, 0x75A30D1B, 0x00000000, 0xFFFFFFFE}
-#define Curve_N_6 {0xB4D22831, 0x146BC9B1, 0x99DEF836, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
-#define Curve_N_8 {0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0xFFFFFFFF}
-#define Curve_N_12 {0xCCC52973, 0xECEC196A, 0x48B0A77A, 0x581A0DB2, 0xF4372DDF, 0xC7634D81, 0xFFFFFFFF, 0xFFFFFFFF, \
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_G_secp256k1 { \
+    {0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E}, \
+    {0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77}}
 
-static uint32_t curve_p[NUM_ECC_DIGITS] = CONCAT(Curve_P_, ECC_CURVE);
-static uint32_t curve_b[NUM_ECC_DIGITS] = CONCAT(Curve_B_, ECC_CURVE);
-static EccPoint curve_G = CONCAT(Curve_G_, ECC_CURVE);
-static uint32_t curve_n[NUM_ECC_DIGITS] = CONCAT(Curve_N_, ECC_CURVE);
+#define Curve_N_secp128r1 {0x9038A115, 0x75A30D1B, 0x00000000, 0xFFFFFFFE}
+#define Curve_N_secp192r1 {0xB4D22831, 0x146BC9B1, 0x99DEF836, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_N_secp256r1 {0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0xFFFFFFFF}
+#define Curve_N_secp384r1 {0xCCC52973, 0xECEC196A, 0x48B0A77A, 0x581A0DB2, 0xF4372DDF, 0xC7634D81, 0xFFFFFFFF, 0xFFFFFFFF, \
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_N_secp256k1 {0xD0364141, 0xBFD25E8C, 0xAF48A03B, 0xBAAEDCE6, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+
+#define secp128r1_id 1
+#define secp192r1_id 2
+#define secp256r1_id 3
+#define secp384r1_id 4
+#define secp256k1_id 5
+#define ECC_ALG ECC_CONCAT(ECC_CURVE, _id)
+
+static uint32_t curve_p[NUM_ECC_DIGITS] = ECC_CONCAT(Curve_P_, ECC_CURVE);
+static uint32_t curve_b[NUM_ECC_DIGITS] = ECC_CONCAT(Curve_B_, ECC_CURVE);
+static EccPoint curve_G = ECC_CONCAT(Curve_G_, ECC_CURVE);
+static uint32_t curve_n[NUM_ECC_DIGITS] = ECC_CONCAT(Curve_N_, ECC_CURVE);
 
 static void vli_clear(uint32_t *p_vli)
 {
@@ -472,7 +483,7 @@ static void vli_modSub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right, 
     }
 }
 
-#if ECC_CURVE == secp128r1
+#if ECC_ALG == secp128r1_id
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
@@ -525,7 +536,7 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
     }
 }
 
-#elif ECC_CURVE == secp192r1
+#elif ECC_ALG == secp192r1_id
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
@@ -557,7 +568,7 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
     }
 }
 
-#elif ECC_CURVE == secp256r1
+#elif ECC_ALG == secp256r1_id
 
 /* Computes p_result = p_product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
@@ -665,7 +676,7 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
     }
 }
 
-#elif ECC_CURVE == secp384r1
+#elif ECC_ALG == secp384r1_id
 
 static void omega_mult(uint32_t *p_result, uint32_t *p_right)
 {
@@ -706,6 +717,59 @@ static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
         
         /* (c1, c0) = c0 + w * c1 */
         for(i=0; i<NUM_ECC_DIGITS+5; ++i)
+        {
+            uint32_t l_sum = p_product[i] + l_tmp[i] + l_carry;
+            if(l_sum != p_product[i])
+            {
+                l_carry = (l_sum < p_product[i]);
+            }
+            p_product[i] = l_sum;
+        }
+    }
+    
+    while(vli_cmp(p_product, curve_p) > 0)
+    {
+        vli_sub(p_product, p_product, curve_p);
+    }
+    vli_set(p_result, p_product);
+}
+
+#elif ECC_ALG == secp256k1_id
+
+static void omega_mult(uint32_t *p_result, uint32_t *p_right)
+{
+    /* Multiply by (2^32 + 2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
+    uint64_t l_mult = 0x3D1; /* everything except 2^32 */
+    uint32_t l_carry = 0;
+    uint i;
+    for(i=0; i<NUM_ECC_DIGITS; ++i)
+    {
+        uint64_t p = l_mult * p_right[i] + l_carry;
+        p_result[i] = (p & 0xffffffff);
+        l_carry = p >> 32;
+    }
+    p_result[NUM_ECC_DIGITS] = l_carry;
+    
+    p_result[1 + NUM_ECC_DIGITS] = vli_add(p_result + 1, p_result + 1, p_right); /* add the 2^32 multiple */
+}
+
+/* Computes p_result = p_product % curve_p  */
+static void vli_mmod_fast(uint32_t *p_result, uint32_t *p_product)
+{
+    uint32_t l_tmp[2*NUM_ECC_DIGITS];
+     
+    while(!vli_isZero(p_product + NUM_ECC_DIGITS)) /* While c1 != 0 */
+    {
+        uint32_t l_carry = 0;
+        uint i;
+        
+        vli_clear(l_tmp);
+        vli_clear(l_tmp + NUM_ECC_DIGITS);
+        omega_mult(l_tmp, p_product + NUM_ECC_DIGITS); /* tmp = w * c1 */
+        vli_clear(p_product + NUM_ECC_DIGITS); /* p = c0 */
+        
+        /* (c1, c0) = c0 + w * c1 */
+        for(i=0; i<NUM_ECC_DIGITS+2; ++i)
         {
             uint32_t l_sum = p_product[i] + l_tmp[i] + l_carry;
             if(l_sum != p_product[i])
@@ -1055,12 +1119,52 @@ From http://eprint.iacr.org/2011/338.pdf
 */
 
 /* Double in place */
+#if ECC_ALG == secp256k1_id
 static void EccPoint_double_jacobian(uint32_t *X1, uint32_t *Y1, uint32_t *Z1)
 {
     /* t1 = X, t2 = Y, t3 = Z */
     uint32_t t4[NUM_ECC_DIGITS];
     uint32_t t5[NUM_ECC_DIGITS];
-    uint32_t t9[NUM_ECC_DIGITS];
+    
+    if(vli_isZero(Z1))
+    {
+        return;
+    }
+    
+    vli_modSquare_fast(t5, Y1);   /* t5 = y1^2 */
+    vli_modMult_fast(t4, X1, t5); /* t4 = x1*y1^2 = A */
+    vli_modSquare_fast(X1, X1);   /* t1 = x1^2 */
+    vli_modSquare_fast(t5, t5);   /* t5 = y1^4 */
+    vli_modMult_fast(Z1, Y1, Z1); /* t3 = y1*z1 = z3 */
+    
+    vli_modAdd(Y1, X1, X1, curve_p); /* t2 = 2*x1^2 */
+    vli_modAdd(Y1, Y1, X1, curve_p); /* t2 = 3*x1^2 */
+    if(vli_testBit(Y1, 0))
+    {
+        uint32_t l_carry = vli_add(Y1, Y1, curve_p);
+        vli_rshift1(Y1);
+        Y1[NUM_ECC_DIGITS-1] |= l_carry << 31;
+    }
+    else
+    {
+        vli_rshift1(Y1);
+    }
+    /* t2 = 3/2*(x1^2) = B */
+    
+    vli_modSquare_fast(X1, Y1);   /* t1 = B^2 */
+    vli_modSub(X1, X1, t4, curve_p); /* t1 = B^2 - A */
+    vli_modSub(X1, X1, t4, curve_p); /* t1 = B^2 - 2A = x3 */
+    
+    vli_modSub(t4, t4, X1, curve_p); /* t4 = A - x3 */
+    vli_modMult_fast(Y1, Y1, t4);    /* t2 = B * (A - x3) */
+    vli_modSub(Y1, Y1, t5, curve_p); /* t2 = B * (A - x3) - y1^4 = y3 */
+}
+#else
+static void EccPoint_double_jacobian(uint32_t *X1, uint32_t *Y1, uint32_t *Z1)
+{
+    /* t1 = X, t2 = Y, t3 = Z */
+    uint32_t t4[NUM_ECC_DIGITS];
+    uint32_t t5[NUM_ECC_DIGITS];
     
     if(vli_isZero(Z1))
     {
@@ -1090,7 +1194,7 @@ static void EccPoint_double_jacobian(uint32_t *X1, uint32_t *Y1, uint32_t *Z1)
     {
         vli_rshift1(X1);
     }
-                     /* t1 = 3/2*(x1^2 - z1^4) = B */
+    /* t1 = 3/2*(x1^2 - z1^4) = B */
     
     vli_modSquare_fast(Z1, X1);      /* t3 = B^2 */
     vli_modSub(Z1, Z1, t5, curve_p); /* t3 = B^2 - A */
@@ -1103,6 +1207,7 @@ static void EccPoint_double_jacobian(uint32_t *X1, uint32_t *Y1, uint32_t *Z1)
     vli_set(Z1, Y1);
     vli_set(Y1, t4);
 }
+#endif
 
 /* Modify (x1, y1) => (x1 * z^2, y1 * z^3) */
 static void apply_z(uint32_t *X1, uint32_t *Y1, uint32_t *Z)
@@ -1260,6 +1365,15 @@ int ecc_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], u
     return 1;
 }
 
+#if ECC_ALG == secp256k1_id
+/* Compute p_result = x^3 + b */
+static void curve_x_side(uint32_t p_result[NUM_ECC_DIGITS], uint32_t x[NUM_ECC_DIGITS])
+{
+    vli_modSquare_fast(p_result, x); /* r = x^2 */
+    vli_modMult_fast(p_result, p_result, x); /* r = x^3 */
+    vli_modAdd(p_result, p_result, curve_b, curve_p); /* r = x^3 + b */
+}
+#else
 /* Compute p_result = x^3 - 3x + b */
 static void curve_x_side(uint32_t p_result[NUM_ECC_DIGITS], uint32_t x[NUM_ECC_DIGITS])
 {
@@ -1270,6 +1384,7 @@ static void curve_x_side(uint32_t p_result[NUM_ECC_DIGITS], uint32_t x[NUM_ECC_D
     vli_modMult_fast(p_result, p_result, x); /* r = x^3 - 3x */
     vli_modAdd(p_result, p_result, curve_b, curve_p); /* r = x^3 - 3x + b */
 }
+#endif
 
 int ecc_valid_public_key(EccPoint *p_publicKey)
 {

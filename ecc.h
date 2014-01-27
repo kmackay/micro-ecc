@@ -24,20 +24,27 @@ with strange assembler messages.
     #define ECC_ASM ecc_asm_none
 #endif
 
+#define ECC_CONCAT1(a, b) a##b
+#define ECC_CONCAT(a, b) ECC_CONCAT1(a, b)
+
 /* Curve selection options. */
-#define secp128r1 4
-#define secp192r1 6
-#define secp256r1 8
-#define secp384r1 12
+#define secp128r1 secp128r1
+#define secp192r1 secp192r1
+#define secp256r1 secp256r1
+#define secp384r1 secp384r1
+#define secp256k1 secp256k1
+
 #ifndef ECC_CURVE
     #define ECC_CURVE secp256r1
 #endif
 
-#if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256r1 && ECC_CURVE != secp384r1)
-    #error "Must define ECC_CURVE to one of the available curves"
-#endif
+#define secp128r1_size 4
+#define secp192r1_size 6
+#define secp256r1_size 8
+#define secp384r1_size 12
+#define secp256k1_size 8
 
-#define NUM_ECC_DIGITS ECC_CURVE
+#define NUM_ECC_DIGITS ECC_CONCAT(ECC_CURVE, _size)
 
 typedef struct EccPoint
 {
