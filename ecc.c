@@ -1,7 +1,5 @@
 #include "ecc.h"
 
-typedef unsigned int uint;
-
 typedef struct EccPoint
 {
     uint8_t x[ECC_BYTES];
@@ -100,7 +98,7 @@ void ecc_set_rng(RNG_Function p_rng)
 
 static void vli_clear(uint8_t *p_vli)
 {
-    uint i;
+    uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
     {
         p_vli[i] = 0;
@@ -110,7 +108,7 @@ static void vli_clear(uint8_t *p_vli)
 /* Returns 1 if p_vli == 0, 0 otherwise. */
 static uint8_t vli_isZero(const uint8_t *p_vli)
 {
-    uint i;
+    uint8_t i;
     for(i = 0; i < ECC_BYTES; ++i)
     {
         if(p_vli[i])
@@ -122,15 +120,15 @@ static uint8_t vli_isZero(const uint8_t *p_vli)
 }
 
 /* Returns nonzero if bit p_bit of p_vli is set. */
-static uint8_t vli_testBit(const uint8_t *p_vli, uint p_bit)
+static uint8_t vli_testBit(const uint8_t *p_vli, uint16_t p_bit)
 {
     return (p_vli[p_bit/8] & ((uint8_t)1 << (p_bit % 8)));
 }
 
 /* Counts the number of 8-bit "digits" in p_vli. */
-static uint vli_numDigits(const uint8_t *p_vli)
+static uint8_t vli_numDigits(const uint8_t *p_vli)
 {
-    int i;
+    int8_t i;
     /* Search from the end until we find a non-zero digit.
        We do it in reverse because we expect that most digits will be nonzero. */
     for(i = ECC_BYTES - 1; i >= 0 && p_vli[i] == 0; --i)
@@ -141,12 +139,12 @@ static uint vli_numDigits(const uint8_t *p_vli)
 }
 
 /* Counts the number of bits required for p_vli. */
-static uint vli_numBits(const uint8_t *p_vli)
+static int16_t vli_numBits(const uint8_t *p_vli)
 {
-    uint i;
+    uint8_t i;
     uint8_t l_digit;
     
-    uint l_numDigits = vli_numDigits(p_vli);
+    uint8_t l_numDigits = vli_numDigits(p_vli);
     if(l_numDigits == 0)
     {
         return 0;
@@ -158,13 +156,13 @@ static uint vli_numBits(const uint8_t *p_vli)
         l_digit >>= 1;
     }
     
-    return ((l_numDigits - 1) * 8 + i);
+    return ((int16_t)(l_numDigits - 1) * 8 + i);
 }
 
 /* Sets p_dest = p_src. */
 static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
 {
-    uint i;
+    uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
     {
         p_dest[i] = p_src[i];
@@ -172,9 +170,9 @@ static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
 }
 
 /* Returns sign of p_left - p_right. */
-static int vli_cmp(uint8_t *p_left, uint8_t *p_right)
+static int8_t vli_cmp(uint8_t *p_left, uint8_t *p_right)
 {
-    int i;
+    int8_t i;
     for(i = ECC_BYTES-1; i >= 0; --i)
     {
         if(p_left[i] > p_right[i])
@@ -192,8 +190,8 @@ static int vli_cmp(uint8_t *p_left, uint8_t *p_right)
 /* Computes p_result = p_in << c, returning carry. Can modify in place (if p_result == p_in). 0 < p_shift < 8. */
 static uint8_t vli_lshift(uint8_t *p_result, uint8_t *p_in, uint8_t p_shift)
 {
-    uint64_t l_carry = 0;
-    uint i;
+    uint8_t l_carry = 0;
+    uint8_t i;
     for(i = 0; i < ECC_BYTES; ++i)
     {
         uint8_t l_temp = p_in[i];
@@ -223,7 +221,7 @@ static void vli_rshift1(uint8_t *p_vli)
 static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
     uint8_t l_carry = 0;
-    uint i;
+    uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
     {
         uint16_t l_sum = (uint16_t)p_left[i] + p_right[i] + l_carry;
@@ -237,7 +235,7 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
     uint8_t l_borrow = 0;
-    uint i;
+    uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
     {
         uint16_t l_diff = (uint16_t)p_left[i] - p_right[i] - l_borrow;
@@ -703,7 +701,7 @@ static void EccPoint_mult(EccPoint * restrict p_result, EccPoint * restrict p_po
     uint8_t Ry[2][ECC_BYTES];
     uint8_t z[ECC_BYTES];
     
-    int i;
+    int16_t i;
     uint8_t nb;
     
     vli_set(Rx[1], p_point->x);
@@ -741,7 +739,7 @@ static void EccPoint_mult(EccPoint * restrict p_result, EccPoint * restrict p_po
 /* Compute a = sqrt(a) (mod curve_p). */
 static void mod_sqrt(uint8_t a[ECC_BYTES])
 {
-    uint i;
+    int16_t i;
     uint8_t p1[ECC_BYTES] = {1};
     uint8_t l_result[ECC_BYTES] = {1};
     
@@ -780,7 +778,7 @@ static void ecc_point_decompress(EccPoint *p_point, const uint8_t p_compressed[E
 int ecc_make_key(uint8_t p_publicKey[ECC_BYTES+1], uint8_t p_privateKey[ECC_BYTES])
 {
     EccPoint l_public;
-    uint l_tries = 0;
+    uint8_t l_tries = 0;
     
     do
     {
