@@ -217,9 +217,68 @@ static void vli_rshift1(uint8_t *p_vli)
     }
 }
 
+#define REPEAT1(stuff) stuff
+#define REPEAT2(stuff) REPEAT1(stuff) stuff
+#define REPEAT3(stuff) REPEAT2(stuff) stuff
+#define REPEAT4(stuff) REPEAT3(stuff) stuff
+#define REPEAT5(stuff) REPEAT4(stuff) stuff
+#define REPEAT6(stuff) REPEAT5(stuff) stuff
+#define REPEAT7(stuff) REPEAT6(stuff) stuff
+#define REPEAT8(stuff) REPEAT7(stuff) stuff
+#define REPEAT9(stuff) REPEAT8(stuff) stuff
+#define REPEAT10(stuff) REPEAT9(stuff) stuff
+#define REPEAT11(stuff) REPEAT10(stuff) stuff
+#define REPEAT12(stuff) REPEAT11(stuff) stuff
+#define REPEAT13(stuff) REPEAT12(stuff) stuff
+#define REPEAT14(stuff) REPEAT13(stuff) stuff
+#define REPEAT15(stuff) REPEAT14(stuff) stuff
+#define REPEAT16(stuff) REPEAT15(stuff) stuff
+#define REPEAT17(stuff) REPEAT16(stuff) stuff
+#define REPEAT18(stuff) REPEAT17(stuff) stuff
+#define REPEAT19(stuff) REPEAT18(stuff) stuff
+#define REPEAT20(stuff) REPEAT19(stuff) stuff
+#define REPEAT21(stuff) REPEAT20(stuff) stuff
+#define REPEAT22(stuff) REPEAT21(stuff) stuff
+#define REPEAT23(stuff) REPEAT22(stuff) stuff
+#define REPEAT24(stuff) REPEAT23(stuff) stuff
+#define REPEAT25(stuff) REPEAT24(stuff) stuff
+#define REPEAT26(stuff) REPEAT25(stuff) stuff
+#define REPEAT27(stuff) REPEAT26(stuff) stuff
+#define REPEAT28(stuff) REPEAT27(stuff) stuff
+#define REPEAT29(stuff) REPEAT28(stuff) stuff
+#define REPEAT30(stuff) REPEAT29(stuff) stuff
+#define REPEAT31(stuff) REPEAT30(stuff) stuff
+#define REPEAT32(stuff) REPEAT31(stuff) stuff
+
+
 /* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
 static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    uint8_t l_carry = 0; /* carry = 0 initially */
+    uint8_t l_left;
+    uint8_t l_right;
+
+    asm volatile (
+        "ld %[left], x+ \n\t"  /* Load left word. */
+        "ld %[right], y+ \n\t" /* Load right word. */
+        "add %[left], %[right] \n\t" /* Add the first word. */
+        "st z+, %[left] \n\t"  /* Store the first result word. */
+        
+        /* Now we just do the remaining words with the carry bit (using ADC) */
+        REPEAT19("ld %[left], x+ \n\t"
+        "ld %[right], y+ \n\t"
+        "adc %[left], %[right] \n\t"
+        "st z+, %[left] \n\t")
+        
+        "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
+
+        : "+z" (p_result), "+x" (p_left), "+y" (p_right), [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
+        :
+        : "cc", "memory"
+    );
+    return l_carry;
+#else
     uint8_t l_carry = 0;
     uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
@@ -229,11 +288,37 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         l_carry = l_sum >> 8;
     }
     return l_carry;
+#endif
 }
 
 /* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
 static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    uint8_t l_borrow = 0; /* borrow = 0 initially */
+    uint8_t l_left;
+    uint8_t l_right;
+
+    asm volatile (
+        "ld %[left], x+ \n\t"  /* Load left word. */
+        "ld %[right], y+ \n\t" /* Load right word. */
+        "sub %[left], %[right] \n\t" /* Subtract the first word. */
+        "st z+, %[left] \n\t"  /* Store the first result word. */
+        
+        /* Now we just do the remaining words with the carry bit (using SBC) */
+        REPEAT19("ld %[left], x+ \n\t"
+        "ld %[right], y+ \n\t"
+        "sbc %[left], %[right] \n\t"
+        "st z+, %[left] \n\t")
+        
+        "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_carry. */
+
+        : "+z" (p_result), "+x" (p_left), "+y" (p_right), [borrow] "+r" (l_borrow), [left] "=r" (l_left), [right] "=r" (l_right)
+        :
+        : "cc", "memory"
+    );
+    return l_borrow;
+#else
     uint8_t l_borrow = 0;
     uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
@@ -243,6 +328,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         l_borrow = (l_diff >> 8) & 0x01;
     }
     return l_borrow;
+#endif
 }
 
 static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
