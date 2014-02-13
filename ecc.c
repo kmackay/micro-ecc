@@ -446,6 +446,35 @@ static void omega_mult(uint8_t * restrict p_result, uint8_t * restrict p_right)
     }
 }
 
+// /* Computes p_result = p_product % curve_p
+//     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
+// static void vli_mmod_fast(uint8_t *restrict p_result, uint8_t *restrict p_product)
+// {
+//     uint8_t l_tmp[2*ECC_BYTES] = {0};
+//     uint8_t l_carry;
+//     
+//     omega_mult(l_tmp, p_product + ECC_BYTES); /* (Rq, q) = q * c */
+//     
+//     l_carry = vli_add(p_result, p_product, l_tmp); /* (C, r) = r + q       */
+//     if(!vli_isZero(l_tmp + ECC_BYTES)) /* if Rq > 0 */
+//     {
+//         vli_clear(p_product);
+//         omega_mult(p_product, l_tmp + ECC_BYTES); /* Rq*c */
+//         l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
+//     }
+// 
+//     while(l_carry > 0)
+//     {
+//         --l_carry;
+//         vli_sub(p_result, p_result, curve_p);
+//     }
+//     
+//     while(vli_cmp(p_result, curve_p) > 0)
+//     {
+//         vli_sub(p_result, p_result, curve_p);
+//     }
+// }
+
 /* Computes p_result = p_product % curve_p
     see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
     section "Curve-Specific Optimizations" */
