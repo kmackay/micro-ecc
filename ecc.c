@@ -217,39 +217,75 @@ static void vli_rshift1(uint8_t *p_vli)
     }
 }
 
-#define REPEAT1(stuff) stuff
-#define REPEAT2(stuff) REPEAT1(stuff) stuff
-#define REPEAT3(stuff) REPEAT2(stuff) stuff
-#define REPEAT4(stuff) REPEAT3(stuff) stuff
-#define REPEAT5(stuff) REPEAT4(stuff) stuff
-#define REPEAT6(stuff) REPEAT5(stuff) stuff
-#define REPEAT7(stuff) REPEAT6(stuff) stuff
-#define REPEAT8(stuff) REPEAT7(stuff) stuff
-#define REPEAT9(stuff) REPEAT8(stuff) stuff
-#define REPEAT10(stuff) REPEAT9(stuff) stuff
-#define REPEAT11(stuff) REPEAT10(stuff) stuff
-#define REPEAT12(stuff) REPEAT11(stuff) stuff
-#define REPEAT13(stuff) REPEAT12(stuff) stuff
-#define REPEAT14(stuff) REPEAT13(stuff) stuff
-#define REPEAT15(stuff) REPEAT14(stuff) stuff
-#define REPEAT16(stuff) REPEAT15(stuff) stuff
-#define REPEAT17(stuff) REPEAT16(stuff) stuff
-#define REPEAT18(stuff) REPEAT17(stuff) stuff
-#define REPEAT19(stuff) REPEAT18(stuff) stuff
-#define REPEAT20(stuff) REPEAT19(stuff) stuff
-#define REPEAT21(stuff) REPEAT20(stuff) stuff
-#define REPEAT22(stuff) REPEAT21(stuff) stuff
-#define REPEAT23(stuff) REPEAT22(stuff) stuff
-#define REPEAT24(stuff) REPEAT23(stuff) stuff
-#define REPEAT25(stuff) REPEAT24(stuff) stuff
-#define REPEAT26(stuff) REPEAT25(stuff) stuff
-#define REPEAT27(stuff) REPEAT26(stuff) stuff
-#define REPEAT28(stuff) REPEAT27(stuff) stuff
-#define REPEAT29(stuff) REPEAT28(stuff) stuff
-#define REPEAT30(stuff) REPEAT29(stuff) stuff
-#define REPEAT31(stuff) REPEAT30(stuff) stuff
-#define REPEAT32(stuff) REPEAT31(stuff) stuff
+#define DEC_1 0
+#define DEC_2 1
+#define DEC_3 2
+#define DEC_4 3
+#define DEC_5 4
+#define DEC_6 5
+#define DEC_7 6
+#define DEC_8 7
+#define DEC_9 8
+#define DEC_10 9
+#define DEC_11 10
+#define DEC_12 11
+#define DEC_13 12
+#define DEC_14 13
+#define DEC_15 14
+#define DEC_16 15
+#define DEC_17 16
+#define DEC_18 17
+#define DEC_19 18
+#define DEC_20 19
+#define DEC_21 20
+#define DEC_22 21
+#define DEC_23 22
+#define DEC_24 23
+#define DEC_25 24
+#define DEC_26 25
+#define DEC_27 26
+#define DEC_28 27
+#define DEC_29 28
+#define DEC_30 29
+#define DEC_31 30
+#define DEC_32 31
 
+#define DEC(N) ECC_CONCAT(DEC_, N)
+
+#define REPEAT_1(stuff) stuff
+#define REPEAT_2(stuff) REPEAT_1(stuff) stuff
+#define REPEAT_3(stuff) REPEAT_2(stuff) stuff
+#define REPEAT_4(stuff) REPEAT_3(stuff) stuff
+#define REPEAT_5(stuff) REPEAT_4(stuff) stuff
+#define REPEAT_6(stuff) REPEAT_5(stuff) stuff
+#define REPEAT_7(stuff) REPEAT_6(stuff) stuff
+#define REPEAT_8(stuff) REPEAT_7(stuff) stuff
+#define REPEAT_9(stuff) REPEAT_8(stuff) stuff
+#define REPEAT_10(stuff) REPEAT_9(stuff) stuff
+#define REPEAT_11(stuff) REPEAT_10(stuff) stuff
+#define REPEAT_12(stuff) REPEAT_11(stuff) stuff
+#define REPEAT_13(stuff) REPEAT_12(stuff) stuff
+#define REPEAT_14(stuff) REPEAT_13(stuff) stuff
+#define REPEAT_15(stuff) REPEAT_14(stuff) stuff
+#define REPEAT_16(stuff) REPEAT_15(stuff) stuff
+#define REPEAT_17(stuff) REPEAT_16(stuff) stuff
+#define REPEAT_18(stuff) REPEAT_17(stuff) stuff
+#define REPEAT_19(stuff) REPEAT_18(stuff) stuff
+#define REPEAT_20(stuff) REPEAT_19(stuff) stuff
+#define REPEAT_21(stuff) REPEAT_20(stuff) stuff
+#define REPEAT_22(stuff) REPEAT_21(stuff) stuff
+#define REPEAT_23(stuff) REPEAT_22(stuff) stuff
+#define REPEAT_24(stuff) REPEAT_23(stuff) stuff
+#define REPEAT_25(stuff) REPEAT_24(stuff) stuff
+#define REPEAT_26(stuff) REPEAT_25(stuff) stuff
+#define REPEAT_27(stuff) REPEAT_26(stuff) stuff
+#define REPEAT_28(stuff) REPEAT_27(stuff) stuff
+#define REPEAT_29(stuff) REPEAT_28(stuff) stuff
+#define REPEAT_30(stuff) REPEAT_29(stuff) stuff
+#define REPEAT_31(stuff) REPEAT_30(stuff) stuff
+#define REPEAT_32(stuff) REPEAT_31(stuff) stuff
+
+#define REPEAT(N, stuff) ECC_CONCAT(REPEAT_, N)(stuff)
 
 /* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
 static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
@@ -266,10 +302,10 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "st z+, %[left] \n\t"  /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using ADC) */
-        REPEAT19("ld %[left], x+ \n\t"
-        "ld %[right], y+ \n\t"
-        "adc %[left], %[right] \n\t"
-        "st z+, %[left] \n\t")
+        REPEAT(DEC(ECC_BYTES), "ld %[left], x+ \n\t"
+            "ld %[right], y+ \n\t"
+            "adc %[left], %[right] \n\t"
+            "st z+, %[left] \n\t")
         
         "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
 
@@ -306,7 +342,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "st z+, %[left] \n\t"  /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT19("ld %[left], x+ \n\t"
+        REPEAT(DEC(ECC_BYTES), "ld %[left], x+ \n\t"
         "ld %[right], y+ \n\t"
         "sbc %[left], %[right] \n\t"
         "st z+, %[left] \n\t")
