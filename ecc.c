@@ -420,7 +420,7 @@ static void vli_modSub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right, uin
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint8_t *p_result, uint8_t *p_product)
+static void vli_mmod_fast(uint8_t * restrict p_result, uint8_t *restrict p_product)
 {
     /* TODO */
 }
@@ -484,7 +484,7 @@ static void vli_mmod_fast(uint8_t * restrict p_result, uint8_t * restrict p_prod
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
+static void vli_mmod_fast(uint64_t *restrict p_result, uint64_t *restrict p_product)
 {
     /* TODO */
 }
@@ -493,7 +493,7 @@ static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
 
 /* Computes p_result = p_product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
+static void vli_mmod_fast(uint64_t *restrict p_result, uint64_t *restrict p_product)
 {
     /* TODO */
 }
