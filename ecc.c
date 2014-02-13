@@ -1585,7 +1585,7 @@ int ecdsa_verify(EccPoint *p_publicKey, uint32_t p_hash[NUM_ECC_DIGITS], uint32_
         EccPoint_double_jacobian(rx, ry, z);
         
         int l_index = (!!vli_testBit(u1, i)) | ((!!vli_testBit(u2, i)) << 1);
-        EccPoint *l_point = l_points[l_index];
+        l_point = l_points[l_index];
         if(l_point)
         {
             vli_set(tx, l_point->x);
