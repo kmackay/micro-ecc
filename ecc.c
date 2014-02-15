@@ -908,10 +908,19 @@ static void mod_sqrt(uint8_t a[ECC_BYTES])
     vli_set(a, l_result);
 }
 
+static void vli_flip(uint8_t * restrict p_dest, const uint8_t * restrict p_src)
+{
+    uint8_t i;
+    for(i=0; i<ECC_BYTES; ++i)
+    {
+        p_dest[i] = p_src[(ECC_BYTES - 1) - i];
+    }
+}
+
 static void ecc_point_decompress(EccPoint *p_point, const uint8_t p_compressed[ECC_BYTES+1])
 {
     uint8_t _3[ECC_BYTES] = {3}; /* -a = 3 */
-    vli_set(p_point->x, p_compressed);
+    vli_flip(p_point->x, p_compressed + 1);
     
     vli_modSquare_fast(p_point->y, p_point->x); /* y = x^2 */
     vli_modSub(p_point->y, p_point->y, _3, curve_p); /* y = x^2 - 3 */
@@ -920,7 +929,7 @@ static void ecc_point_decompress(EccPoint *p_point, const uint8_t p_compressed[E
     
     mod_sqrt(p_point->y);
     
-    if((p_point->y[0] & 0x01) != (p_compressed[ECC_BYTES] & 0x01))
+    if((p_point->y[0] & 0x01) != (p_compressed[0] & 0x01))
     {
         vli_sub(p_point->y, curve_p, p_point->y);
     }
@@ -929,15 +938,16 @@ static void ecc_point_decompress(EccPoint *p_point, const uint8_t p_compressed[E
 int ecc_make_key(uint8_t p_publicKey[ECC_BYTES+1], uint8_t p_privateKey[ECC_BYTES])
 {
     EccPoint l_public;
+    uint8_t l_private[ECC_BYTES];
     uint8_t l_tries = 0;
     
     do
     {
-        if(!g_rng(p_privateKey, ECC_BYTES) || (l_tries++ >= MAX_TRIES))
+        if(!g_rng(l_private, ECC_BYTES) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
-        if(vli_isZero(p_privateKey))
+        if(vli_isZero(l_private))
         {
             continue;
         }
@@ -945,23 +955,25 @@ int ecc_make_key(uint8_t p_publicKey[ECC_BYTES+1], uint8_t p_privateKey[ECC_BYTE
         /* Make sure the private key is in the range [1, n-1].
            For the supported curves, n is always large enough that we only need to subtract once at most. */
     #if ECC_CURVE != secp160r1
-        if(vli_cmp(curve_n, p_privateKey) != 1)
+        if(vli_cmp(curve_n, l_private) != 1)
         {
-            vli_sub(p_privateKey, p_privateKey, curve_n);
+            vli_sub(l_private, l_private, curve_n);
         }
     #endif
 
-        EccPoint_mult(&l_public, &curve_G, p_privateKey, 0);
+        EccPoint_mult(&l_public, &curve_G, l_private, 0);
     } while(EccPoint_isZero(&l_public));
     
-    vli_set(p_publicKey, l_public.x);
-    p_publicKey[ECC_BYTES] = 2 + (l_public.y[0] & 0x01);
+    vli_flip(p_privateKey, l_private);
+    vli_flip(p_publicKey + 1, l_public.x);
+    p_publicKey[0] = 2 + (l_public.y[0] & 0x01);
     return 1;
 }
 
 int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES+1], const uint8_t p_privateKey[ECC_BYTES], uint8_t p_secret[ECC_BYTES])
 {
     EccPoint l_public;
+    uint8_t l_private[ECC_BYTES];
     uint8_t l_random[ECC_BYTES];
     
     if(!g_rng(l_random, ECC_BYTES))
@@ -969,12 +981,13 @@ int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES+1], const uint8_t p_p
         return 0;
     }
     
+    vli_flip(l_private, p_privateKey);
     ecc_point_decompress(&l_public, p_publicKey);
     
     EccPoint l_product;
-    EccPoint_mult(&l_product, &l_public, p_privateKey, l_random);
+    EccPoint_mult(&l_product, &l_public, l_private, l_random);
     
-    vli_set(p_secret, l_product.x);
+    vli_flip(p_secret, l_product.x);
     
     return !EccPoint_isZero(&l_product);
 }
