@@ -1,5 +1,7 @@
 #include "ecc.h"
 
+#include <string.h>
+
 typedef struct EccPoint
 {
     uint8_t x[ECC_BYTES];
@@ -89,7 +91,26 @@ static int fake_RNG(uint8_t *p_dest, unsigned p_size)
     return 0;
 }
 
-static RNG_Function g_rng = &fake_RNG;
+static int test_RNG(uint8_t *p_dest, unsigned p_size)
+{
+    static uint64_t l_rand = 88172645463325252ull;
+    
+    while(p_size)
+    {
+        l_rand ^= (l_rand << 13);
+        l_rand ^= (l_rand >> 7);
+        l_rand ^= (l_rand << 17);
+        
+        uint8_t l_cpy = (p_size >= 8 ? 8 : p_size);
+        memcpy(p_dest, &l_rand, l_cpy);
+        p_dest += l_cpy;
+        p_size -= l_cpy;
+    }
+    
+    return 1;
+}
+
+static RNG_Function g_rng = &test_RNG;
 
 void ecc_set_rng(RNG_Function p_rng)
 {
