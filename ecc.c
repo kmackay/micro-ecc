@@ -2,6 +2,12 @@
 
 #include <string.h>
 
+#if __STDC_VERSION__ >= 199901L
+    #define RESTRICT restrict
+#else
+    #define RESTRICT
+#endif
+
 typedef struct EccPoint
 {
     uint8_t x[ECC_BYTES];
@@ -477,14 +483,14 @@ static void vli_modSub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right, uin
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint8_t * restrict p_result, uint8_t *restrict p_product)
+static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t *RESTRICT p_product)
 {
     /* TODO */
 }
 
 #elif ECC_CURVE == secp160r1
 
-static void omega_mult(uint8_t * restrict p_result, uint8_t * restrict p_right)
+static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
 {
     uint8_t l_carry;
     uint8_t i;
@@ -505,7 +511,7 @@ static void omega_mult(uint8_t * restrict p_result, uint8_t * restrict p_right)
 
 // /* Computes p_result = p_product % curve_p
 //     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
-// static void vli_mmod_fast(uint8_t *restrict p_result, uint8_t *restrict p_product)
+// static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
 // {
 //     uint8_t l_tmp[2*ECC_BYTES] = {0};
 //     uint8_t l_carry;
@@ -535,7 +541,7 @@ static void omega_mult(uint8_t * restrict p_result, uint8_t * restrict p_right)
 /* Computes p_result = p_product % curve_p
     see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
     section "Curve-Specific Optimizations" */
-static void vli_mmod_fast(uint8_t * restrict p_result, uint8_t * restrict p_product)
+static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_product)
 {
     uint8_t l_tmp[2*ECC_BYTES];
      
@@ -570,7 +576,7 @@ static void vli_mmod_fast(uint8_t * restrict p_result, uint8_t * restrict p_prod
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint64_t *restrict p_result, uint64_t *restrict p_product)
+static void vli_mmod_fast(uint64_t *RESTRICT p_result, uint64_t *RESTRICT p_product)
 {
     /* TODO */
 }
@@ -579,7 +585,7 @@ static void vli_mmod_fast(uint64_t *restrict p_result, uint64_t *restrict p_prod
 
 /* Computes p_result = p_product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void vli_mmod_fast(uint64_t *restrict p_result, uint64_t *restrict p_product)
+static void vli_mmod_fast(uint64_t *RESTRICT p_result, uint64_t *RESTRICT p_product)
 {
     /* TODO */
 }
@@ -719,7 +725,7 @@ From http://eprint.iacr.org/2011/338.pdf
 */
 
 /* Double in place */
-static void EccPoint_double_jacobian(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * restrict Z1)
+static void EccPoint_double_jacobian(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT Z1)
 {
     /* t1 = X, t2 = Y, t3 = Z */
     uint8_t t4[ECC_BYTES];
@@ -768,7 +774,7 @@ static void EccPoint_double_jacobian(uint8_t * restrict X1, uint8_t * restrict Y
 }
 
 /* Modify (x1, y1) => (x1 * z^2, y1 * z^3) */
-static void apply_z(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * restrict Z)
+static void apply_z(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT Z)
 {
     uint8_t t1[ECC_BYTES];
 
@@ -779,8 +785,8 @@ static void apply_z(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * rest
 }
 
 /* P = (x1, y1) => 2P, (x2, y2) => P' */
-static void XYcZ_initial_double(uint8_t * restrict X1, uint8_t * restrict Y1,
-    uint8_t * restrict X2, uint8_t * restrict Y2, const uint8_t * restrict p_initialZ)
+static void XYcZ_initial_double(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1,
+    uint8_t * RESTRICT X2, uint8_t * RESTRICT Y2, const uint8_t * RESTRICT p_initialZ)
 {
     uint8_t z[ECC_BYTES];
     
@@ -805,7 +811,7 @@ static void XYcZ_initial_double(uint8_t * restrict X1, uint8_t * restrict Y1,
    Output P' = (x1', y1', Z3), P + Q = (x3, y3, Z3)
    or P => P', Q => P + Q
 */
-static void XYcZ_add(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * restrict X2, uint8_t * restrict Y2)
+static void XYcZ_add(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT X2, uint8_t * RESTRICT Y2)
 {
     /* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
     uint8_t t5[ECC_BYTES];
@@ -832,7 +838,7 @@ static void XYcZ_add(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * res
    Output P + Q = (x3, y3, Z3), P - Q = (x3', y3', Z3)
    or P => P - Q, Q => P + Q
 */
-static void XYcZ_addC(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * restrict X2, uint8_t * restrict Y2)
+static void XYcZ_addC(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT X2, uint8_t * RESTRICT Y2)
 {
     /* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
     uint8_t t5[ECC_BYTES];
@@ -865,8 +871,8 @@ static void XYcZ_addC(uint8_t * restrict X1, uint8_t * restrict Y1, uint8_t * re
     vli_set(X1, t7);
 }
 
-static void EccPoint_mult(EccPoint * restrict p_result, EccPoint * restrict p_point,
-    const uint8_t * restrict p_scalar, const uint8_t * restrict p_initialZ)
+static void EccPoint_mult(EccPoint * RESTRICT p_result, EccPoint * RESTRICT p_point,
+    const uint8_t * RESTRICT p_scalar, const uint8_t * RESTRICT p_initialZ)
 {
     /* R0 and R1 */
     uint8_t Rx[2][ECC_BYTES];
@@ -929,7 +935,7 @@ static void mod_sqrt(uint8_t a[ECC_BYTES])
     vli_set(a, l_result);
 }
 
-static void vli_flip(uint8_t * restrict p_dest, const uint8_t * restrict p_src)
+static void vli_flip(uint8_t * RESTRICT p_dest, const uint8_t * RESTRICT p_src)
 {
     uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
