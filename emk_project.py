@@ -7,8 +7,8 @@ default_compile_flags = ["-fvisibility=hidden", "-Wall", "-Wextra", "-Wshadow", 
 default_link_flags = []
 opt_flags = {"dbg":[], "std":["-O2"], "max":["-O3"], "small":["-Os"]}
 opt_link_flags = {"dbg":[], "std":[], "max":[], "small":[]}
-c_flags = ["-std=gnu11"]
-cxx_flags = ["-std=gnu++11", "-Wno-reorder", "-fno-rtti", "-fno-exceptions"]
+c_flags = ["-std=c99"]
+cxx_flags = ["-std=c++11", "-Wno-reorder", "-fno-rtti", "-fno-exceptions"]
 c_link_flags = []
 cxx_link_flags = ["-fno-rtti", "-fno-exceptions"]
 
