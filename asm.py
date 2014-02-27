@@ -106,6 +106,7 @@ x_regs = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 for r in xrange(0, 10):
     x_regs = x_regs[1:] + x_regs[:1]
     print r'"ld r%s, x+ \n\t"' % (x_regs[9]) # load next byte of left
+    print r'"ldi r%s, $0 \n\t"' % (acc[2])
     for i in xrange(0, 10):
         print r'"mul r%s, r%s \n\t"' % (x_regs[i], ry(9 - i))
         print r'"add r%s, r0 \n\t"' % (acc[0])
@@ -124,6 +125,7 @@ y_regs = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
 for r in xrange(0, 10):
     y_regs = y_regs[1:] + y_regs[:1]
     print r'"ld r%s, y+ \n\t"' % (y_regs[9]) # load next byte of right
+    print r'"ldi r%s, $0 \n\t"' % (acc[2])
     for i in xrange(0, 10):
         print r'"mul r%s, r%s \n\t"' % (x_regs[i], y_regs[9 -i])
         print r'"add r%s, r0 \n\t"' % (acc[0])
@@ -138,4 +140,18 @@ for r in xrange(0, 10):
     acc = acc[1:] + acc[:1]
 
 # done both shifts, do remaining corner
-# TODO
+for r in xrange(1, 9):
+    print r'"ldi r%s, $0 \n\t"' % (acc[2])
+    for i in xrange(0, 10-r):
+        print r'"mul r%s, r%s \n\t"' % (x_regs[r+i], y_regs[9 - i])
+        print r'"add r%s, r0 \n\t"' % (acc[0])
+        print r'"adc r%s, r1 \n\t"' % (acc[1])
+        print r'"adc r%s, r25 \n\t"' % (acc[2])
+    print r'"st r%s, z+ \n\t"' % (acc[0])
+    print ""
+    acc = acc[1:] + acc[:1]
+print r'"mul r%s, r%s \n\t"' % (x_regs[9], y_regs[9])
+print r'"add r%s, r0 \n\t"' % (acc[0])
+print r'"adc r%s, r1 \n\t"' % (acc[1])
+print r'"st r%s, z+ \n\t"' % (acc[0])
+print r'"st r%s, z+ \n\t"' % (acc[1])
