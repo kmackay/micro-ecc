@@ -396,6 +396,20 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 
 static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    uint8_t *a = p_left;
+    uint8_t *b = p_right;
+    uint8_t *c = p_result;
+
+    asm volatile (
+        /* TODO */
+        : "+x" (a), "+y" (b), "+z" (c)
+        :
+        : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
+          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+    );
+    return l_borrow;
+#else
     uint16_t r01 = 0;
     uint8_t r2 = 0;
     
@@ -417,6 +431,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     }
     
     p_result[ECC_BYTES*2 - 1] = (uint8_t)r01;
+#endif
 }
 
 #if ECC_SQUARE_FUNC
