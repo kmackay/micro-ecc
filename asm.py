@@ -155,3 +155,4 @@ print r'"add r%s, r0 \n\t"' % (acc[0])
 print r'"adc r%s, r1 \n\t"' % (acc[1])
 print r'"st z+, r%s \n\t"' % (acc[0])
 print r'"st z+, r%s \n\t"' % (acc[1])
+print r'"eor r1, r1 \n\t"'

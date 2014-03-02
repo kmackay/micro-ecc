@@ -2301,6 +2301,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "adc r24, r1 \n\t"
         "st z+, r23 \n\t"
         "st z+, r24 \n\t"
+        "eor r1, r1 \n\t"
         : "+x" (p_left), "+y" (p_right), "+z" (p_result)
         :
         : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
