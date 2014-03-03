@@ -1298,7 +1298,7 @@ static void XYcZ_addC(uint32_t *X1, uint32_t *Y1, uint32_t *X2, uint32_t *Y2)
     vli_set(X1, t7);
 }
 
-static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar, uint32_t *p_initialZ)
+static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar, uint32_t *p_initialZ, p_numBits)
 {
     /* R0 and R1 */
     uint32_t Rx[2][NUM_ECC_DIGITS];
@@ -1312,7 +1312,7 @@ static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_sca
 
     XYcZ_initial_double(Rx[1], Ry[1], Rx[0], Ry[0], p_initialZ);
 
-    for(i = vli_numBits(p_scalar) - 2; i > 0; --i)
+    for(i = p_numBits - 2; i > 0; --i)
     {
         nb = !vli_testBit(p_scalar, i);
         XYcZ_addC(Rx[1-nb], Ry[1-nb], Rx[nb], Ry[nb]);
@@ -1341,12 +1341,11 @@ static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_sca
 
 int ecc_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], uint32_t p_random[NUM_ECC_DIGITS])
 {
-    /* Make sure the private key is in the range [1, n-1].
-       For the supported curves, n is always large enough that we only need to subtract once at most. */
+    /* Make sure the private key is in the range [1, n-1]. */
     vli_set(p_privateKey, p_random);
     if(vli_cmp(curve_n, p_privateKey) != 1)
     {
-        vli_sub(p_privateKey, p_privateKey, curve_n);
+        return 0;
     }
     
     if(vli_isZero(p_privateKey))
@@ -1354,7 +1353,7 @@ int ecc_make_key(EccPoint *p_publicKey, uint32_t p_privateKey[NUM_ECC_DIGITS], u
         return 0; /* The private key cannot be 0 (mod p). */
     }
     
-    EccPoint_mult(p_publicKey, &curve_G, p_privateKey, NULL);
+    EccPoint_mult(p_publicKey, &curve_G, p_privateKey, NULL, vli_numBits(p_privateKey));
     return 1;
 }
 
@@ -1411,7 +1410,7 @@ int ecdh_shared_secret(uint32_t p_secret[NUM_ECC_DIGITS], EccPoint *p_publicKey,
 {
     EccPoint l_product;
     
-    EccPoint_mult(&l_product, p_publicKey, p_privateKey, p_random);
+    EccPoint_mult(&l_product, p_publicKey, p_privateKey, p_random, vli_numBits(p_privateKey));
     if(EccPoint_isZero(&l_product))
     {
         return 0;
@@ -1498,6 +1497,8 @@ int ecdsa_sign(uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS], uint32_t 
     uint32_t p_random[NUM_ECC_DIGITS], uint32_t p_hash[NUM_ECC_DIGITS])
 {
     uint32_t k[NUM_ECC_DIGITS];
+    uint32_t *k2[2] = {r, s};
+    uint32_t l_carry;
     EccPoint p;
     
     if(vli_isZero(p_random))
@@ -1508,11 +1509,15 @@ int ecdsa_sign(uint32_t r[NUM_ECC_DIGITS], uint32_t s[NUM_ECC_DIGITS], uint32_t 
     vli_set(k, p_random);
     if(vli_cmp(curve_n, k) != 1)
     {
-        vli_sub(k, k, curve_n);
+        return 0;
     }
     
-    /* tmp = k * G */
-    EccPoint_mult(&p, &curve_G, k, NULL);
+    /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
+    l_carry = vli_add(r, k, curve_n);
+    vli_add(s, r, curve_n);
+    
+    /* p = k * G */
+    EccPoint_mult(&p, &curve_G, k2[!l_carry], NULL, (NUM_ECC_DIGITS * 32) + 1);
     
     /* r = x1 (mod n) */
     vli_set(r, p.x);
