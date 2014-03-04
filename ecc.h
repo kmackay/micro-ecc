@@ -7,7 +7,7 @@
 ECC_SQUARE_FUNC - If enabled, this will cause a specific function to be used for (scalar) squaring instead of the generic
                   multiplication function.
 */
-#define ECC_SQUARE_FUNC 0
+#define ECC_SQUARE_FUNC 1
 
 /* Inline assembly options.
 Inline assembly (gcc format) is provided for selected operations for AVR (requires MUL support).
@@ -15,7 +15,7 @@ Inline assembly (gcc format) is provided for selected operations for AVR (requir
 #define ecc_asm_none   0
 #define ecc_asm_avr    1
 #ifndef ECC_ASM
-    #define ECC_ASM ecc_asm_none
+    #define ECC_ASM ecc_asm_avr
 #endif
 
 #define ECC_CONCAT1(a, b) a##b

@@ -92,158 +92,6 @@ static uint8_t curve_b[ECC_BYTES] = ECC_CONCAT(Curve_B_, ECC_CURVE);
 static EccPoint curve_G = ECC_CONCAT(Curve_G_, ECC_CURVE);
 static uint8_t curve_n[ECC_BYTES] = ECC_CONCAT(Curve_N_, ECC_CURVE);
 
-static int fake_RNG(uint8_t *p_dest, unsigned p_size)
-{
-    return 0;
-}
-
-static int test_RNG(uint8_t *p_dest, unsigned p_size)
-{
-    static uint64_t l_rand = 88172645463325252ull;
-    
-    while(p_size)
-    {
-        l_rand ^= (l_rand << 13);
-        l_rand ^= (l_rand >> 7);
-        l_rand ^= (l_rand << 17);
-        
-        uint8_t l_cpy = (p_size >= 8 ? 8 : p_size);
-        memcpy(p_dest, &l_rand, l_cpy);
-        p_dest += l_cpy;
-        p_size -= l_cpy;
-    }
-    
-    return 1;
-}
-
-static RNG_Function g_rng = &test_RNG;
-
-void ecc_set_rng(RNG_Function p_rng)
-{
-    g_rng = p_rng;
-}
-
-static void vli_clear(uint8_t *p_vli)
-{
-    uint8_t i;
-    for(i=0; i<ECC_BYTES; ++i)
-    {
-        p_vli[i] = 0;
-    }
-}
-
-/* Returns 1 if p_vli == 0, 0 otherwise. */
-static uint8_t vli_isZero(const uint8_t *p_vli)
-{
-    uint8_t i;
-    for(i = 0; i < ECC_BYTES; ++i)
-    {
-        if(p_vli[i])
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-/* Returns nonzero if bit p_bit of p_vli is set. */
-static uint8_t vli_testBit(const uint8_t *p_vli, uint16_t p_bit)
-{
-    return (p_vli[p_bit/8] & ((uint8_t)1 << (p_bit % 8)));
-}
-
-/* Counts the number of 8-bit "digits" in p_vli. */
-static uint8_t vli_numDigits(const uint8_t *p_vli)
-{
-    int8_t i;
-    /* Search from the end until we find a non-zero digit.
-       We do it in reverse because we expect that most digits will be nonzero. */
-    for(i = ECC_BYTES - 1; i >= 0 && p_vli[i] == 0; --i)
-    {
-    }
-
-    return (i + 1);
-}
-
-/* Counts the number of bits required for p_vli. */
-static int16_t vli_numBits(const uint8_t *p_vli)
-{
-    uint8_t i;
-    uint8_t l_digit;
-    
-    uint8_t l_numDigits = vli_numDigits(p_vli);
-    if(l_numDigits == 0)
-    {
-        return 0;
-    }
-
-    l_digit = p_vli[l_numDigits - 1];
-    for(i=0; l_digit; ++i)
-    {
-        l_digit >>= 1;
-    }
-    
-    return ((int16_t)(l_numDigits - 1) * 8 + i);
-}
-
-/* Sets p_dest = p_src. */
-static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
-{
-    uint8_t i;
-    for(i=0; i<ECC_BYTES; ++i)
-    {
-        p_dest[i] = p_src[i];
-    }
-}
-
-/* Returns sign of p_left - p_right. */
-static int8_t vli_cmp(uint8_t *p_left, uint8_t *p_right)
-{
-    int8_t i;
-    for(i = ECC_BYTES-1; i >= 0; --i)
-    {
-        if(p_left[i] > p_right[i])
-        {
-            return 1;
-        }
-        else if(p_left[i] < p_right[i])
-        {
-            return -1;
-        }
-    }
-    return 0;
-}
-
-/* Computes p_result = p_in << c, returning carry. Can modify in place (if p_result == p_in). 0 < p_shift < 8. */
-static uint8_t vli_lshift(uint8_t *p_result, uint8_t *p_in, uint8_t p_shift)
-{
-    uint8_t l_carry = 0;
-    uint8_t i;
-    for(i = 0; i < ECC_BYTES; ++i)
-    {
-        uint8_t l_temp = p_in[i];
-        p_result[i] = (l_temp << p_shift) | l_carry;
-        l_carry = l_temp >> (8 - p_shift);
-    }
-    
-    return l_carry;
-}
-
-/* Computes p_vli = p_vli >> 1. */
-static void vli_rshift1(uint8_t *p_vli)
-{
-    uint8_t *l_end = p_vli;
-    uint8_t l_carry = 0;
-    
-    p_vli += ECC_BYTES;
-    while(p_vli-- > l_end)
-    {
-        uint8_t l_temp = *p_vli;
-        *p_vli = (l_temp >> 1) | l_carry;
-        l_carry = l_temp << 7;
-    }
-}
-
 #define DEC_1 0
 #define DEC_2 1
 #define DEC_3 2
@@ -314,29 +162,205 @@ static void vli_rshift1(uint8_t *p_vli)
 
 #define REPEAT(N, stuff) ECC_CONCAT(REPEAT_, N)(stuff)
 
-/* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
-static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static int fake_RNG(uint8_t *p_dest, unsigned p_size)
+{
+    return 0;
+}
+
+static int test_RNG(uint8_t *p_dest, unsigned p_size)
+{
+    static uint64_t l_rand = 88172645463325252ull;
+    
+    while(p_size)
+    {
+        l_rand ^= (l_rand << 13);
+        l_rand ^= (l_rand >> 7);
+        l_rand ^= (l_rand << 17);
+        
+        uint8_t l_cpy = (p_size >= 8 ? 8 : p_size);
+        memcpy(p_dest, &l_rand, l_cpy);
+        p_dest += l_cpy;
+        p_size -= l_cpy;
+    }
+    
+    return 1;
+}
+
+static RNG_Function g_rng = &test_RNG;
+
+void ecc_set_rng(RNG_Function p_rng)
+{
+    g_rng = p_rng;
+}
+
+static void vli_clear(uint8_t *p_vli)
 {
 #if (ECC_ASM == ecc_asm_avr)
-    uint8_t l_carry = 0; /* carry = 0 initially */
+    __asm__ volatile (
+        REPEAT(ECC_BYTES, "st %a[ptr]+, r1 \n\t")
+
+        : [ptr] "+e" (p_vli)
+        :
+        : "r0", "cc", "memory"
+    );
+#else
+    uint8_t i;
+    for(i=0; i<ECC_BYTES; ++i)
+    {
+        p_vli[i] = 0;
+    }
+#endif
+}
+
+/* Returns 1 if p_vli == 0, 0 otherwise. */
+static uint8_t vli_isZero(const uint8_t *p_vli)
+{
+    uint8_t i;
+    for(i = 0; i < ECC_BYTES; ++i)
+    {
+        if(p_vli[i])
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Returns nonzero if bit p_bit of p_vli is set. */
+static uint8_t vli_testBit(const uint8_t *p_vli, uint16_t p_bit)
+{
+    return (p_vli[p_bit/8] & ((uint8_t)1 << (p_bit % 8)));
+}
+
+/* Counts the number of 8-bit "digits" in p_vli. */
+static uint8_t vli_numDigits(const uint8_t *p_vli)
+{
+    int8_t i;
+    /* Search from the end until we find a non-zero digit.
+       We do it in reverse because we expect that most digits will be nonzero. */
+    for(i = ECC_BYTES - 1; i >= 0 && p_vli[i] == 0; --i)
+    {
+    }
+
+    return (i + 1);
+}
+
+/* Counts the number of bits required for p_vli. */
+static int16_t vli_numBits(const uint8_t *p_vli)
+{
+    uint8_t i;
+    uint8_t l_digit;
+    
+    uint8_t l_numDigits = vli_numDigits(p_vli);
+    if(l_numDigits == 0)
+    {
+        return 0;
+    }
+
+    l_digit = p_vli[l_numDigits - 1];
+    for(i=0; l_digit; ++i)
+    {
+        l_digit >>= 1;
+    }
+    
+    return ((int16_t)(l_numDigits - 1) * 8 + i);
+}
+
+/* Sets p_dest = p_src. */
+static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
+{
+#if (ECC_ASM == ecc_asm_avr)
+    __asm__ volatile (
+        REPEAT(ECC_BYTES, "ld r0, %a[sptr]+ \n\t"
+            "st %a[dptr]+, r0 \n\t")
+        : [dptr] "+e" (p_dest), [sptr] "+e" (p_src)
+        :
+        : "r0", "cc", "memory"
+    );
+#else
+    uint8_t i;
+    for(i=0; i<ECC_BYTES; ++i)
+    {
+        p_dest[i] = p_src[i];
+    }
+#endif
+}
+
+/* Returns sign of p_left - p_right. */
+static int8_t vli_cmp(uint8_t *p_left, uint8_t *p_right)
+{
+    int8_t i;
+    for(i = ECC_BYTES-1; i >= 0; --i)
+    {
+        if(p_left[i] > p_right[i])
+        {
+            return 1;
+        }
+        else if(p_left[i] < p_right[i])
+        {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* Computes p_vli = p_vli >> 1. */
+static void vli_rshift1(uint8_t *p_vli)
+{
+#if (ECC_ASM == ecc_asm_avr)
+    __asm__ volatile (
+        "adiw r30, 20 \n\t"
+        "ld r0, -z \n\t"  /* Load word. */
+        "lsr r0 \n\t" /* Shift. */
+        "st z, r0 \n\t"  /* Store the first result word. */
+
+        /* Now we just do the remaining words with the carry bit (using ROR) */
+        REPEAT(DEC(ECC_BYTES), "ld r0, -z \n\t"
+            "ror r0 \n\t"
+            "st z, r0 \n\t")
+
+        : "+z" (p_vli)
+        :
+        : "r0", "cc", "memory"
+    );
+#else
+    uint8_t *l_end = p_vli;
+    uint8_t l_carry = 0;
+    
+    p_vli += ECC_BYTES;
+    while(p_vli-- > l_end)
+    {
+        uint8_t l_temp = *p_vli;
+        *p_vli = (l_temp >> 1) | l_carry;
+        l_carry = l_temp << 7;
+    }
+#endif
+}
+
+/* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
+static inline uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+{
+#if (ECC_ASM == ecc_asm_avr)
+    uint8_t l_carry = 0;
     uint8_t l_left;
     uint8_t l_right;
 
     __asm__ volatile (
-        "ld %[left], x+ \n\t"  /* Load left word. */
-        "ld %[right], y+ \n\t" /* Load right word. */
+        "ld %[left], %a[lptr]+ \n\t"  /* Load left word. */
+        "ld %[right], %a[rptr]+ \n\t" /* Load right word. */
         "add %[left], %[right] \n\t" /* Add the first word. */
-        "st z+, %[left] \n\t"  /* Store the first result word. */
+        "st %a[dptr]+, %[left] \n\t"  /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using ADC) */
-        REPEAT(DEC(ECC_BYTES), "ld %[left], x+ \n\t"
-            "ld %[right], y+ \n\t"
+        REPEAT(DEC(ECC_BYTES), "ld %[left], %a[lptr]+ \n\t"
+            "ld %[right], %a[rptr]+ \n\t"
             "adc %[left], %[right] \n\t"
-            "st z+, %[left] \n\t")
+            "st %a[dptr]+, %[left] \n\t")
         
         "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
 
-        : "+z" (p_result), "+x" (p_left), "+y" (p_right), [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
+        : [dptr] "+e" (p_result), [lptr] "+e" (p_left), [rptr] "+e" (p_right),
+            [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
         :
         : "cc", "memory"
     );
@@ -355,28 +379,29 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 }
 
 /* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
-static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static inline uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
 #if (ECC_ASM == ecc_asm_avr)
-    uint8_t l_borrow = 0; /* borrow = 0 initially */
+    uint8_t l_borrow = 0;
     uint8_t l_left;
     uint8_t l_right;
 
     __asm__ volatile (
-        "ld %[left], x+ \n\t"  /* Load left word. */
-        "ld %[right], y+ \n\t" /* Load right word. */
+        "ld %[left], %a[lptr]+ \n\t"  /* Load left word. */
+        "ld %[right], %a[rptr]+ \n\t" /* Load right word. */
         "sub %[left], %[right] \n\t" /* Subtract the first word. */
-        "st z+, %[left] \n\t"  /* Store the first result word. */
+        "st %a[dptr]+, %[left] \n\t"  /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT(DEC(ECC_BYTES), "ld %[left], x+ \n\t"
-        "ld %[right], y+ \n\t"
-        "sbc %[left], %[right] \n\t"
-        "st z+, %[left] \n\t")
+        REPEAT(DEC(ECC_BYTES), "ld %[left], %a[lptr]+ \n\t"
+            "ld %[right], %a[rptr]+ \n\t"
+            "sbc %[left], %[right] \n\t"
+            "st %a[dptr]+, %[left] \n\t")
         
         "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_carry. */
 
-        : "+z" (p_result), "+x" (p_left), "+y" (p_right), [borrow] "+r" (l_borrow), [left] "=r" (l_left), [right] "=r" (l_right)
+        : [dptr] "+e" (p_result), [lptr] "+e" (p_left), [rptr] "+e" (p_right),
+            [borrow] "+r" (l_borrow), [left] "=r" (l_left), [right] "=r" (l_right)
         :
         : "cc", "memory"
     );
@@ -399,8 +424,8 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
 #if (ECC_ASM == ecc_asm_avr)
     __asm__ volatile (
-        "adiw r30, 10\n\t"
-        "adiw r28, 10\n\t"
+        "adiw r30, 10 \n\t"
+        "adiw r28, 10 \n\t"
         "ld r2, x+ \n\t"
         "ld r3, x+ \n\t"
         "ld r4, x+ \n\t"
@@ -876,8 +901,8 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "st z+, r24 \n\t"
         "st z+, r22 \n\t"
 
-        "sbiw r30, 30\n\t"
-        "sbiw r28, 20\n\t"
+        "sbiw r30, 30 \n\t"
+        "sbiw r28, 20 \n\t"
         "ld r12, y+ \n\t"
         "ld r13, y+ \n\t"
         "ld r14, y+ \n\t"
@@ -2336,6 +2361,1266 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 
 static void vli_square(uint8_t *p_result, uint8_t *p_left)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    __asm__ volatile (
+        "ld r2, x+ \n\t"
+        "ld r3, x+ \n\t"
+        "ld r4, x+ \n\t"
+        "ld r5, x+ \n\t"
+        "ld r6, x+ \n\t"
+        "ld r7, x+ \n\t"
+        "ld r8, x+ \n\t"
+        "ld r9, x+ \n\t"
+        "ld r10, x+ \n\t"
+        "ld r11, x+ \n\t"
+        "ld r12, x+ \n\t"
+        "ld r13, x+ \n\t"
+        "ld r14, x+ \n\t"
+        "ld r15, x+ \n\t"
+        "ld r16, x+ \n\t"
+        "ld r17, x+ \n\t"
+        "ld r18, x+ \n\t"
+        "ld r19, x+ \n\t"
+        "ld r20, x+ \n\t"
+        "ld r21, x+ \n\t"
+        "ldi r27, 0 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "mul r2, r2 \n\t"
+        "st z+, r0 \n\t"
+        "mov r22, r1 \n\t"
+
+        "ldi r24, 0 \n\t"
+        "mul r2, r3 \n\t"
+        "lsl r0 \n\t"
+        "rol r1 \n\t"
+        "adc r24, r27 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "adc r24, r27 \n\t"
+        "st z+, r22 \n\t"
+
+        "ldi r22, 0 \n\t"
+        "mul r2, r4 \n\t"
+        "lsl r0 \n\t"
+        "rol r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r3 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r5 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r4 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r6 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r5 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r4, r4 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r7 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r6 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r5 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r7 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r6 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r5, r5 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r7 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r6 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r7 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r6, r6 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r7 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r7, r7 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r7, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r8, r8 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r8, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r7, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r8, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r9, r9 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r8, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r9, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r7, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r8, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r9, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r10, r10 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r8, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r9, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r10, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r2, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r3, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r7, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r8, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r9, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r10, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r11, r11 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r2, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r3, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r4, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r8, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r9, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r10, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r11, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r3, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r4, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r5, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r7, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r8, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r9, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r10, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r11, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r12, r12 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r4, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r5, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r6, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r8, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r9, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r10, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r11, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r12, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r5, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r6, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r7, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r8, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r9, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r10, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r11, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r12, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r13, r13 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r6, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r7, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r8, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r9, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r10, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r11, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r12, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r13, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r7, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r8, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r9, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r10, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r11, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r12, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r13, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r14, r14 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r8, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r9, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r10, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r11, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r12, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r13, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r14, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r9, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r10, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r11, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r12, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r13, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r14, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r15, r15 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r10, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r11, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r12, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r13, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r14, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r15, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r11, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r12, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r13, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r14, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r15, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r16, r16 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r12, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r13, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r14, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r15, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r16, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r13, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r14, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r15, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r16, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r17, r17 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r14, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r15, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r16, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r17, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r15, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r16, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r17, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r18, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r16, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r17, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r18, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r24, 0 \n\t"
+        "ldi r22, 0 \n\t"
+        "mul r17, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "mul r18, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r24 \n\t"
+        "rol r22 \n\t"
+        "mul r19, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r24, r1 \n\t"
+        "adc r22, r27 \n\t"
+        "add r23, r25 \n\t"
+        "adc r24, r26 \n\t"
+        "adc r22, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "ldi r25, 0 \n\t"
+        "ldi r26, 0 \n\t"
+        "mul r18, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "mul r19, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "adc r26, r27 \n\t"
+        "lsl r23 \n\t"
+        "rol r25 \n\t"
+        "rol r26 \n\t"
+        "add r23, r24 \n\t"
+        "adc r25, r22 \n\t"
+        "adc r26, r27 \n\t"
+        "st z+, r23 \n\t"
+
+        "ldi r23, 0 \n\t"
+        "mul r19, r21 \n\t"
+        "lsl r0 \n\t"
+        "rol r1 \n\t"
+        "adc r23, r27 \n\t"
+        "add r25, r0 \n\t"
+        "adc r26, r1 \n\t"
+        "adc r23, r27 \n\t"
+        "mul r20, r20 \n\t"
+        "add r25, r0 \n\t"
+        "adc r26, r1 \n\t"
+        "adc r23, r27 \n\t"
+        "st z+, r25 \n\t"
+
+        "ldi r25, 0 \n\t"
+        "mul r20, r21 \n\t"
+        "lsl r0 \n\t"
+        "rol r1 \n\t"
+        "adc r25, r27 \n\t"
+        "add r26, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "adc r25, r27 \n\t"
+        "st z+, r26 \n\t"
+
+        "mul r21, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r25, r1 \n\t"
+        "st z+, r23 \n\t"
+        "st z+, r25 \n\t"
+        "eor r1, r1 \n\t"
+        : "+x" (p_left), "+z" (p_result)
+        :
+        : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
+          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+    );
+#else
     uint16_t r01 = 0;
     uint8_t r2 = 0;
     
@@ -2360,6 +3645,7 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
     }
     
     p_result[ECC_BYTES*2 - 1] = (uint8_t)r01;
+#endif
 }
 
 #else /* ECC_SQUARE_FUNC */
@@ -2405,6 +3691,66 @@ static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t *RESTRICT p_produ
 
 static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    uint8_t t1, t2;
+    __asm__ volatile (
+        "adiw r30, 24 \n\t" /* we are shifting p_right, by 31 bits, so shift over 4 bytes */
+        "adiw r26, 20 \n\t" /* end of p_right */
+        "ld %[t1], -x \n\t"  /* Load word. */
+        "lsr %[t1] \n\t" /* Shift. */
+        "st -z, %[t1] \n\t"  /* Store the first result word. */
+
+        /* Now we just do the remaining words with the carry bit (using ROR) */
+        REPEAT(19, "ld %[t1], -x \n\t"
+            "ror %[t1] \n\t"
+            "st -z, %[t1] \n\t")
+            
+        "eor %[t1], %[t1] \n\t" /* %[t1] = 0 */
+        "ror %[t1] \n\t" /* get last bit */
+        "st -z, %[t1] \n\t" /* store it */
+
+        "sbiw r30, 3 \n\t" /* move z back to point at p_result */
+        /* now we add p_right */
+        "ld %[t1], x+ \n\t"
+        "st z+, %[t1] \n\t" /* the first 3 bytes do not need to be added */
+        "ld %[t1], x+ \n\t"
+        "st z+, %[t1] \n\t"
+        "ld %[t1], x+ \n\t"
+        "st z+, %[t1] \n\t"
+        
+        "ld %[t1], x+ \n\t"
+        "ld %[t2], z \n\t"
+        "add %[t1], %[t2] \n\t"
+        "st z+, %[t1] \n\t"
+        
+        /* Now we just do the remaining words with the carry bit (using ADC) */
+        REPEAT(16, "ld %[t1], x+ \n\t"
+            "ld %[t2], z \n\t"
+            "adc %[t1], %[t2] \n\t"
+            "st z+, %[t1] \n\t")
+        
+        /* Propagate over the remaining bytes of p_result */
+        "ld %[t1], z \n\t"
+        "adc %[t1], r1 \n\t"
+        "st z+, %[t1] \n\t"
+        
+        "ld %[t1], z \n\t"
+        "adc %[t1], r1 \n\t"
+        "st z+, %[t1] \n\t"
+        
+        "ld %[t1], z \n\t"
+        "adc %[t1], r1 \n\t"
+        "st z+, %[t1] \n\t"
+        
+        "ld %[t1], z \n\t"
+        "adc %[t1], r1 \n\t"
+        "st z, %[t1] \n\t"
+        
+        : "+z" (p_result), "+x" (p_right), [t1] "=r" (t1), [t2] "=r" (t2)
+        :
+        : "cc", "memory"
+    );
+#else
     uint8_t l_carry;
     uint8_t i;
     
@@ -2420,70 +3766,75 @@ static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
         p_result[i] = (uint8_t)l_sum;
         l_carry = l_sum >> 8;
     }
+#endif
+}
+
+/* Computes p_result = p_product % curve_p
+    see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
+static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
+{
+    uint8_t l_tmp[2*ECC_BYTES];
+    uint8_t l_carry;
+#if (ECC_ASM != ecc_asm_avr)
+    vli_clear(l_tmp);
+#endif
+    vli_clear(l_tmp + ECC_BYTES);
+    
+    omega_mult(l_tmp, p_product + ECC_BYTES); /* (Rq, q) = q * c */
+    
+    l_carry = vli_add(p_result, p_product, l_tmp); /* (C, r) = r + q       */
+    if(!vli_isZero(l_tmp + ECC_BYTES)) /* if Rq > 0 */
+    {
+        vli_clear(p_product);
+        omega_mult(p_product, l_tmp + ECC_BYTES); /* Rq*c */
+        l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
+    }
+
+    while(l_carry > 0)
+    {
+        --l_carry;
+        vli_sub(p_result, p_result, curve_p);
+    }
+    
+    while(vli_cmp(p_result, curve_p) > 0)
+    {
+        vli_sub(p_result, p_result, curve_p);
+    }
 }
 
 // /* Computes p_result = p_product % curve_p
-//     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
-// static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
+//     see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
+//     section "Curve-Specific Optimizations" */
+// static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_product)
 // {
-//     uint8_t l_tmp[2*ECC_BYTES] = {0};
-//     uint8_t l_carry;
-//     
-//     omega_mult(l_tmp, p_product + ECC_BYTES); /* (Rq, q) = q * c */
-//     
-//     l_carry = vli_add(p_result, p_product, l_tmp); /* (C, r) = r + q       */
-//     if(!vli_isZero(l_tmp + ECC_BYTES)) /* if Rq > 0 */
+//     uint8_t l_tmp[2*ECC_BYTES];
+//      
+//     while(!vli_isZero(p_product + ECC_BYTES)) /* While c1 != 0 */
 //     {
-//         vli_clear(p_product);
-//         omega_mult(p_product, l_tmp + ECC_BYTES); /* Rq*c */
-//         l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
-//     }
-// 
-//     while(l_carry > 0)
-//     {
-//         --l_carry;
-//         vli_sub(p_result, p_result, curve_p);
+//         uint8_t l_carry = 0;
+//         uint8_t i;
+//         
+//         vli_clear(l_tmp);
+//         vli_clear(l_tmp + ECC_BYTES);
+//         omega_mult(l_tmp, p_product + ECC_BYTES); /* tmp = w * c1 */
+//         vli_clear(p_product + ECC_BYTES); /* p = c0 */
+//         
+//         /* (c1, c0) = c0 + w * c1 */
+//         for(i=0; i<ECC_BYTES+4; ++i)
+//         {
+//             uint16_t l_sum = (uint16_t)p_product[i] + l_tmp[i] + l_carry;
+//             p_product[i] = (uint8_t)l_sum;
+//             l_carry = l_sum >> 8;
+//         }
+//         p_product[ECC_BYTES+4] = l_carry;
 //     }
 //     
-//     while(vli_cmp(p_result, curve_p) > 0)
+//     while(vli_cmp(p_product, curve_p) > 0)
 //     {
-//         vli_sub(p_result, p_result, curve_p);
+//         vli_sub(p_product, p_product, curve_p);
 //     }
+//     vli_set(p_result, p_product);
 // }
-
-/* Computes p_result = p_product % curve_p
-    see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
-    section "Curve-Specific Optimizations" */
-static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_product)
-{
-    uint8_t l_tmp[2*ECC_BYTES];
-     
-    while(!vli_isZero(p_product + ECC_BYTES)) /* While c1 != 0 */
-    {
-        uint8_t l_carry = 0;
-        uint8_t i;
-        
-        vli_clear(l_tmp);
-        vli_clear(l_tmp + ECC_BYTES);
-        omega_mult(l_tmp, p_product + ECC_BYTES); /* tmp = w * c1 */
-        vli_clear(p_product + ECC_BYTES); /* p = c0 */
-        
-        /* (c1, c0) = c0 + w * c1 */
-        for(i=0; i<ECC_BYTES+4; ++i)
-        {
-            uint16_t l_sum = (uint16_t)p_product[i] + l_tmp[i] + l_carry;
-            p_product[i] = (uint8_t)l_sum;
-            l_carry = l_sum >> 8;
-        }
-        p_product[ECC_BYTES+4] = l_carry;
-    }
-    
-    while(vli_cmp(p_product, curve_p) > 0)
-    {
-        vli_sub(p_product, p_product, curve_p);
-    }
-    vli_set(p_result, p_product);
-}
 
 #elif ECC_CURVE == secp192r1
 
