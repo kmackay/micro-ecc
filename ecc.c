@@ -4109,25 +4109,7 @@ static void vli_flip(uint8_t * RESTRICT p_dest, const uint8_t * RESTRICT p_src)
     }
 }
 
-static void ecc_point_decompress(EccPoint *p_point, const uint8_t p_compressed[ECC_BYTES+1])
-{
-    uint8_t _3[ECC_BYTES] = {3}; /* -a = 3 */
-    vli_flip(p_point->x, p_compressed + 1);
-    
-    vli_modSquare_fast(p_point->y, p_point->x); /* y = x^2 */
-    vli_modSub(p_point->y, p_point->y, _3, curve_p); /* y = x^2 - 3 */
-    vli_modMult_fast(p_point->y, p_point->y, p_point->x); /* y = x^3 - 3x */
-    vli_modAdd(p_point->y, p_point->y, curve_b, curve_p); /* y = x^3 - 3x + b */
-    
-    mod_sqrt(p_point->y);
-    
-    if((p_point->y[0] & 0x01) != (p_compressed[0] & 0x01))
-    {
-        vli_sub(p_point->y, curve_p, p_point->y);
-    }
-}
-
-int ecc_make_key(uint8_t p_publicKey[ECC_BYTES+1], uint8_t p_privateKey[ECC_BYTES])
+int ecc_make_key(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_privateKey[ECC_BYTES])
 {
     EccPoint l_public;
     uint8_t l_private[ECC_BYTES];
@@ -4157,24 +4139,22 @@ int ecc_make_key(uint8_t p_publicKey[ECC_BYTES+1], uint8_t p_privateKey[ECC_BYTE
     } while(EccPoint_isZero(&l_public));
     
     vli_flip(p_privateKey, l_private);
-    vli_flip(p_publicKey + 1, l_public.x);
-    p_publicKey[0] = 2 + (l_public.y[0] & 0x01);
+    vli_flip(p_publicKey, l_public.x);
+    vli_flip(p_publicKey + ECC_BYTES, l_public.y);
     return 1;
 }
 
-int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES+1], const uint8_t p_privateKey[ECC_BYTES], uint8_t p_secret[ECC_BYTES])
+int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_privateKey[ECC_BYTES], uint8_t p_secret[ECC_BYTES])
 {
     EccPoint l_public;
     uint8_t l_private[ECC_BYTES];
     uint8_t l_random[ECC_BYTES];
     
-    if(!g_rng(l_random, ECC_BYTES))
-    {
-        return 0;
-    }
+    g_rng(l_random, ECC_BYTES);
     
     vli_flip(l_private, p_privateKey);
-    ecc_point_decompress(&l_public, p_publicKey);
+    vli_flip(l_public.x, p_publicKey);
+    vli_flip(l_public.y, p_publicKey + ECC_BYTES);
     
     EccPoint l_product;
     EccPoint_mult(&l_product, &l_public, l_private, l_random);
@@ -4182,4 +4162,32 @@ int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES+1], const uint8_t p_p
     vli_flip(p_secret, l_product.x);
     
     return !EccPoint_isZero(&l_product);
+}
+
+void ecc_compress(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_compressed[ECC_BYTES+1])
+{
+    vli_set(p_compressed + 1, p_publicKey);
+    p_compressed[0] = 2 + (p_publicKey[ECC_BYTES * 2 - 1] & 0x01);
+}
+
+void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_BYTES*2])
+{
+    EccPoint l_point;
+    uint8_t _3[ECC_BYTES] = {3}; /* -a = 3 */
+    vli_flip(l_point.x, p_compressed + 1);
+    
+    vli_modSquare_fast(l_point.y, l_point.x); /* y = x^2 */
+    vli_modSub(l_point.y, l_point.y, _3, curve_p); /* y = x^2 - 3 */
+    vli_modMult_fast(l_point.y, l_point.y, l_point.x); /* y = x^3 - 3x */
+    vli_modAdd(l_point.y, l_point.y, curve_b, curve_p); /* y = x^3 - 3x + b */
+    
+    mod_sqrt(l_point.y);
+    
+    if((l_point.y[0] & 0x01) != (p_compressed[0] & 0x01))
+    {
+        vli_sub(l_point.y, curve_p, l_point.y);
+    }
+    
+    vli_flip(p_publicKey, l_point.x);
+    vli_flip(p_publicKey + ECC_BYTES, l_point.y);
 }

@@ -69,7 +69,7 @@ Outputs:
 
 Returns 1 if the key pair was generated successfully, 0 if an error occurred.
 */
-int ecc_make_key(uint8_t p_publicKey[ECC_BYTES+1], uint8_t p_privateKey[ECC_BYTES]);
+int ecc_make_key(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_privateKey[ECC_BYTES]);
 
 /* ecdh_shared_secret() function.
 Compute a shared secret given your secret key and someone else's public key.
@@ -84,10 +84,32 @@ Outputs:
 
 Returns 1 if the shared secret was generated successfully, 0 if an error occurred.
 */
-int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES+1], const uint8_t p_privateKey[ECC_BYTES], uint8_t p_secret[ECC_BYTES]);
+int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_privateKey[ECC_BYTES], uint8_t p_secret[ECC_BYTES]);
+
+/* ecc_compress() function.
+Compress a public key.
+
+Inputs:
+    p_publicKey - The public key to compress.
+
+Outputs:
+    p_compressed - Will be filled in with the compressed public key.
+*/
+void ecc_compress(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_compressed[ECC_BYTES+1]);
+
+/* ecc_decompress() function.
+Decompress a compressed public key.
+
+Inputs:
+    p_compressed - The compressed public key.
+
+Outputs:
+    p_publicKey - Will be filled in with the decompressed public key.
+*/
+void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_BYTES*2]);
 
 #ifdef __cplusplus
 } /* end of extern "C" */
 #endif
 
-#endif /* _EASY_ECC_H_ */
+#endif /* _AVR_ECC_H_ */

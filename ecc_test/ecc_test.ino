@@ -20,8 +20,8 @@ void setup() {
     uint8_t l_private1[ECC_BYTES];
     uint8_t l_private2[ECC_BYTES];
     
-    uint8_t l_public1[ECC_BYTES + 1];
-    uint8_t l_public2[ECC_BYTES + 1];
+    uint8_t l_public1[ECC_BYTES * 2];
+    uint8_t l_public2[ECC_BYTES * 2];
     
     uint8_t l_secret1[ECC_BYTES];
     uint8_t l_secret2[ECC_BYTES];
