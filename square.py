@@ -48,8 +48,6 @@ print ""
 acc = [23, 24, 22]
 old_acc = [25, 26]
 for i in xrange(3, 20):
-    emit("ldi r%s, 0", acc[0])
-    emit("ldi r%s, 0", old_acc[0])
     emit("ldi r%s, 0", old_acc[1])
     tmp = [acc[1], acc[2]]
     acc = [acc[0], old_acc[0], old_acc[1]]
@@ -58,9 +56,13 @@ for i in xrange(3, 20):
     # gather non-equal words
     for j in xrange(0, (i+1)//2):
         emit("mul r%s, r%s", r(j), r(i-j))
-        emit("add r%s, r0", acc[0])
-        emit("adc r%s, r1", acc[1])
-        emit("adc r%s, r27", acc[2])
+        if j == 0:
+            emit("mov r%s, r0", acc[0])
+            emit("mov r%s, r1", acc[1])
+        else:
+            emit("add r%s, r0", acc[0])
+            emit("adc r%s, r1", acc[1])
+            emit("adc r%s, r27", acc[2])
     # multiply by 2
     emit("lsl r%s", acc[0])
     emit("rol r%s", acc[1])
@@ -83,8 +85,6 @@ for i in xrange(3, 20):
     print ""
 
 for i in xrange(1, 17):
-    emit("ldi r%s, 0", acc[0])
-    emit("ldi r%s, 0", old_acc[0])
     emit("ldi r%s, 0", old_acc[1])
     tmp = [acc[1], acc[2]]
     acc = [acc[0], old_acc[0], old_acc[1]]
@@ -93,9 +93,13 @@ for i in xrange(1, 17):
     # gather non-equal words
     for j in xrange(0, (20-i)//2):
         emit("mul r%s, r%s", r(i+j), r(19-j))
-        emit("add r%s, r0", acc[0])
-        emit("adc r%s, r1", acc[1])
-        emit("adc r%s, r27", acc[2])
+        if j == 0:
+            emit("mov r%s, r0", acc[0])
+            emit("mov r%s, r1", acc[1])
+        else:
+            emit("add r%s, r0", acc[0])
+            emit("adc r%s, r1", acc[1])
+            emit("adc r%s, r27", acc[2])
     # multiply by 2
     emit("lsl r%s", acc[0])
     emit("rol r%s", acc[1])
