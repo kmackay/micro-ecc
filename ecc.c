@@ -3569,14 +3569,54 @@ static void vli_modAdd(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right, uin
 
 /* Computes p_result = (p_left - p_right) % p_mod.
    Assumes that p_left < p_mod and p_right < p_mod, p_result != p_mod. */
-static void vli_modSub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right, uint8_t *p_mod)
+__attribute__((noinline))
+static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    __asm__ volatile (
+        "ld r18, x+ \n\t"  /* Load left word. */
+        "ld r19, y+ \n\t" /* Load right word. */
+        "sub r18, r19 \n\t" /* Subtract the first word. */
+        "st z+, r18 \n\t"  /* Store the first result word. */
+        
+        /* Now we just do the remaining words with the carry bit (using SBC) */
+        REPEAT(DEC(ECC_BYTES), "ld r18, x+ \n\t"
+            "ld r19, y+ \n\t"
+            "sbc r18, r19 \n\t"
+            "st z+, r18 \n\t")
+        
+        "brcs 1f \n\t" /* If borrow is set, then we need to add */
+        "rjmp done \n\t" /* otherwise we are done */
+        "1: \n\t"
+        
+        "sbiw r30, 20 \n\t" /* make z point at p_result again */
+        "ldi r28, lo8(curve_p) \n\t" /* make y point at curve_p */
+    	"ldi r29, hi8(curve_p) \n\t"
+    	
+    	/* do the addition */
+    	"ld r18, z \n\t"
+        "ld r19, y+ \n\t"
+        "add r18, r19 \n\t"
+        "st z+, r18 \n\t"
+        REPEAT(DEC(ECC_BYTES), "ld r18, z \n\t"
+            "ld r19, y+ \n\t"
+            "adc r18, r19 \n\t"
+            "st z+, r18 \n\t")
+        
+        "done: \n\t"
+
+        : "+z" (p_result), "+x" (p_left), "+y" (p_right)
+        :
+        : "r18", "r19", "cc", "memory"
+    );
+#else
     uint8_t l_borrow = vli_sub(p_result, p_left, p_right);
     if(l_borrow)
     { /* In this case, p_result == -diff == (max int) - diff.
          Since -x % d == d - x, we can get the correct result from p_result + p_mod (with overflow). */
-        vli_add(p_result, p_result, p_mod);
+        vli_add(p_result, p_result, curve_p);
     }
+#endif
 }
 
 #if ECC_CURVE == secp128r1
@@ -3590,68 +3630,10 @@ static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t *RESTRICT p_produ
 
 #elif ECC_CURVE == secp160r1
 
+#if 1//(ECC_ASM != ecc_asm_avr)
 static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    uint8_t t1, t2;
-    __asm__ volatile (
-        "adiw r30, 24 \n\t" /* we are shifting p_right, by 31 bits, so shift over 4 bytes */
-        "adiw r26, 20 \n\t" /* end of p_right */
-        "ld %[t1], -x \n\t"  /* Load word. */
-        "lsr %[t1] \n\t" /* Shift. */
-        "st -z, %[t1] \n\t"  /* Store the first result word. */
 
-        /* Now we just do the remaining words with the carry bit (using ROR) */
-        REPEAT(19, "ld %[t1], -x \n\t"
-            "ror %[t1] \n\t"
-            "st -z, %[t1] \n\t")
-            
-        "eor %[t1], %[t1] \n\t" /* %[t1] = 0 */
-        "ror %[t1] \n\t" /* get last bit */
-        "st -z, %[t1] \n\t" /* store it */
-
-        "sbiw r30, 3 \n\t" /* move z back to point at p_result */
-        /* now we add p_right */
-        "ld %[t1], x+ \n\t"
-        "st z+, %[t1] \n\t" /* the first 3 bytes do not need to be added */
-        "ld %[t1], x+ \n\t"
-        "st z+, %[t1] \n\t"
-        "ld %[t1], x+ \n\t"
-        "st z+, %[t1] \n\t"
-        
-        "ld %[t1], x+ \n\t"
-        "ld %[t2], z \n\t"
-        "add %[t1], %[t2] \n\t"
-        "st z+, %[t1] \n\t"
-        
-        /* Now we just do the remaining words with the carry bit (using ADC) */
-        REPEAT(16, "ld %[t1], x+ \n\t"
-            "ld %[t2], z \n\t"
-            "adc %[t1], %[t2] \n\t"
-            "st z+, %[t1] \n\t")
-        
-        /* Propagate over the remaining bytes of p_result */
-        "ld %[t1], z \n\t"
-        "adc %[t1], r1 \n\t"
-        "st z+, %[t1] \n\t"
-        
-        "ld %[t1], z \n\t"
-        "adc %[t1], r1 \n\t"
-        "st z+, %[t1] \n\t"
-        
-        "ld %[t1], z \n\t"
-        "adc %[t1], r1 \n\t"
-        "st z+, %[t1] \n\t"
-        
-        "ld %[t1], z \n\t"
-        "adc %[t1], r1 \n\t"
-        "st z, %[t1] \n\t"
-        
-        : "+z" (p_result), "+x" (p_right), [t1] "=r" (t1), [t2] "=r" (t2)
-        :
-        : "cc", "memory"
-    );
-#else
     uint8_t l_carry;
     uint8_t i;
     
@@ -3667,18 +3649,233 @@ static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
         p_result[i] = (uint8_t)l_sum;
         l_carry = l_sum >> 8;
     }
-#endif
 }
+#endif
 
 /* Computes p_result = p_product % curve_p
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
 static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
 {
+#if (ECC_ASM == ecc_asm_avr)
+    __asm__ volatile (
+        "in r30, __SP_L__ \n\t"
+    	"in r31, __SP_H__ \n\t"
+    	"sbiw r30, 24 \n\t"
+    	"in r0, __SREG__ \n\t"
+    	"cli \n\t"
+    	"out __SP_H__, r31 \n\t"
+    	"out __SREG__, r0 \n\t"
+    	"out __SP_L__, r30 \n\t"
+    	
+    	"eor r20, r20 \n\t" /* r20 = 0 (carry count) */
+    	
+    	"adiw r30, 25 \n\t" /* we are shifting by 31 bits, so shift over 4 bytes (+ 1 since z initially points below the stack) */
+        "adiw r26, 40 \n\t" /* end of p_product */
+        "ld r18, -x \n\t"  /* Load word. */
+        "lsr r18 \n\t" /* Shift. */
+        "st -z, r18 \n\t"  /* Store the first result word. */
+
+        /* Now we just do the remaining words with the carry bit (using ROR) */
+        REPEAT(19, "ld r18, -x \n\t"
+            "ror r18 \n\t"
+            "st -z, r18 \n\t")
+
+        "eor r18, r18 \n\t" /* r18 = 0 */
+        "ror r18 \n\t" /* get last bit */
+        "st -z, r18 \n\t" /* store it */
+
+        "sbiw r30, 3 \n\t" /* move z back to point at tmp */
+        /* now we add p_right */
+        "ld r18, x+ \n\t"
+        "st z+, r18 \n\t" /* the first 3 bytes do not need to be added */
+        "ld r18, x+ \n\t"
+        "st z+, r18 \n\t"
+        "ld r18, x+ \n\t"
+        "st z+, r18 \n\t"
+
+        "ld r18, x+ \n\t"
+        "ld r19, z \n\t"
+        "add r18, r19 \n\t"
+        "st z+, r18 \n\t"
+
+        /* Now we just do the remaining words with the carry bit (using ADC) */
+        REPEAT(16, "ld r18, x+ \n\t"
+            "ld r19, z \n\t"
+            "adc r18, r19 \n\t"
+            "st z+, r18 \n\t")
+
+        /* Propagate over the remaining bytes of p_result */
+        "ld r18, z \n\t"
+        "adc r18, r1 \n\t"
+        "st z+, r18 \n\t"
+
+        "ld r18, z \n\t"
+        "adc r18, r1 \n\t"
+        "st z+, r18 \n\t"
+
+        "ld r18, z \n\t"
+        "adc r18, r1 \n\t"
+        "st z+, r18 \n\t"
+
+        "ld r18, z \n\t"
+        "adc r18, r1 \n\t"
+        "st z+, r18 \n\t"
+        
+        "sbiw r30, 24 \n\t" /* move z back to point at tmp */
+        "sbiw r26, 40 \n\t" /* move x back to point at p_product */
+        
+        /* add low bytes of tmp to p_product, storing in p_result */
+        "ld r18, z+ \n\t"
+        "ld r19, x+ \n\t"
+        "add r18, r19 \n\t"
+        "st y+, r18 \n\t"
+        REPEAT(19, "ld r18, z+ \n\t"
+            "ld r19, x+ \n\t"
+            "adc r18, r19 \n\t"
+            "st y+, r18 \n\t")
+        "adc r20, __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
+        /* at this point x is at the end of p_product, y is at the end of p_result, z is 20 bytes into tmp */
+        "sbiw r28, 20 \n\t" /* move y back to point at p_result */
+        
+        "eor r19, r19 \n\t"
+        "ld r18, z+ \n\t"
+        "add r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        /* now z points to the end of tmp */
+        "brcs mmod_remult \n\t" /* carry was set, so something was not zero (need to mult again) */
+        "cp r19, __zero_reg__ \n\t"
+        "brne mmod_remult \n\t" /* sum was not equal to zero (need to mult again) */
+        "rjmp mmod_after_remult \n\t"
+        
+        "mmod_remult: \n\t" /* do omega_mult with the 4 relevant bytes */
+        
+        /* z already points to the end of tmp, x points to the end of p_product */
+        
+        "ld r18, -z \n\t"  /* Load word. */
+        "lsr r18 \n\t" /* Shift. */
+        "st -x, r18 \n\t"  /* Store the first result word. */
+        
+        "ld r18, -z \n\t"
+        "ror r18 \n\t"
+        "st -x, r18 \n\t"
+        "ld r18, -z \n\t"
+        "ror r18 \n\t"
+        "st -x, r18 \n\t"
+        "ld r18, -z \n\t"
+        "ror r18 \n\t"
+        "st -x, r18 \n\t"
+        
+        "eor r18, r18 \n\t" /* r18 = 0 */
+        "ror r18 \n\t" /* get last bit */
+        "st -x, r18 \n\t" /* store it */
+        
+        "sbiw r26, 3 \n\t" /* move x back to point at beginning */
+        /* now we add a copy of the 4 bytes */
+        "ld r18, z+ \n\t"
+        "st x+, r18 \n\t" /* the first 3 bytes do not need to be added */
+        "ld r18, z+ \n\t"
+        "st x+, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "st x+, r18 \n\t"
+        
+        "ld r18, z+ \n\t"
+        "ld r19, x \n\t"
+        "add r18, r19 \n\t"
+        "st x+, r18 \n\t"
+        
+        /* Propagate over the remaining bytes */
+        "ld r18, x \n\t"
+        "adc r18, r1 \n\t"
+        "st x+, r18 \n\t"
+        
+        "ld r18, x \n\t"
+        "adc r18, r1 \n\t"
+        "st x+, r18 \n\t"
+        
+        "ld r18, x \n\t"
+        "adc r18, r1 \n\t"
+        "st x+, r18 \n\t"
+        
+        "ld r18, x \n\t"
+        "adc r18, r1 \n\t"
+        "st x+, r18 \n\t"
+        
+        /* now z points to the end of tmp, x points to the end of p_product (y still points at p_result) */
+        "sbiw r26, 8 \n\t" /* move x back to point at beginning of actual data */
+        /* add into p_result */
+        "ld r18, x+ \n\t"
+        "ld r19, y \n\t"
+        "add r18, r19 \n\t"
+        "st y+, r18 \n\t"
+        REPEAT(7, "ld r18, x+ \n\t"
+            "ld r19, y \n\t"
+            "adc r18, r19 \n\t"
+            "st y+, r18 \n\t")
+        
+        /* Done adding, now propagate carry bit */
+        REPEAT(12, "ld r18, y \n\t"
+            "adc r18, __zero_reg__ \n\t"
+            "st y+, r18 \n\t")
+        
+        "adc r20, __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
+        "sbiw r28, 20 \n\t" /* move y back to point at p_result */
+        
+        "mmod_after_remult: \n\t"
+        
+        "sbiw r30, 24 \n\t" /* move z back to point at tmp */
+        
+        /* carry is <= 2, so subtract up to 2 times */
+        "cpse r20, __zero_reg__ \n\t"
+        "rcall mmod_sub \n\t"
+        "cpse r20, __zero_reg__ \n\t"
+        "rcall mmod_sub \n\t"
+        "rjmp mmod_end \n\t"
+        
+        "mmod_sub: \n\t"
+        
+        /* subtract curve_p (loaded into x) from p_result (in y) */
+        "ldi r26, lo8(curve_p) \n\t" /* make x point at curve_p */
+        "ldi r27, hi8(curve_p) \n\t"
+        "ld r18, y \n\t"
+        "ld r19, x+ \n\t"
+        "sub r18, r19 \n\t"
+        "st y+, r18 \n\t"
+        REPEAT(19, "ld r18, y \n\t"
+            "ld r19, x+ \n\t"
+            "sbc r18, r19 \n\t"
+            "st y+, r18 \n\t")
+        "sbiw r28, 20 \n\t" /* make y point at p_result again */
+        "dec r20 \n\t" /* subtract 1 from carry flag */
+        "ret \n\t"
+        
+        "mmod_end: \n\t"
+        
+        "adiw r30, 23 \n\t"
+    	"in r0, __SREG__ \n\t"
+    	"cli \n\t"
+    	"out __SP_H__, r31 \n\t"
+    	"out __SREG__, r0 \n\t"
+    	"out __SP_L__, r30 \n\t"
+        
+        : "+y" (p_result), "+x" (p_product)
+        :
+        : "r0", "r18", "r19", "r20", "r30", "r31", "cc", "memory"
+    );
+    
+    if(vli_cmp(p_result, curve_p) > 0)
+    {
+        vli_sub(p_result, p_result, curve_p);
+    }
+#else
     uint8_t l_tmp[2*ECC_BYTES];
     uint8_t l_carry;
-#if (ECC_ASM != ecc_asm_avr)
+    
     vli_clear(l_tmp);
-#endif
     vli_clear(l_tmp + ECC_BYTES);
     
     omega_mult(l_tmp, p_product + ECC_BYTES); /* (Rq, q) = q * c */
@@ -3690,17 +3887,18 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         omega_mult(p_product, l_tmp + ECC_BYTES); /* Rq*c */
         l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
     }
-
+    
     while(l_carry > 0)
     {
         --l_carry;
         vli_sub(p_result, p_result, curve_p);
     }
     
-    while(vli_cmp(p_result, curve_p) > 0)
+    if(vli_cmp(p_result, curve_p) > 0)
     {
         vli_sub(p_result, p_result, curve_p);
     }
+#endif
 }
 
 // /* Computes p_result = p_product % curve_p
@@ -3909,7 +4107,7 @@ static void EccPoint_double_jacobian(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y
     
     vli_modAdd(X1, X1, Z1, curve_p); /* t1 = x1 + z1^2 */
     vli_modAdd(Z1, Z1, Z1, curve_p); /* t3 = 2*z1^2 */
-    vli_modSub(Z1, X1, Z1, curve_p); /* t3 = x1 - z1^2 */
+    vli_modSub_fast(Z1, X1, Z1); /* t3 = x1 - z1^2 */
     vli_modMult_fast(X1, X1, Z1);    /* t1 = x1^2 - z1^4 */
     
     vli_modAdd(Z1, X1, X1, curve_p); /* t3 = 2*(x1^2 - z1^4) */
@@ -3927,11 +4125,11 @@ static void EccPoint_double_jacobian(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y
     /* t1 = 3/2*(x1^2 - z1^4) = B */
     
     vli_modSquare_fast(Z1, X1);      /* t3 = B^2 */
-    vli_modSub(Z1, Z1, t5, curve_p); /* t3 = B^2 - A */
-    vli_modSub(Z1, Z1, t5, curve_p); /* t3 = B^2 - 2A = x3 */
-    vli_modSub(t5, t5, Z1, curve_p); /* t5 = A - x3 */
+    vli_modSub_fast(Z1, Z1, t5); /* t3 = B^2 - A */
+    vli_modSub_fast(Z1, Z1, t5); /* t3 = B^2 - 2A = x3 */
+    vli_modSub_fast(t5, t5, Z1); /* t5 = A - x3 */
     vli_modMult_fast(X1, X1, t5);    /* t1 = B * (A - x3) */
-    vli_modSub(t4, X1, t4, curve_p); /* t4 = B * (A - x3) - y1^4 = y3 */
+    vli_modSub_fast(t4, X1, t4); /* t4 = B * (A - x3) - y1^4 = y3 */
     
     vli_set(X1, Z1);
     vli_set(Z1, Y1);
@@ -3981,20 +4179,20 @@ static void XYcZ_add(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RES
     /* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
     uint8_t t5[ECC_BYTES];
     
-    vli_modSub(t5, X2, X1, curve_p); /* t5 = x2 - x1 */
+    vli_modSub_fast(t5, X2, X1); /* t5 = x2 - x1 */
     vli_modSquare_fast(t5, t5);      /* t5 = (x2 - x1)^2 = A */
     vli_modMult_fast(X1, X1, t5);    /* t1 = x1*A = B */
     vli_modMult_fast(X2, X2, t5);    /* t3 = x2*A = C */
-    vli_modSub(Y2, Y2, Y1, curve_p); /* t4 = y2 - y1 */
+    vli_modSub_fast(Y2, Y2, Y1); /* t4 = y2 - y1 */
     vli_modSquare_fast(t5, Y2);      /* t5 = (y2 - y1)^2 = D */
     
-    vli_modSub(t5, t5, X1, curve_p); /* t5 = D - B */
-    vli_modSub(t5, t5, X2, curve_p); /* t5 = D - B - C = x3 */
-    vli_modSub(X2, X2, X1, curve_p); /* t3 = C - B */
+    vli_modSub_fast(t5, t5, X1); /* t5 = D - B */
+    vli_modSub_fast(t5, t5, X2); /* t5 = D - B - C = x3 */
+    vli_modSub_fast(X2, X2, X1); /* t3 = C - B */
     vli_modMult_fast(Y1, Y1, X2);    /* t2 = y1*(C - B) */
-    vli_modSub(X2, X1, t5, curve_p); /* t3 = B - x3 */
+    vli_modSub_fast(X2, X1, t5); /* t3 = B - x3 */
     vli_modMult_fast(Y2, Y2, X2);    /* t4 = (y2 - y1)*(B - x3) */
-    vli_modSub(Y2, Y2, Y1, curve_p); /* t4 = y3 */
+    vli_modSub_fast(Y2, Y2, Y1); /* t4 = y3 */
     
     vli_set(X2, t5);
 }
@@ -4010,28 +4208,28 @@ static void XYcZ_addC(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RE
     uint8_t t6[ECC_BYTES];
     uint8_t t7[ECC_BYTES];
     
-    vli_modSub(t5, X2, X1, curve_p); /* t5 = x2 - x1 */
+    vli_modSub_fast(t5, X2, X1); /* t5 = x2 - x1 */
     vli_modSquare_fast(t5, t5);      /* t5 = (x2 - x1)^2 = A */
     vli_modMult_fast(X1, X1, t5);    /* t1 = x1*A = B */
     vli_modMult_fast(X2, X2, t5);    /* t3 = x2*A = C */
     vli_modAdd(t5, Y2, Y1, curve_p); /* t4 = y2 + y1 */
-    vli_modSub(Y2, Y2, Y1, curve_p); /* t4 = y2 - y1 */
+    vli_modSub_fast(Y2, Y2, Y1); /* t4 = y2 - y1 */
 
-    vli_modSub(t6, X2, X1, curve_p); /* t6 = C - B */
+    vli_modSub_fast(t6, X2, X1); /* t6 = C - B */
     vli_modMult_fast(Y1, Y1, t6);    /* t2 = y1 * (C - B) */
     vli_modAdd(t6, X1, X2, curve_p); /* t6 = B + C */
     vli_modSquare_fast(X2, Y2);      /* t3 = (y2 - y1)^2 */
-    vli_modSub(X2, X2, t6, curve_p); /* t3 = x3 */
+    vli_modSub_fast(X2, X2, t6); /* t3 = x3 */
     
-    vli_modSub(t7, X1, X2, curve_p); /* t7 = B - x3 */
+    vli_modSub_fast(t7, X1, X2); /* t7 = B - x3 */
     vli_modMult_fast(Y2, Y2, t7);    /* t4 = (y2 - y1)*(B - x3) */
-    vli_modSub(Y2, Y2, Y1, curve_p); /* t4 = y3 */
+    vli_modSub_fast(Y2, Y2, Y1); /* t4 = y3 */
     
     vli_modSquare_fast(t7, t5);      /* t7 = (y2 + y1)^2 = F */
-    vli_modSub(t7, t7, t6, curve_p); /* t7 = x3' */
-    vli_modSub(t6, t7, X1, curve_p); /* t6 = x3' - B */
+    vli_modSub_fast(t7, t7, t6); /* t7 = x3' */
+    vli_modSub_fast(t6, t7, X1); /* t6 = x3' - B */
     vli_modMult_fast(t6, t6, t5);    /* t6 = (y2 + y1)*(x3' - B) */
-    vli_modSub(Y1, t6, Y1, curve_p); /* t2 = y3' */
+    vli_modSub_fast(Y1, t6, Y1); /* t2 = y3' */
     
     vli_set(X1, t7);
 }
@@ -4063,7 +4261,7 @@ static void EccPoint_mult(EccPoint * RESTRICT p_result, EccPoint * RESTRICT p_po
     XYcZ_addC(Rx[1-nb], Ry[1-nb], Rx[nb], Ry[nb]);
     
     /* Find final 1/Z value. */
-    vli_modSub(z, Rx[1], Rx[0], curve_p); /* X1 - X0 */
+    vli_modSub_fast(z, Rx[1], Rx[0]); /* X1 - X0 */
     vli_modMult_fast(z, z, Ry[1-nb]);     /* Yb * (X1 - X0) */
     vli_modMult_fast(z, z, p_point->x);   /* xP * Yb * (X1 - X0) */
     vli_modInv(z, z, curve_p);            /* 1 / (xP * Yb * (X1 - X0)) */
@@ -4126,12 +4324,11 @@ int ecc_make_key(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_privateKey[ECC_BYTE
             continue;
         }
     
-        /* Make sure the private key is in the range [1, n-1].
-           For the supported curves, n is always large enough that we only need to subtract once at most. */
+        /* Make sure the private key is in the range [1, n-1]. */
     #if ECC_CURVE != secp160r1
         if(vli_cmp(curve_n, l_private) != 1)
         {
-            vli_sub(l_private, l_private, curve_n);
+            continue;
         }
     #endif
 
@@ -4177,7 +4374,7 @@ void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_B
     vli_flip(l_point.x, p_compressed + 1);
     
     vli_modSquare_fast(l_point.y, l_point.x); /* y = x^2 */
-    vli_modSub(l_point.y, l_point.y, _3, curve_p); /* y = x^2 - 3 */
+    vli_modSub_fast(l_point.y, l_point.y, _3); /* y = x^2 - 3 */
     vli_modMult_fast(l_point.y, l_point.y, l_point.x); /* y = x^3 - 3x */
     vli_modAdd(l_point.y, l_point.y, curve_b, curve_p); /* y = x^3 - 3x + b */
     
