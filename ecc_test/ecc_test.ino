@@ -15,19 +15,38 @@
 
 #include <ecc.h>
 
+extern "C" {
+
+static int RNG(uint8_t *p_dest, unsigned p_size)
+{
+  while(p_size) {
+    long v = random();
+    unsigned l_amount = min(p_size, sizeof(long));
+    memcpy(p_dest, &v, l_amount);
+    p_size -= l_amount;
+    p_dest += l_amount;
+  }
+  return 1;
+}
+
+}
+
 void setup() {
-    Scout.setup();
-    uint8_t l_private1[ECC_BYTES];
-    uint8_t l_private2[ECC_BYTES];
-    
-    uint8_t l_public1[ECC_BYTES * 2];
-    uint8_t l_public2[ECC_BYTES * 2];
-    
-    uint8_t l_secret1[ECC_BYTES];
-    uint8_t l_secret2[ECC_BYTES];
-    
-    Serial.print("Testing ecc\n");
-    
+  Scout.setup();
+  uint8_t l_private1[ECC_BYTES];
+  uint8_t l_private2[ECC_BYTES];
+  
+  uint8_t l_public1[ECC_BYTES * 2];
+  uint8_t l_public2[ECC_BYTES * 2];
+  
+  uint8_t l_secret1[ECC_BYTES];
+  uint8_t l_secret2[ECC_BYTES];
+  
+  Serial.print("Testing ecc\n");
+  
+  ecc_set_rng(&RNG);
+  
+  for(;;) {
     unsigned long a = millis();
     ecc_make_key(l_public1, l_private1);
     unsigned long b = millis();
@@ -78,6 +97,7 @@ void setup() {
     {
         Serial.print("Shared secrets are identical\n");
     }
+  }
 }
 
 void loop() {
