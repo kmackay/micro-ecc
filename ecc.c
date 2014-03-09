@@ -3654,6 +3654,7 @@ static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
 
 /* Computes p_result = p_product % curve_p
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
+__attribute__ ((noinline))
 static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
 {
 #if (ECC_ASM == ecc_asm_avr)
