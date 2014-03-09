@@ -3658,6 +3658,7 @@ __attribute__ ((noinline))
 static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
 {
 #if (ECC_ASM == ecc_asm_avr)
+    uint8_t l_carry = 0;
     __asm__ volatile (
         "in r30, __SP_L__ \n\t"
     	"in r31, __SP_H__ \n\t"
@@ -3667,8 +3668,6 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
     	"out __SP_H__, r31 \n\t"
     	"out __SREG__, r0 \n\t"
     	"out __SP_L__, r30 \n\t"
-    	
-    	"eor r20, r20 \n\t" /* r20 = 0 (carry count) */
     	
     	"adiw r30, 25 \n\t" /* we are shifting by 31 bits, so shift over 4 bytes (+ 1 since z initially points below the stack) */
         "adiw r26, 40 \n\t" /* end of p_product */
@@ -3734,7 +3733,7 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
             "ld r19, x+ \n\t"
             "adc r18, r19 \n\t"
             "st y+, r18 \n\t")
-        "adc r20, __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
+        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
         /* at this point x is at the end of p_product, y is at the end of p_result, z is 20 bytes into tmp */
         "sbiw r28, 20 \n\t" /* move y back to point at p_result */
         
@@ -3823,50 +3822,32 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
             "adc r18, __zero_reg__ \n\t"
             "st y+, r18 \n\t")
         
-        "adc r20, __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
+        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
         "sbiw r28, 20 \n\t" /* move y back to point at p_result */
         
         "mmod_after_remult: \n\t"
         
-        "sbiw r30, 24 \n\t" /* move z back to point at tmp */
-        
-        /* carry is <= 2, so subtract up to 2 times */
-        "cpse r20, __zero_reg__ \n\t"
-        "rcall mmod_sub \n\t"
-        "cpse r20, __zero_reg__ \n\t"
-        "rcall mmod_sub \n\t"
-        "rjmp mmod_end \n\t"
-        
-        "mmod_sub: \n\t"
-        
-        /* subtract curve_p (loaded into x) from p_result (in y) */
-        "ldi r26, lo8(curve_p) \n\t" /* make x point at curve_p */
-        "ldi r27, hi8(curve_p) \n\t"
-        "ld r18, y \n\t"
-        "ld r19, x+ \n\t"
-        "sub r18, r19 \n\t"
-        "st y+, r18 \n\t"
-        REPEAT(19, "ld r18, y \n\t"
-            "ld r19, x+ \n\t"
-            "sbc r18, r19 \n\t"
-            "st y+, r18 \n\t")
-        "sbiw r28, 20 \n\t" /* make y point at p_result again */
-        "dec r20 \n\t" /* subtract 1 from carry flag */
-        "ret \n\t"
-        
-        "mmod_end: \n\t"
-        
-        "adiw r30, 23 \n\t"
+        "sbiw r30, 1 \n\t" /* fix stack pointer */
     	"in r0, __SREG__ \n\t"
     	"cli \n\t"
     	"out __SP_H__, r31 \n\t"
     	"out __SREG__, r0 \n\t"
     	"out __SP_L__, r30 \n\t"
         
-        : "+y" (p_result), "+x" (p_product)
+        : "+y" (p_result), "+x" (p_product), [carry] "+r" (l_carry)
         :
-        : "r0", "r18", "r19", "r20", "r30", "r31", "cc", "memory"
+        : "r0", "r18", "r19", "r30", "r31", "cc", "memory"
     );
+    
+    if(l_carry > 0)
+    {
+        --l_carry;
+        vli_sub(p_result, p_result, curve_p);
+    }
+    if(l_carry > 0)
+    {
+        vli_sub(p_result, p_result, curve_p);
+    }
     
     if(vli_cmp(p_result, curve_p) > 0)
     {
