@@ -4354,7 +4354,7 @@ int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_p
     vli_flip(l_public.y, p_publicKey + ECC_BYTES);
     
     EccPoint l_product;
-    EccPoint_mult(&l_product, &l_public, l_private, l_random);
+    EccPoint_mult(&l_product, &l_public, l_private, (vli_isZero(l_random) ? 0: l_random));
     
     vli_flip(p_secret, l_product.x);
     
