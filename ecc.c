@@ -1038,10 +1038,7 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
                 l_carry = vli_add(u, u, p_mod);
             }
             vli_rshift1(u);
-            if(l_carry)
-            {
-                u[NUM_ECC_DIGITS-1] |= 0x80000000;
-            }
+            u[NUM_ECC_DIGITS-1] |= l_carry << 31;
         }
         else if(EVEN(b))
         {
@@ -1051,10 +1048,7 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
                 l_carry = vli_add(v, v, p_mod);
             }
             vli_rshift1(v);
-            if(l_carry)
-            {
-                v[NUM_ECC_DIGITS-1] |= 0x80000000;
-            }
+            v[NUM_ECC_DIGITS-1] |= l_carry << 31;
         }
         else if(l_cmpResult > 0)
         {
@@ -1070,10 +1064,7 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
                 l_carry = vli_add(u, u, p_mod);
             }
             vli_rshift1(u);
-            if(l_carry)
-            {
-                u[NUM_ECC_DIGITS-1] |= 0x80000000;
-            }
+            u[NUM_ECC_DIGITS-1] |= l_carry << 31;
         }
         else
         {
@@ -1089,10 +1080,7 @@ static void vli_modInv(uint32_t *p_result, uint32_t *p_input, uint32_t *p_mod)
                 l_carry = vli_add(v, v, p_mod);
             }
             vli_rshift1(v);
-            if(l_carry)
-            {
-                v[NUM_ECC_DIGITS-1] |= 0x80000000;
-            }
+            v[NUM_ECC_DIGITS-1] |= l_carry << 31;
         }
     }
     
