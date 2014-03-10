@@ -1298,7 +1298,7 @@ static void XYcZ_addC(uint32_t *X1, uint32_t *Y1, uint32_t *X2, uint32_t *Y2)
     vli_set(X1, t7);
 }
 
-static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar, uint32_t *p_initialZ, p_numBits)
+static void EccPoint_mult(EccPoint *p_result, EccPoint *p_point, uint32_t *p_scalar, uint32_t *p_initialZ, unsigned p_numBits)
 {
     /* R0 and R1 */
     uint32_t Rx[2][NUM_ECC_DIGITS];
