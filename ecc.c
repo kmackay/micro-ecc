@@ -1719,7 +1719,7 @@ void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_B
 
 /* -------- ECDSA code -------- */
 
-/* Computes p_vli = p_vli >> 1. */
+#if (ECC_CURVE != secp160r1)
 static void vli2_rshift1(ecc_word_t *p_vli)
 {
     vli_rshift1(p_vli);
@@ -1727,7 +1727,6 @@ static void vli2_rshift1(ecc_word_t *p_vli)
     vli_rshift1(p_vli + ECC_WORDS);
 }
 
-/* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
 static ecc_word_t vli2_sub(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
 {
     ecc_word_t l_borrow = 0;
@@ -1768,7 +1767,6 @@ static void vli_modMult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *
     vli_set(p_result, v[l_index]);
 }
 
-#include <stdio.h>
 int ecdsa_sign(const uint8_t p_privateKey[ECC_BYTES], const uint8_t p_hash[ECC_BYTES], uint8_t p_signature[ECC_BYTES*2])
 {
     ecc_word_t k[ECC_WORDS];
@@ -1925,3 +1923,4 @@ int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[EC
     /* Accept only if v == r. */
     return (vli_cmp(rx, r) == 0);
 }
+#endif /* (ECC_CURVE != secp160r1) */
