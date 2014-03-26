@@ -5,7 +5,7 @@ c, link = emk.module("c", "link")
 default_compile_flags = ["-fvisibility=hidden", "-Wall", "-Wextra", "-Wshadow", "-Werror", "-Wno-missing-field-initializers", "-Wno-unused-parameter", \
     "-Wno-comment", "-Wno-unused", "-Wno-unknown-pragmas"]
 default_link_flags = []
-opt_flags = {"dbg":[], "std":["-O2"], "max":["-O3"], "small":["-Os"]}
+opt_flags = {"dbg":["-g"], "std":["-O2"], "max":["-O3"], "small":["-Os"]}
 opt_link_flags = {"dbg":[], "std":[], "max":[], "small":[]}
 c_flags = ["-std=c99"]
 cxx_flags = ["-std=c++11", "-Wno-reorder", "-fno-rtti", "-fno-exceptions"]
