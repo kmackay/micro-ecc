@@ -5,7 +5,7 @@
 #ifndef ECC_PLATFORM
     #if __AVR__
         #define ECC_PLATFORM ecc_avr
-    #elif defined(__thumb2__) || defined(_M_ARMT) /* I think MSVC only support Thumb-2 targets */
+    #elif defined(__thumb2__) || defined(_M_ARMT) /* I think MSVC only supports Thumb-2 targets */
         #define ECC_PLATFORM ecc_arm_thumb2
     #elif defined(__thumb__)
         #define ECC_PLATFORM ecc_arm_thumb
@@ -256,7 +256,7 @@ static ecc_word_t curve_n[ECC_N_WORDS] = ECC_CONCAT(Curve_N_, ECC_CURVE);
 static void vli_clear(ecc_word_t *p_vli);
 static ecc_word_t vli_isZero(const ecc_word_t *p_vli);
 static ecc_word_t vli_testBit(const ecc_word_t *p_vli, bitcount_t p_bit);
-static bitcount_t vli_numBits(const ecc_word_t *p_vli);
+static bitcount_t vli_numBits(const ecc_word_t *p_vli, wordcount_t p_maxWords);
 static void vli_set(ecc_word_t *p_dest, const ecc_word_t *p_src);
 static cmpresult_t vli_cmp(ecc_word_t *p_left, ecc_word_t *p_right);
 static void vli_rshift1(ecc_word_t *p_vli);
@@ -399,12 +399,12 @@ static ecc_word_t vli_testBit(const ecc_word_t *p_vli, bitcount_t p_bit)
 
 /* Counts the number of words in p_vli. */
 #if !asm_numBits
-static wordcount_t vli_numDigits(const ecc_word_t *p_vli)
+static wordcount_t vli_numDigits(const ecc_word_t *p_vli, wordcount_t p_maxWords)
 {
     swordcount_t i;
     /* Search from the end until we find a non-zero digit.
        We do it in reverse because we expect that most digits will be nonzero. */
-    for(i = ECC_WORDS-1; i >= 0 && p_vli[i] == 0; --i)
+    for(i = p_maxWords-1; i >= 0 && p_vli[i] == 0; --i)
     {
     }
 
@@ -412,12 +412,12 @@ static wordcount_t vli_numDigits(const ecc_word_t *p_vli)
 }
 
 /* Counts the number of bits required to represent p_vli. */
-static bitcount_t vli_numBits(const ecc_word_t *p_vli)
+static bitcount_t vli_numBits(const ecc_word_t *p_vli, wordcount_t p_maxWords)
 {
     ecc_word_t i;
     ecc_word_t l_digit;
     
-    wordcount_t l_numDigits = vli_numDigits(p_vli);
+    wordcount_t l_numDigits = vli_numDigits(p_vli, p_maxWords);
     if(l_numDigits == 0)
     {
         return 0;
@@ -1548,7 +1548,7 @@ static void mod_sqrt(ecc_word_t *a)
     /* Since curve_p == 3 (mod 4) for all supported curves, we can
        compute sqrt(a) = a^((curve_p + 1) / 4) (mod curve_p). */
     vli_add(p1, curve_p, p1); /* p1 = curve_p + 1 */
-    for(i = vli_numBits(p1) - 1; i > 1; --i)
+    for(i = vli_numBits(p1, ECC_WORDS) - 1; i > 1; --i)
     {
         vli_modSquare_fast(l_result, l_result);
         if(vli_testBit(p1, i))
@@ -1639,24 +1639,25 @@ int ecc_make_key(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_privateKey[ECC_BYTE
     
     do
     {
+    repeat:
         if(!g_rng((uint8_t *)l_private, ECC_WORDS) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
         if(vli_isZero(l_private))
         {
-            continue;
+            goto repeat;
         }
     
         /* Make sure the private key is in the range [1, n-1]. */
     #if ECC_CURVE != secp160r1
         if(vli_cmp(curve_n, l_private) != 1)
         {
-            continue;
+            goto repeat;
         }
     #endif
 
-        EccPoint_mult(&l_public, &curve_G, l_private, 0, vli_numBits(l_private));
+        EccPoint_mult(&l_public, &curve_G, l_private, 0, vli_numBits(l_private, ECC_WORDS));
     } while(EccPoint_isZero(&l_public));
     
     vli_nativeToBytes(p_privateKey, l_private);
@@ -1678,7 +1679,7 @@ int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_p
     vli_bytesToNative(l_public.y, p_publicKey + ECC_BYTES);
     
     EccPoint l_product;
-    EccPoint_mult(&l_product, &l_public, l_private, (vli_isZero(l_random) ? 0: l_random), vli_numBits(l_private));
+    EccPoint_mult(&l_product, &l_public, l_private, (vli_isZero(l_random) ? 0: l_random), vli_numBits(l_private, ECC_WORDS));
     
     vli_nativeToBytes(p_secret, l_product.x);
     
@@ -1719,7 +1720,219 @@ void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_B
 
 /* -------- ECDSA code -------- */
 
-#if (ECC_CURVE != secp160r1)
+#if (ECC_CURVE == secp160r1)
+static void vli_clear_n(ecc_word_t *p_vli)
+{
+    vli_clear(p_vli);
+    p_vli[ECC_N_WORDS - 1] = 0;
+}
+
+static ecc_word_t vli_isZero_n(const ecc_word_t *p_vli)
+{
+    if(p_vli[ECC_N_WORDS - 1])
+    {
+        return 0;
+    }
+    return vli_isZero(p_vli);
+}
+
+static void vli_set_n(ecc_word_t *p_dest, const ecc_word_t *p_src)
+{
+    vli_set(p_dest, p_src);
+    p_dest[ECC_N_WORDS-1] = p_src[ECC_N_WORDS-1];
+}
+
+static cmpresult_t vli_cmp_n(ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    if(p_left[ECC_N_WORDS-1] > p_right[ECC_N_WORDS-1])
+    {
+        return 1;
+    }
+    else if(p_left[ECC_N_WORDS-1] < p_right[ECC_N_WORDS-1])
+    {
+        return -1;
+    }
+    return vli_cmp(p_left, p_right);
+}
+
+static void vli_rshift1_n(ecc_word_t *p_vli)
+{
+    vli_rshift1(p_vli);
+    p_vli[ECC_N_WORDS-2] |= p_vli[ECC_N_WORDS-1] << (ECC_WORD_BITS - 1);
+    p_vli[ECC_N_WORDS-1] = p_vli[ECC_N_WORDS-1] >> 1;
+}
+
+static ecc_word_t vli_add_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_carry = vli_add(p_result, p_left, p_right);
+    ecc_word_t l_sum = p_left[ECC_N_WORDS-1] + p_right[ECC_N_WORDS-1] + l_carry;
+    if(l_sum != p_left[ECC_N_WORDS-1])
+    {
+        l_carry = (l_sum < p_left[ECC_N_WORDS-1]);
+    }
+    p_result[ECC_N_WORDS-1] = l_sum;
+    return l_carry;
+}
+
+static ecc_word_t vli_sub_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_borrow = vli_sub(p_result, p_left, p_right);
+    ecc_word_t l_diff = p_left[ECC_N_WORDS-1] - p_right[ECC_N_WORDS-1] - l_borrow;
+    if(l_diff != p_left[ECC_N_WORDS-1])
+    {
+        l_borrow = (l_diff > p_left[ECC_N_WORDS-1]);
+    }
+    p_result[ECC_N_WORDS-1] = l_diff;
+    return l_borrow;
+}
+
+static void vli_mult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t r0 = 0;
+    ecc_word_t r1 = 0;
+    ecc_word_t r2 = 0;
+    
+    wordcount_t i, k;
+    for(k = 0; k < ECC_N_WORDS*2 - 1; ++k)
+    {
+        wordcount_t l_min = (k < ECC_N_WORDS ? 0 : (k + 1) - ECC_N_WORDS);
+        wordcount_t l_max = (k < ECC_N_WORDS ? k : ECC_N_WORDS-1);
+        for(i = l_min; i <= l_max; ++i)
+        {
+            muladd(p_left[i], p_right[k-i], &r0, &r1, &r2);
+        }
+        p_result[k] = r0;
+        r0 = r1;
+        r1 = r2;
+        r2 = 0;
+    }
+    
+    p_result[ECC_N_WORDS*2 - 1] = r0;
+}
+
+static void vli_modAdd_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right, ecc_word_t *p_mod)
+{
+    ecc_word_t l_carry = vli_add_n(p_result, p_left, p_right);
+    if(l_carry || vli_cmp_n(p_result, p_mod) >= 0)
+    {
+        vli_sub_n(p_result, p_result, p_mod);
+    }
+}
+
+static void vli_modInv_n(ecc_word_t *p_result, ecc_word_t *p_input, ecc_word_t *p_mod)
+{
+    ecc_word_t a[ECC_N_WORDS], b[ECC_N_WORDS], u[ECC_N_WORDS], v[ECC_N_WORDS];
+    ecc_word_t l_carry;
+    cmpresult_t l_cmpResult;
+    
+    if(vli_isZero_n(p_input))
+    {
+        vli_clear_n(p_result);
+        return;
+    }
+
+    vli_set_n(a, p_input);
+    vli_set_n(b, p_mod);
+    vli_clear_n(u);
+    u[0] = 1;
+    vli_clear_n(v);
+    while((l_cmpResult = vli_cmp_n(a, b)) != 0)
+    {
+        l_carry = 0;
+        if(EVEN(a))
+        {
+            vli_rshift1_n(a);
+            if(!EVEN(u)) l_carry = vli_add_n(u, u, p_mod);
+            vli_rshift1_n(u);
+            if(l_carry) u[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+        else if(EVEN(b))
+        {
+            vli_rshift1_n(b);
+            if(!EVEN(v)) l_carry = vli_add_n(v, v, p_mod);
+            vli_rshift1_n(v);
+            if(l_carry) v[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+        else if(l_cmpResult > 0)
+        {
+            vli_sub_n(a, a, b);
+            vli_rshift1_n(a);
+            if(vli_cmp_n(u, v) < 0) vli_add_n(u, u, p_mod);
+            vli_sub_n(u, u, v);
+            if(!EVEN(u)) l_carry = vli_add_n(u, u, p_mod);
+            vli_rshift1_n(u);
+            if(l_carry) u[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+        else
+        {
+            vli_sub_n(b, b, a);
+            vli_rshift1_n(b);
+            if(vli_cmp_n(v, u) < 0) vli_add_n(v, v, p_mod);
+            vli_sub_n(v, v, u);
+            if(!EVEN(v)) l_carry = vli_add_n(v, v, p_mod);
+            vli_rshift1_n(v);
+            if(l_carry) v[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+    }
+    
+    vli_set_n(p_result, u);
+}
+
+static void vli2_rshift1_n(ecc_word_t *p_vli)
+{
+    vli_rshift1_n(p_vli);
+    p_vli[ECC_N_WORDS-1] |= p_vli[ECC_N_WORDS] << (ECC_WORD_BITS - 1);
+    vli_rshift1_n(p_vli + ECC_N_WORDS);
+}
+
+static ecc_word_t vli2_sub_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_borrow = 0;
+    wordcount_t i;
+    for(i=0; i<ECC_N_WORDS*2; ++i)
+    {
+        ecc_word_t l_diff = p_left[i] - p_right[i] - l_borrow;
+        if(l_diff != p_left[i])
+        {
+            l_borrow = (l_diff > p_left[i]);
+        }
+        p_result[i] = l_diff;
+    }
+    return l_borrow;
+}
+
+/* Computes p_result = (p_left * p_right) % curve_n. */
+static void vli_modMult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_product[2 * ECC_N_WORDS];
+    ecc_word_t l_modMultiple[2 * ECC_N_WORDS];
+    ecc_word_t l_tmp[2 * ECC_N_WORDS];
+    ecc_word_t *v[2] = {l_tmp, l_product};
+    
+    vli_mult_n(l_product, p_left, p_right);
+    vli_clear_n(l_modMultiple);
+    vli_set(l_modMultiple + ECC_N_WORDS + 1, curve_n);
+    vli_rshift1(l_modMultiple + ECC_N_WORDS + 1);
+    l_modMultiple[2 * ECC_N_WORDS - 1] |= HIGH_BIT_SET;
+    l_modMultiple[ECC_N_WORDS] = HIGH_BIT_SET;
+    
+    bitcount_t i;
+    ecc_word_t l_index = 1;
+    for(i=0; i<=((ECC_N_WORDS * ECC_WORD_BITS) + (ECC_WORD_BITS - 1)); ++i) 
+    {
+        ecc_word_t l_borrow = vli2_sub_n(v[1-l_index], v[l_index], l_modMultiple);
+        l_index = !(l_index ^ l_borrow); /* Swap the index if there was no borrow */
+        vli2_rshift1_n(l_modMultiple);
+    }
+
+    vli_set_n(p_result, v[l_index]);
+}
+
+#else
+
+#define vli_modInv_n vli_modInv
+#define vli_modAdd_n vli_modAdd
+
 static void vli2_rshift1(ecc_word_t *p_vli)
 {
     vli_rshift1(p_vli);
@@ -1766,30 +1979,48 @@ static void vli_modMult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *
 
     vli_set(p_result, v[l_index]);
 }
+#endif /* (ECC_CURVE != secp160r1) */
 
 int ecdsa_sign(const uint8_t p_privateKey[ECC_BYTES], const uint8_t p_hash[ECC_BYTES], uint8_t p_signature[ECC_BYTES*2])
 {
-    ecc_word_t k[ECC_WORDS];
-    ecc_word_t l_tmp[ECC_WORDS];
-    ecc_word_t s[ECC_WORDS];
+    ecc_word_t k[ECC_N_WORDS];
+    ecc_word_t l_tmp[ECC_N_WORDS];
+    ecc_word_t s[ECC_N_WORDS];
     ecc_word_t *k2[2] = {l_tmp, s};
     EccPoint p;
     ecc_word_t l_tries = 0;
     
     do
     {
-        if(!g_rng((uint8_t *)k, ECC_BYTES) || (l_tries++ >= MAX_TRIES))
+    repeat:
+        if(!g_rng((uint8_t *)k, sizeof(k)) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
+        
         if(vli_isZero(k))
         {
-            continue;
+            goto repeat;
         }
+        
+    #if (ECC_CURVE == secp160r1)
+        k[ECC_WORDS] &= 0x01;
+        if(vli_cmp_n(curve_n, k) != 1)
+        {
+            goto repeat;
+        }
+        
+        /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
+        vli_add_n(l_tmp, k, curve_n);
+        ecc_word_t l_carry = (l_tmp[ECC_WORDS] & 0x02);
+        vli_add_n(s, l_tmp, curve_n);
     
+        /* p = k * G */
+        EccPoint_mult(&p, &curve_G, k2[!l_carry], 0, (ECC_BYTES * 8) + 2);
+    #else
         if(vli_cmp(curve_n, k) != 1)
         {
-            continue;
+            goto repeat;
         }
         
         /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
@@ -1804,12 +2035,13 @@ int ecdsa_sign(const uint8_t p_privateKey[ECC_BYTES], const uint8_t p_hash[ECC_B
         {
             vli_sub(p.x, p.x, curve_n);
         }
+    #endif
     } while(vli_isZero(p.x));
     
     l_tries = 0;
     do
     {
-        if(!g_rng((uint8_t *)l_tmp, ECC_BYTES) || (l_tries++ >= MAX_TRIES))
+        if(!g_rng((uint8_t *)l_tmp, sizeof(l_tmp)) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
@@ -1818,17 +2050,26 @@ int ecdsa_sign(const uint8_t p_privateKey[ECC_BYTES], const uint8_t p_hash[ECC_B
     /* Prevent side channel analysis of vli_modInv() to determine
        bits of k / the private key by premultiplying by a random number */
     vli_modMult_n(k, k, l_tmp); /* k' = rand * k */
-    vli_modInv(k, k, curve_n); /* k = 1 / k' */
+    vli_modInv_n(k, k, curve_n); /* k = 1 / k' */
     vli_modMult_n(k, k, l_tmp); /* k = 1 / k */
     
     vli_nativeToBytes(p_signature, p.x); /* store r */
     
+    l_tmp[ECC_N_WORDS-1] = 0;
     vli_bytesToNative(l_tmp, p_privateKey); /* tmp = d */
-    vli_modMult_n(s, l_tmp, p.x); /* s = r*d */
+    s[ECC_N_WORDS-1] = 0;
+    vli_set(s, p.x);
+    vli_modMult_n(s, l_tmp, s); /* s = r*d */
 
     vli_bytesToNative(l_tmp, p_hash);
-    vli_modAdd(s, l_tmp, s, curve_n); /* s = e + r*d */
+    vli_modAdd_n(s, l_tmp, s, curve_n); /* s = e + r*d */
     vli_modMult_n(s, s, k); /* s = (e + r*d) / k */
+#if (ECC_CURVE == secp160r1)
+    if(s[ECC_N_WORDS-1])
+    {
+        goto repeat;
+    }
+#endif
     vli_nativeToBytes(p_signature + ECC_BYTES, s);
     
     return 1;
@@ -1841,8 +2082,8 @@ static bitcount_t smax(bitcount_t a, bitcount_t b)
 
 int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[ECC_BYTES], const uint8_t p_signature[ECC_BYTES*2])
 {
-    ecc_word_t u1[ECC_WORDS], u2[ECC_WORDS];
-    ecc_word_t z[ECC_WORDS];
+    ecc_word_t u1[ECC_N_WORDS], u2[ECC_N_WORDS];
+    ecc_word_t z[ECC_N_WORDS];
     EccPoint l_public, l_sum;
     ecc_word_t rx[ECC_WORDS];
     ecc_word_t ry[ECC_WORDS];
@@ -1850,7 +2091,9 @@ int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[EC
     ecc_word_t ty[ECC_WORDS];
     ecc_word_t tz[ECC_WORDS];
     
-    ecc_word_t r[ECC_WORDS], s[ECC_WORDS];
+    ecc_word_t r[ECC_N_WORDS], s[ECC_N_WORDS];
+    r[ECC_N_WORDS-1] = 0;
+    s[ECC_N_WORDS-1] = 0;
     
     vli_bytesToNative(l_public.x, p_publicKey);
     vli_bytesToNative(l_public.y, p_publicKey + ECC_BYTES);
@@ -1862,13 +2105,16 @@ int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[EC
         return 0;
     }
     
+#if (ECC_CURVE != secp160r1)
     if(vli_cmp(curve_n, r) != 1 || vli_cmp(curve_n, s) != 1)
     { /* r, s must be < n. */
         return 0;
     }
+#endif
 
     /* Calculate u1 and u2. */
-    vli_modInv(z, s, curve_n); /* Z = s^-1 */
+    vli_modInv_n(z, s, curve_n); /* Z = s^-1 */
+    u1[ECC_N_WORDS-1] = 0;
     vli_bytesToNative(u1, p_hash);
     vli_modMult_n(u1, u1, z); /* u1 = e/s */
     vli_modMult_n(u2, r, z); /* u2 = r/s */
@@ -1885,7 +2131,7 @@ int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[EC
     
     /* Use Shamir's trick to calculate u1*G + u2*Q */
     EccPoint *l_points[4] = {NULL, &curve_G, &l_public, &l_sum};
-    bitcount_t l_numBits = smax(vli_numBits(u1), vli_numBits(u2));
+    bitcount_t l_numBits = smax(vli_numBits(u1, ECC_N_WORDS), vli_numBits(u2, ECC_N_WORDS));
     
     EccPoint *l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
     vli_set(rx, l_point->x);
@@ -1915,12 +2161,13 @@ int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[EC
     apply_z(rx, ry, z);
     
     /* v = x1 (mod n) */
+#if (ECC_CURVE != secp160r1)
     if(vli_cmp(curve_n, rx) != 1)
     {
         vli_sub(rx, rx, curve_n);
     }
+#endif
 
     /* Accept only if v == r. */
     return (vli_cmp(rx, r) == 0);
 }
-#endif /* (ECC_CURVE != secp160r1) */
