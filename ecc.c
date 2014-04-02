@@ -31,7 +31,6 @@
 #endif
 
 #if (ECC_CURVE == secp160r1) && (ECC_WORD_SIZE == 8)
-    #pragma message ("Using a word size of 4 for secp160r1")
     #undef ECC_WORD_SIZE
     #define ECC_WORD_SIZE 4
     #if (ECC_PLATFORM == ecc_x86_64)
@@ -1785,6 +1784,18 @@ static ecc_word_t vli_sub_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t
     p_result[ECC_N_WORDS-1] = l_diff;
     return l_borrow;
 }
+
+#if asm_mult
+static void muladd(ecc_word_t a, ecc_word_t b, ecc_word_t *r0, ecc_word_t *r1, ecc_word_t *r2)
+{
+    ecc_dword_t p = (ecc_dword_t)a * b;
+    ecc_dword_t r01 = ((ecc_dword_t)(*r1) << ECC_WORD_BITS) | *r0;
+    r01 += p;
+    *r2 += (r01 < p);
+    *r1 = r01 >> ECC_WORD_BITS;
+    *r0 = (ecc_word_t)r01;
+}
+#endif
 
 static void vli_mult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
 {
