@@ -3,41 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#if __AVR__
-
-int RNG(uint8_t *p_dest, unsigned p_size)
-{
-    /* TODO */
-    return 0;
-}
-
-#else
-
-#include <unistd.h>
-#include <fcntl.h>
-
-int RNG(uint8_t *p_dest, unsigned p_size)
-{
-    static int l_randfd = -1;
-    if(l_randfd == -1)
-    {
-        l_randfd = open("/dev/urandom", O_RDONLY);
-        if(l_randfd == -1)
-        {
-            printf("No access to urandom\n");
-            return 0;
-        }
-    }
-    if(read(l_randfd, p_dest, p_size) != (int)p_size)
-    {
-        printf("Failed to get random bytes.\n");
-        return 0;
-    }
-    return 1;
-}
-
-#endif /* TARGET_ARCH_AVR */
-
 void vli_print(uint8_t *p_vli, unsigned int p_size)
 {
     while(p_size)
@@ -59,8 +24,6 @@ int main()
     
     uint8_t l_secret1[ECC_BYTES];
     uint8_t l_secret2[ECC_BYTES];
-
-    ecc_set_rng(&RNG);
     
     printf("Testing 256 random private key pairs\n");
 
