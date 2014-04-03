@@ -1639,7 +1639,7 @@ int ecc_make_key(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_privateKey[ECC_BYTE
     do
     {
     repeat:
-        if(!g_rng((uint8_t *)l_private, ECC_WORDS) || (l_tries++ >= MAX_TRIES))
+        if(!g_rng((uint8_t *)l_private, sizeof(l_private)) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
@@ -1671,7 +1671,7 @@ int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_p
     ecc_word_t l_private[ECC_WORDS];
     ecc_word_t l_random[ECC_WORDS];
     
-    g_rng((uint8_t *)l_random, ECC_WORDS);
+    g_rng((uint8_t *)l_random, sizeof(l_random));
     
     vli_bytesToNative(l_private, p_privateKey);
     vli_bytesToNative(l_public.x, p_publicKey);
