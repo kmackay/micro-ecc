@@ -2,7 +2,7 @@
 #define DEC_24 23
 #define DEC_32 31
 
-#define DEC(N) ECC_CONCAT(DEC_, N)
+#define DEC(N) uECC_CONCAT(DEC_, N)
 
 #define REPEAT_1(stuff) stuff
 #define REPEAT_2(stuff) REPEAT_1(stuff) stuff
@@ -37,17 +37,17 @@
 #define REPEAT_31(stuff) REPEAT_30(stuff) stuff
 #define REPEAT_32(stuff) REPEAT_31(stuff) stuff
 
-#define REPEAT(N, stuff) ECC_CONCAT(REPEAT_, N)(stuff)
+#define REPEAT(N, stuff) uECC_CONCAT(REPEAT_, N)(stuff)
 
 #define STR2(thing) #thing
 #define STR(thing) STR2(thing)
 
-#if (ECC_ASM == ecc_asm_fast)
+#if (uECC_ASM == uECC_asm_fast)
 
 static void vli_clear(uint8_t *p_vli)
 {
     __asm__ volatile (
-        REPEAT(ECC_BYTES, "st %a[ptr]+, r1 \n\t")
+        REPEAT(uECC_BYTES, "st %a[ptr]+, r1 \n\t")
 
         : [ptr] "+e" (p_vli)
         :
@@ -59,7 +59,7 @@ static void vli_clear(uint8_t *p_vli)
 static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
 {
     __asm__ volatile (
-        REPEAT(ECC_BYTES, "ld r0, %a[sptr]+ \n\t"
+        REPEAT(uECC_BYTES, "ld r0, %a[sptr]+ \n\t"
             "st %a[dptr]+, r0 \n\t")
         : [dptr] "+e" (p_dest), [sptr] "+e" (p_src)
         :
@@ -71,13 +71,13 @@ static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
 static void vli_rshift1(uint8_t *p_vli)
 {
     __asm__ volatile (
-        "adiw r30, " STR(ECC_BYTES) " \n\t"
+        "adiw r30, " STR(uECC_BYTES) " \n\t"
         "ld r0, -z \n\t"  /* Load byte. */
         "lsr r0 \n\t" /* Shift. */
         "st z, r0 \n\t"  /* Store the first result byte. */
 
         /* Now we just do the remaining bytes with the carry bit (using ROR) */
-        REPEAT(DEC(ECC_BYTES), "ld r0, -z \n\t"
+        REPEAT(DEC(uECC_BYTES), "ld r0, -z \n\t"
             "ror r0 \n\t"
             "st z, r0 \n\t")
 
@@ -106,7 +106,7 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "st z+, %[left] \n\t"  /* Store the first result byte. */
         
         /* Now we just do the remaining bytes with the carry bit (using ADC) */
-        REPEAT(DEC(ECC_BYTES), "ld %[left], x+ \n\t"
+        REPEAT(DEC(uECC_BYTES), "ld %[left], x+ \n\t"
             "ld %[right], y+ \n\t"
             "adc %[left], %[right] \n\t"
             "st z+, %[left] \n\t")
@@ -143,7 +143,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "st z+, %[left] \n\t"  /* Store the first result byte. */
         
         /* Now we just do the remaining bytes with the carry bit (using SBC) */
-        REPEAT(DEC(ECC_BYTES), "ld %[left], x+ \n\t"
+        REPEAT(DEC(uECC_BYTES), "ld %[left], x+ \n\t"
             "ld %[right], y+ \n\t"
             "sbc %[left], %[right] \n\t"
             "st z+, %[left] \n\t")
@@ -162,7 +162,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 }
 #define asm_sub 1
 
-#if ECC_CURVE == secp160r1
+#if uECC_CURVE == uECC_secp160r1
 __attribute((noinline))
 static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
@@ -2077,11 +2077,11 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     );
 }
 #define asm_mult 1
-#endif /* ECC_CURVE == secp160r1 */
+#endif /* uECC_CURVE == uECC_secp160r1 */
 
-#if ECC_SQUARE_FUNC
+#if uECC_SQUARE_FUNC
 
-#if ECC_CURVE == secp160r1
+#if uECC_CURVE == uECC_secp160r1
 static void vli_square(uint8_t *p_result, uint8_t *p_left)
 {
     __asm__ volatile (
@@ -3245,8 +3245,8 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
     );
 }
 #define asm_square 1
-#endif /* ECC_CURVE == secp160r1 */
-#endif /* ECC_SQUARE_FUNC */
+#endif /* uECC_CURVE == uECC_secp160r1 */
+#endif /* uECC_SQUARE_FUNC */
 
 static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
@@ -3261,7 +3261,7 @@ static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right
         "st z+, r18 \n\t"  /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT(DEC(ECC_BYTES), "ld r18, x+ \n\t"
+        REPEAT(DEC(uECC_BYTES), "ld r18, x+ \n\t"
             "ld r19, y+ \n\t"
             "sbc r18, r19 \n\t"
             "st z+, r18 \n\t")
@@ -3270,7 +3270,7 @@ static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right
         "rjmp done \n\t" /* otherwise we are done */
         "1: \n\t"
         
-        "sbiw r30, " STR(ECC_BYTES) " \n\t" /* make z point at p_result again */
+        "sbiw r30, " STR(uECC_BYTES) " \n\t" /* make z point at p_result again */
         "ldi r28, lo8(curve_p) \n\t" /* make y point at curve_p */
     	"ldi r29, hi8(curve_p) \n\t"
     	
@@ -3279,7 +3279,7 @@ static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right
         "ld r19, y+ \n\t"
         "add r18, r19 \n\t"
         "st z+, r18 \n\t"
-        REPEAT(DEC(ECC_BYTES), "ld r18, z \n\t"
+        REPEAT(DEC(uECC_BYTES), "ld r18, z \n\t"
             "ld r19, y+ \n\t"
             "adc r18, r19 \n\t"
             "st z+, r18 \n\t")
@@ -3295,7 +3295,7 @@ static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right
 }
 #define asm_modSub_fast 1
 
-#if ECC_CURVE == secp160r1
+#if uECC_CURVE == uECC_secp160r1
 static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
 {
     uint8_t l_carry = 0;
@@ -3496,16 +3496,16 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
 }
 #define asm_mmod_fast 1
 
-#endif /* ECC_CURVE == secp160r1 */
+#endif /* uECC_CURVE == uECC_secp160r1 */
 
-#endif /* (ECC_ASM == ecc_asm_fast) */
+#endif /* (uECC_ASM == uECC_asm_fast) */
 
 #if !asm_rshift1
 static void vli_rshift1(uint8_t *p_vli)
 {
-    uint8_t i = ECC_BYTES;
+    uint8_t i = uECC_BYTES;
     __asm__ volatile (
-        "adiw r30, " STR(ECC_BYTES) " \n\t"
+        "adiw r30, " STR(uECC_BYTES) " \n\t"
         "clc \n\t"
         
         "1: \n\t"
@@ -3526,7 +3526,7 @@ static void vli_rshift1(uint8_t *p_vli)
 #if !asm_add
 static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
-    uint8_t i = ECC_BYTES;
+    uint8_t i = uECC_BYTES;
     uint8_t l_carry = 0;
     uint8_t l_left;
     uint8_t l_right;
@@ -3563,7 +3563,7 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #if !asm_sub
 static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
-    uint8_t i = ECC_BYTES;
+    uint8_t i = uECC_BYTES;
     uint8_t l_borrow = 0;
     uint8_t l_left;
     uint8_t l_right;

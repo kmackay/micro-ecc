@@ -1,4 +1,4 @@
-#include "ecc.h"
+#include "uECC.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -16,14 +16,14 @@ int main()
 {
     int i;
     
-    uint8_t l_private1[ECC_BYTES];
-    uint8_t l_private2[ECC_BYTES];
+    uint8_t l_private1[uECC_BYTES];
+    uint8_t l_private2[uECC_BYTES];
     
-    uint8_t l_public1[ECC_BYTES * 2];
-    uint8_t l_public2[ECC_BYTES * 2];
+    uint8_t l_public1[uECC_BYTES * 2];
+    uint8_t l_public2[uECC_BYTES * 2];
     
-    uint8_t l_secret1[ECC_BYTES];
-    uint8_t l_secret2[ECC_BYTES];
+    uint8_t l_secret1[uECC_BYTES];
+    uint8_t l_secret2[uECC_BYTES];
     
     printf("Testing 256 random private key pairs\n");
 
@@ -32,16 +32,16 @@ int main()
         printf(".");
         fflush(stdout);
 
-        ecc_make_key(l_public1, l_private1);
-        ecc_make_key(l_public2, l_private2);
+        uECC_make_key(l_public1, l_private1);
+        uECC_make_key(l_public2, l_private2);
 
-        if(!ecdh_shared_secret(l_public2, l_private1, l_secret1))
+        if(!uECC_shared_secret(l_public2, l_private1, l_secret1))
         {
             printf("shared_secret() failed (1)\n");
             return 1;
         }
 
-        if(!ecdh_shared_secret(l_public1, l_private2, l_secret2))
+        if(!uECC_shared_secret(l_public1, l_private2, l_secret2))
         {
             printf("shared_secret() failed (2)\n");
             return 1;
@@ -51,16 +51,16 @@ int main()
         {
             printf("Shared secrets are not identical!\n");
             printf("Shared secret 1 = ");
-            vli_print(l_secret1, ECC_BYTES);
+            vli_print(l_secret1, uECC_BYTES);
             printf("\n");
             printf("Shared secret 2 = ");
-            vli_print(l_secret2, ECC_BYTES);
+            vli_print(l_secret2, uECC_BYTES);
             printf("\n");
             printf("Private key 1 = ");
-            vli_print(l_private1, ECC_BYTES);
+            vli_print(l_private1, uECC_BYTES);
             printf("\n");
             printf("Private key 2 = ");
-            vli_print(l_private2, ECC_BYTES);
+            vli_print(l_private2, uECC_BYTES);
             printf("\n");
         }
     }

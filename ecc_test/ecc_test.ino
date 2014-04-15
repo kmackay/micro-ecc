@@ -1,5 +1,3 @@
-#include <uECC.h>
-
 #include <j0g.h>
 #include <js0n.h>
 
@@ -15,7 +13,7 @@
 #include <Shell.h>
 
 
-#include <uECC.h>
+#include <ecc.h>
 
 extern "C" {
 
@@ -31,36 +29,50 @@ static int RNG(uint8_t *p_dest, unsigned p_size)
   return 1;
 }
 
+void p(int i) {
+  Serial.println(i);
+}
+
+void px(uint8_t *v)
+{
+  unsigned i;
+  for(i=0; i<ECC_BYTES; ++i)
+  {
+    Serial.print(v[i]); Serial.print(" ");
+  }
+  Serial.println();
+}
+
 }
 
 void setup() {
   Scout.setup();
-  uint8_t l_private1[uECC_BYTES];
-  uint8_t l_private2[uECC_BYTES];
+  uint8_t l_private1[ECC_BYTES];
+  uint8_t l_private2[ECC_BYTES];
   
-  uint8_t l_public1[uECC_BYTES * 2];
-  uint8_t l_public2[uECC_BYTES * 2];
+  uint8_t l_public1[ECC_BYTES * 2];
+  uint8_t l_public2[ECC_BYTES * 2];
   
-  uint8_t l_secret1[uECC_BYTES];
-  uint8_t l_secret2[uECC_BYTES];
+  uint8_t l_secret1[ECC_BYTES];
+  uint8_t l_secret2[ECC_BYTES];
   
   Serial.print("Testing ecc\n");
   
-  uECC_set_rng(&RNG);
+  ecc_set_rng(&RNG);
   
   for(;;) {
     unsigned long a = millis();
-    uECC_make_key(l_public1, l_private1);
+    ecc_make_key(l_public1, l_private1);
     unsigned long b = millis();
     
     Serial.print("Made key 1 in "); Serial.println(b-a);
     a = millis();
-    uECC_make_key(l_public2, l_private2);
+    ecc_make_key(l_public2, l_private2);
     b = millis();
     Serial.print("Made key 2 in "); Serial.println(b-a);
 
     a = millis();
-    int r = uECC_shared_secret(l_public2, l_private1, l_secret1);
+    int r = ecdh_shared_secret(l_public2, l_private1, l_secret1);
     b = millis();
     Serial.print("Shared secret 1 in "); Serial.println(b-a);
     if(!r)
@@ -70,7 +82,7 @@ void setup() {
     }
 
     a = millis();
-    r = uECC_shared_secret(l_public1, l_private2, l_secret2);
+    r = ecdh_shared_secret(l_public1, l_private2, l_secret2);
     b = millis();
     Serial.print("Shared secret 2 in "); Serial.println(b-a);
     if(!r)
@@ -83,16 +95,16 @@ void setup() {
     {
         Serial.print("Shared secrets are not identical!\n");
         /*printf("Shared secret 1 = ");
-        vli_print(l_secret1, uECC_BYTES);
+        vli_print(l_secret1, ECC_BYTES);
         printf("\n");
         printf("Shared secret 2 = ");
-        vli_print(l_secret2, uECC_BYTES);
+        vli_print(l_secret2, ECC_BYTES);
         printf("\n");
         printf("Private key 1 = ");
-        vli_print(l_private1, uECC_BYTES);
+        vli_print(l_private1, ECC_BYTES);
         printf("\n");
         printf("Private key 2 = ");
-        vli_print(l_private2, uECC_BYTES);
+        vli_print(l_private2, ECC_BYTES);
         printf("\n");*/
     }
     else
