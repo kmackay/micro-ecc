@@ -1649,7 +1649,7 @@ int uECC_make_key(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_privateKey[uECC_B
         }
     
         /* Make sure the private key is in the range [1, n-1]. */
-    #if uECC_CURVE != secp160r1
+    #if uECC_CURVE != uECC_secp160r1
         if(vli_cmp(curve_n, l_private) != 1)
         {
             goto repeat;
@@ -1719,7 +1719,7 @@ void uECC_decompress(uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uEC
 
 /* -------- ECDSA code -------- */
 
-#if (uECC_CURVE == secp160r1)
+#if (uECC_CURVE == uECC_secp160r1)
 static void vli_clear_n(uECC_word_t *p_vli)
 {
     vli_clear(p_vli);
@@ -1990,7 +1990,7 @@ static void vli_modMult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_
 
     vli_set(p_result, v[l_index]);
 }
-#endif /* (uECC_CURVE != secp160r1) */
+#endif /* (uECC_CURVE != uECC_secp160r1) */
 
 int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_BYTES], uint8_t p_signature[uECC_BYTES*2])
 {
@@ -2014,7 +2014,7 @@ int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_
             goto repeat;
         }
         
-    #if (uECC_CURVE == secp160r1)
+    #if (uECC_CURVE == uECC_secp160r1)
         k[uECC_WORDS] &= 0x01;
         if(vli_cmp_n(curve_n, k) != 1)
         {
@@ -2075,7 +2075,7 @@ int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_
     vli_bytesToNative(l_tmp, p_hash);
     vli_modAdd_n(s, l_tmp, s, curve_n); /* s = e + r*d */
     vli_modMult_n(s, s, k); /* s = (e + r*d) / k */
-#if (uECC_CURVE == secp160r1)
+#if (uECC_CURVE == uECC_secp160r1)
     if(s[uECC_N_WORDS-1])
     {
         goto repeat;
