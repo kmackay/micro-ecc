@@ -1,7 +1,5 @@
 #include "uECC.h"
 
-#include <string.h>
-
 #ifndef uECC_PLATFORM
     #if __AVR__
         #define uECC_PLATFORM uECC_avr
@@ -2141,7 +2139,7 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     apply_z(l_sum.x, l_sum.y, z);
     
     /* Use Shamir's trick to calculate u1*G + u2*Q */
-    EccPoint *l_points[4] = {NULL, &curve_G, &l_public, &l_sum};
+    EccPoint *l_points[4] = {0, &curve_G, &l_public, &l_sum};
     bitcount_t l_numBits = smax(vli_numBits(u1, uECC_N_WORDS), vli_numBits(u2, uECC_N_WORDS));
     
     EccPoint *l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
