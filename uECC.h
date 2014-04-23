@@ -1,3 +1,5 @@
+/* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
 #ifndef _MICRO_ECC_H_
 #define _MICRO_ECC_H_
 
@@ -32,7 +34,7 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_secp192r1 2
 #define uECC_secp256r1 3
 #ifndef uECC_CURVE
-    #define uECC_CURVE uECC_secp256r1
+    #define uECC_CURVE uECC_secp160r1
 #endif
 
 /* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be used for (scalar) squaring
