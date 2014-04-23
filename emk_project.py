@@ -42,16 +42,13 @@ def setup_osx():
     global c
     global link
 
-    flags = [("-arch", "x86_64"), "-fno-common", "-Wnewline-eof", "-mmacosx-version-min=10.7", "-D__DARWIN_UNIX03=0"]
+    flags = [("-arch", "x86_64"), "-fno-common", "-Wnewline-eof"]
     c.flags.extend(flags)
     c.cxx.flags += ["-stdlib=libc++"]
     link.cxx.flags += ["-stdlib=libc++"]
 
-    link_flags = [("-arch", "x86_64"), "-mmacosx-version-min=10.7"]
+    link_flags = [("-arch", "x86_64")]
     link.local_flags.extend(link_flags)
-
-    dylib_flags = [("-current_version", "1.0"), ("-compatibility_version", "1.0")]
-    link.local_libflags.extend(dylib_flags)
 
 def setup_avr():
     global c
@@ -63,9 +60,20 @@ def setup_avr():
     link.flags += ["-mmcu=atmega256rfr2", "-mrelax", "-Wl,--gc-sections"]
     link.strip = True
 
+def setup_arm_thumb():
+    global c
+    global link
+
+    c.compiler = c.GccCompiler("/cross/arm_cortex/bin/arm-none-eabi-")
+    link.linker = link.GccLinker("/cross/arm_cortex/bin/arm-none-eabi-")
+
+    c.flags += ["-march=armv6-m", "-mthumb", "-ffunction-sections", "-fdata-sections"]
+    link.local_flags += ["-march=armv6-m", "-mthumb", "-Wl,--gc-sections"]
+    link.strip = True
+
 setup_build_dir()
 
-setup_funcs = {"osx":setup_osx, "avr":setup_avr}
+setup_funcs = {"osx":setup_osx, "avr":setup_avr, "arm_thumb":setup_arm_thumb}
 
 if not emk.cleaning:
     build_arch = emk.options["arch"]
