@@ -1,3 +1,5 @@
+/* Copyright 2013 Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
 #ifndef _MICRO_ECC_H_
 #define _MICRO_ECC_H_
 

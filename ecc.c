@@ -1,3 +1,5 @@
+/* Copyright 2013, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
 #include "ecc.h"
 
 #include <string.h>

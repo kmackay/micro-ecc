@@ -1,4 +1,4 @@
-
+/* Copyright 2013, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
 #if TARGET_LPC11XX
 #include "peripherals/uart.h"
