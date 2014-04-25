@@ -557,6 +557,7 @@ static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r
     *r0 = (uECC_word_t)r01;
 #endif
 }
+#define muladd_exists 1
 #endif
 
 #if !asm_mult
@@ -1787,7 +1788,7 @@ static uECC_word_t vli_sub_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_wo
     return l_borrow;
 }
 
-#if asm_mult
+#if !muladd_exists
 static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r1, uECC_word_t *r2)
 {
     uECC_dword_t p = (uECC_dword_t)a * b;
@@ -1797,6 +1798,7 @@ static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r
     *r1 = r01 >> uECC_WORD_BITS;
     *r0 = (uECC_word_t)r01;
 }
+#define muladd_exists 1
 #endif
 
 static void vli_mult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
