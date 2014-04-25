@@ -3596,3 +3596,102 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 }
 #define asm_sub 1
 #endif
+
+#if !asm_mult
+static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+{
+    uint8_t r0 = 0;
+    uint8_t r1 = 0;
+    uint8_t r2 = 0;
+    
+    uint8_t l_zero = 0;
+    
+    __asm__ volatile (
+        "push r28 \n\t" /* Save Y */
+        "push r29 \n\t"
+        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
+        
+        "ldi r18, 1 \n\t" /* k loops from 1 to uECC_BYTES */
+        
+        "1: \n\t"
+        "ldi r19, 0 \n\t"
+        
+        "add r28, r18 \n\t" /* pre-add right ptr */
+        "adc r29, %[zero] \n\t"
+        
+        "2: \n\t"
+        "ld r0, x+ \n\t"
+        "ld r1, -y \n\t"
+        "mul r0, r1 \n\t"
+        
+        "add %[r0], r0 \n\t"
+        "adc %[r1], r1 \n\t"
+        "adc %[r2], %[zero] \n\t"
+        
+        "inc r19 \n\t"
+        "cp r19, r18 \n\t"
+        "brlo 2b \n\t" /* loop if i < k */
+        
+        "sub r26, r18 \n\t" /* fix up left ptr */
+        "sbc r27, %[zero] \n\t"
+        
+        "st z+, %[r0] \n\t"  /* Store the result. */
+        "mov %[r0], %[r1] \n\t"
+        "mov %[r1], %[r2] \n\t"
+        "mov %[r2], %[zero] \n\t"
+        
+        "inc r18 \n\t"
+        "cpi r18, " STR(uECC_BYTES) " \n\t"
+        "brlo 1b \n\t" /* loop if k <= uECC_BYTES */
+        "breq 1b \n\t" /* loop if k <= uECC_BYTES */
+        
+        /* second half */
+        "ldi r18, " STR(DEC(uECC_BYTES)) " \n\t" /* k = uECC_BYTES-1 */
+        "adiw r26, 1 \n\t" /* move left ptr up 1 */
+        "adiw r28, " STR(uECC_BYTES) " \n\t" /* move right ptr to point at the end of p_right */
+        
+        "1: \n\t"
+        "ldi r19, 0 \n\t"
+        
+        "2: \n\t"
+        "ld r0, x+ \n\t"
+        "ld r1, -y \n\t"
+        "mul r0, r1 \n\t"
+        
+        "add %[r0], r0 \n\t"
+        "adc %[r1], r1 \n\t"
+        "adc %[r2], %[zero] \n\t"
+        
+        "inc r19 \n\t"
+        "cp r19, r18 \n\t"
+        "brlo 2b \n\t" /* loop if i < k */
+        
+        "add r28, r18 \n\t" /* fix up right ptr */
+        "adc r29, %[zero] \n\t"
+        
+        "st z+, %[r0] \n\t"  /* Store the result. */
+        "mov %[r0], %[r1] \n\t"
+        "mov %[r1], %[r2] \n\t"
+        "mov %[r2], %[zero] \n\t"
+        
+        "dec r18 \n\t"
+        "sub r26, r18 \n\t" /* fix up left ptr (after k is decremented, so next time we start 1 higher) */
+        "sbc r27, %[zero] \n\t"
+        
+        "cpi r18, 0 \n\t"
+        "brne 1b \n\t" /* loop if k > 0 */
+        
+        "st z+, %[r0] \n\t"  /* Store last result byte. */
+        
+        "eor r1, r1 \n\t" /* fix r1 to be 0 again */
+        "pop r29 \n\t" /* Restore Y */
+        "pop r28 \n\t"
+
+        : "+z" (p_result), "+x" (p_left),
+          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero)
+        : [rptr] "r" (p_right)
+        : "r0", "r18", "r19", "cc", "memory"
+    );
+}
+#define asm_mult 1
+#endif
