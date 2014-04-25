@@ -519,7 +519,7 @@ static uECC_word_t vli_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word
 }
 #endif
 
-#if !asm_mult
+#if (!asm_mult || !asm_square)
 static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r1, uECC_word_t *r2)
 {
 #if uECC_WORD_SIZE == 8 && !SUPPORTS_INT128
@@ -557,7 +557,9 @@ static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r
     *r0 = (uECC_word_t)r01;
 #endif
 }
+#endif
 
+#if !asm_mult
 static void vli_mult(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
 {
     uECC_word_t r0 = 0;
