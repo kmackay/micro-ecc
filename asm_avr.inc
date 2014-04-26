@@ -96,10 +96,6 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     uint8_t l_right;
 
     __asm__ volatile (
-        "push r28 \n\t" /* Save Y */
-        "push r29 \n\t"
-        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
-        
         "ld %[left], x+ \n\t"  /* Load left byte. */
         "ld %[right], y+ \n\t" /* Load right byte. */
         "add %[left], %[right] \n\t" /* Add the first byte. */
@@ -113,12 +109,11 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         
         "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
         
-        "pop r29 \n\t" /* Restore Y */
-        "pop r28 \n\t"
+        "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
         : "+z" (p_result), "+x" (p_left),
-            [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
-        : [rptr] "r" (p_right)
+            [carry] "+r" (l_carry), [left] "=&r" (l_left), [right] "=&r" (l_right)
+        : "y" (p_right)
         : "cc", "memory"
     );
     return l_carry;
@@ -133,10 +128,6 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     uint8_t l_right;
 
     __asm__ volatile (
-        "push r28 \n\t" /* Save Y */
-        "push r29 \n\t"
-        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
-        
         "ld %[left], x+ \n\t"  /* Load left byte. */
         "ld %[right], y+ \n\t" /* Load right byte. */
         "sub %[left], %[right] \n\t" /* Subtract the first byte. */
@@ -150,12 +141,11 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         
         "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_borrow. */
         
-        "pop r29 \n\t" /* Restore Y */
-        "pop r28 \n\t"
+        "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
         : "+z" (p_result), "+x" (p_left),
-            [borrow] "+r" (l_borrow), [left] "=r" (l_left), [right] "=r" (l_right)
-        : [rptr] "r" (p_right)
+            [borrow] "+r" (l_borrow), [left] "=&r" (l_left), [right] "=&r" (l_right)
+        : "y" (p_right)
         : "cc", "memory"
     );
     return l_borrow;
@@ -3250,21 +3240,21 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
 
 static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
+    uint8_t t1, t2;
     __asm__ volatile (
         "push r28 \n\t" /* Save Y */
         "push r29 \n\t"
-        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
         
-        "ld r18, x+ \n\t"  /* Load left word. */
-        "ld r19, y+ \n\t" /* Load right word. */
-        "sub r18, r19 \n\t" /* Subtract the first word. */
-        "st z+, r18 \n\t"  /* Store the first result word. */
+        "ld %[t1], x+ \n\t"  /* Load left word. */
+        "ld %[t2], y+ \n\t" /* Load right word. */
+        "sub %[t1], %[t2] \n\t" /* Subtract the first word. */
+        "st z+, %[t1] \n\t"  /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT(DEC(uECC_BYTES), "ld r18, x+ \n\t"
-            "ld r19, y+ \n\t"
-            "sbc r18, r19 \n\t"
-            "st z+, r18 \n\t")
+        REPEAT(DEC(uECC_BYTES), "ld %[t1], x+ \n\t"
+            "ld %[t2], y+ \n\t"
+            "sbc %[t1], %[t2] \n\t"
+            "st z+, %[t1] \n\t")
         
         "brcs 1f \n\t" /* If borrow is set, then we need to add */
         "rjmp done \n\t" /* otherwise we are done */
@@ -3275,22 +3265,23 @@ static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right
     	"ldi r29, hi8(curve_p) \n\t"
     	
     	/* do the addition */
-    	"ld r18, z \n\t"
-        "ld r19, y+ \n\t"
-        "add r18, r19 \n\t"
-        "st z+, r18 \n\t"
-        REPEAT(DEC(uECC_BYTES), "ld r18, z \n\t"
-            "ld r19, y+ \n\t"
-            "adc r18, r19 \n\t"
-            "st z+, r18 \n\t")
+    	"ld %[t1], z \n\t"
+        "ld %[t2], y+ \n\t"
+        "add %[t1], %[t2] \n\t"
+        "st z+, %[t1] \n\t"
+        REPEAT(DEC(uECC_BYTES), "ld %[t1], z \n\t"
+            "ld %[t2], y+ \n\t"
+            "adc %[t1], %[t2] \n\t"
+            "st z+, %[t1] \n\t")
         
         "done: \n\t"
         "pop r29 \n\t" /* Restore Y */
         "pop r28 \n\t"
 
-        : "+z" (p_result), "+x" (p_left)
-        : [rptr] "r" (p_right)
-        : "r18", "r19", "cc", "memory"
+        : "+z" (p_result), "+x" (p_left),
+          [t1] "=&r" (t1), [t2] "=&r" (t2)
+        : "y" (p_right)
+        : "cc", "memory"
     );
 }
 #define asm_modSub_fast 1
@@ -3532,9 +3523,6 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     uint8_t l_right;
 
     __asm__ volatile (
-        "push r28 \n\t" /* Save Y */
-        "push r29 \n\t"
-        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
         "clc \n\t"
         
         "1: \n\t"
@@ -3547,12 +3535,11 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         
         "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
         
-        "pop r29 \n\t" /* Restore Y */
-        "pop r28 \n\t"
+        "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
         : "+z" (p_result), "+x" (p_left), [i] "+r" (i),
-            [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
-        : [rptr] "r" (p_right)
+            [carry] "+r" (l_carry), [left] "=&r" (l_left), [right] "=&r" (l_right)
+        : "y" (p_right)
         : "cc", "memory"
     );
     return l_carry;
@@ -3569,9 +3556,6 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     uint8_t l_right;
 
     __asm__ volatile (
-        "push r28 \n\t" /* Save Y */
-        "push r29 \n\t"
-        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
         "clc \n\t"
         
         "1: \n\t"
@@ -3584,12 +3568,11 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         
         "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_borrow. */
         
-        "pop r29 \n\t" /* Restore Y */
-        "pop r28 \n\t"
+        "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
         : "+z" (p_result), "+x" (p_left), [i] "+r" (i),
-            [borrow] "+r" (l_borrow), [left] "=r" (l_left), [right] "=r" (l_right)
-        : [rptr] "r" (p_right)
+            [borrow] "+r" (l_borrow), [left] "=&r" (l_left), [right] "=&r" (l_right)
+        : "y" (p_right)
         : "cc", "memory"
     );
     return l_borrow;
@@ -3598,6 +3581,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #endif
 
 #if !asm_mult
+__attribute((noinline))
 static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
     uint8_t r0 = 0;
@@ -3606,17 +3590,15 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     
     uint8_t l_zero = 0;
     
+    uint8_t k, i;
+    
     __asm__ volatile (
-        "push r28 \n\t" /* Save Y */
-        "push r29 \n\t"
-        "movw r28, %A[rptr] \n\t" /* Copy p_right to Y */
-        
-        "ldi r18, 1 \n\t" /* k loops from 1 to uECC_BYTES */
+        "ldi %[k], 1 \n\t" /* k = 1; k < uECC_BYTES; ++k */
         
         "1: \n\t"
-        "ldi r19, 0 \n\t"
+        "ldi %[i], 0 \n\t"  /* i=0; i < k; ++i */
         
-        "add r28, r18 \n\t" /* pre-add right ptr */
+        "add r28, %[k] \n\t" /* pre-add right ptr */
         "adc r29, %[zero] \n\t"
         
         "2: \n\t"
@@ -3628,11 +3610,11 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "adc %[r1], r1 \n\t"
         "adc %[r2], %[zero] \n\t"
         
-        "inc r19 \n\t"
-        "cp r19, r18 \n\t"
+        "inc %[i] \n\t"
+        "cp %[i], %[k] \n\t"
         "brlo 2b \n\t" /* loop if i < k */
         
-        "sub r26, r18 \n\t" /* fix up left ptr */
+        "sub r26, %[k] \n\t" /* fix up left ptr */
         "sbc r27, %[zero] \n\t"
         
         "st z+, %[r0] \n\t"  /* Store the result. */
@@ -3640,18 +3622,16 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "mov %[r1], %[r2] \n\t"
         "mov %[r2], %[zero] \n\t"
         
-        "inc r18 \n\t"
-        "cpi r18, " STR(uECC_BYTES) " \n\t"
-        "brlo 1b \n\t" /* loop if k <= uECC_BYTES */
-        "breq 1b \n\t" /* loop if k <= uECC_BYTES */
+        "inc %[k] \n\t"
+        "cpi %[k], " STR(uECC_BYTES) " \n\t"
+        "brlo 1b \n\t" /* loop if k < uECC_BYTES */
         
         /* second half */
-        "ldi r18, " STR(DEC(uECC_BYTES)) " \n\t" /* k = uECC_BYTES-1 */
-        "adiw r26, 1 \n\t" /* move left ptr up 1 */
+        "ldi %[k], " STR(uECC_BYTES) " \n\t" /* k = uECC_BYTES; k > 0; --k */
         "adiw r28, " STR(uECC_BYTES) " \n\t" /* move right ptr to point at the end of p_right */
         
         "1: \n\t"
-        "ldi r19, 0 \n\t"
+        "ldi %[i], 0 \n\t" /* i=0; i < k; ++i */
         
         "2: \n\t"
         "ld r0, x+ \n\t"
@@ -3662,11 +3642,11 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "adc %[r1], r1 \n\t"
         "adc %[r2], %[zero] \n\t"
         
-        "inc r19 \n\t"
-        "cp r19, r18 \n\t"
+        "inc %[i] \n\t"
+        "cp %[i], %[k] \n\t"
         "brlo 2b \n\t" /* loop if i < k */
         
-        "add r28, r18 \n\t" /* fix up right ptr */
+        "add r28, %[k] \n\t" /* fix up right ptr */
         "adc r29, %[zero] \n\t"
         
         "st z+, %[r0] \n\t"  /* Store the result. */
@@ -3674,23 +3654,24 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
         "mov %[r1], %[r2] \n\t"
         "mov %[r2], %[zero] \n\t"
         
-        "dec r18 \n\t"
-        "sub r26, r18 \n\t" /* fix up left ptr (after k is decremented, so next time we start 1 higher) */
+        "dec %[k] \n\t"
+        "sub r26, %[k] \n\t" /* fix up left ptr (after k is decremented, so next time we start 1 higher) */
         "sbc r27, %[zero] \n\t"
         
-        "cpi r18, 0 \n\t"
+        "cpi %[k], 0 \n\t"
         "brne 1b \n\t" /* loop if k > 0 */
         
         "st z+, %[r0] \n\t"  /* Store last result byte. */
         
         "eor r1, r1 \n\t" /* fix r1 to be 0 again */
-        "pop r29 \n\t" /* Restore Y */
-        "pop r28 \n\t"
-
+        
+        "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
+    
         : "+z" (p_result), "+x" (p_left),
-          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero)
-        : [rptr] "r" (p_right)
-        : "r0", "r18", "r19", "cc", "memory"
+          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero),
+          [k] "=&r" (k), [i] "=&r" (i)
+        : "y" (p_right)
+        : "r0", "cc", "memory"
     );
 }
 #define asm_mult 1
