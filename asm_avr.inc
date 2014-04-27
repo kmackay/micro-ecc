@@ -3581,7 +3581,6 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #endif
 
 #if !asm_mult
-__attribute((noinline))
 static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
     uint8_t r0 = 0;
@@ -3669,7 +3668,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
     
         : "+z" (p_result), "+x" (p_left),
           [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero),
-          [k] "=&r" (k), [i] "=&r" (i)
+          [k] "=&a" (k), [i] "=&a" (i)
         : "y" (p_right)
         : "r0", "cc", "memory"
     );
