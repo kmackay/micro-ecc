@@ -3675,3 +3675,92 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 }
 #define asm_mult 1
 #endif
+
+#if uECC_SQUARE_FUNC
+#if !asm_square
+static void vli_square(uint8_t *p_result, uint8_t *p_left)
+{
+    uint8_t r0 = 0;
+    uint8_t r1 = 0;
+    uint8_t r2 = 0;
+    
+    uint8_t l_zero = 0;
+    
+    uint8_t k;
+    
+    __asm__ volatile (
+        "ldi %[k], 1 \n\t" /* k = 1; k < uECC_BYTES*2; ++k */
+        
+        "1: \n\t"
+        
+        "movw r26, %[orig] \n\t"  /* copy orig ptr to 'left' ptr */
+        "movw r30, %[orig] \n\t"  /* copy orig ptr to 'right' ptr */
+        "cpi %[k], " STR(uECC_BYTES) " \n\t"
+        "brlo 2f \n\t"
+        "breq 2f \n\t"
+        
+        /* when k > uECC_BYTES, we start from (k - uECC_BYTES) on the 'left' ptr */
+        "add r26, %[k] \n\t"
+        "adc r27, %[zero] \n\t"
+        "subi r26, " STR(uECC_BYTES) " \n\t"
+        "sbc r27, %[zero] \n\t"
+        "adiw r30, " STR(uECC_BYTES) " \n\t" /* move right ptr to point at the end */
+        "rjmp 3f \n\t"
+        
+        "2: \n\t" /* when k <= uECC_BYTES, we add k to the 'right' ptr */
+        "add r30, %[k] \n\t" /* pre-add 'right' ptr */
+        "adc r31, %[zero] \n\t"
+        
+        "3: \n\t"
+        "ld r0, x+ \n\t"
+        "cp r26, r30 \n\t" /* if left == right here, then we are done after this mult (and we don't need to double) */
+        "breq 4f \n\t"
+        "ld r1, -z \n\t"
+        "mul r0, r1 \n\t"
+        
+        /* add twice since it costs the same as doubling */
+        "add %[r0], r0 \n\t"
+        "adc %[r1], r1 \n\t"
+        "adc %[r2], %[zero] \n\t"
+        "add %[r0], r0 \n\t"
+        "adc %[r1], r1 \n\t"
+        "adc %[r2], %[zero] \n\t"
+        
+        "cpse r26, r30 \n\t" /* if left == right here, then we are done */
+        "rjmp 3b \n\t"
+        "rjmp 5f \n\t" /* skip code for non-doubled mult */
+        
+        "4: \n\t"
+        "ld r1, -z \n\t"
+        "mul r0, r1 \n\t"
+        "add %[r0], r0 \n\t"
+        "adc %[r1], r1 \n\t"
+        "adc %[r2], %[zero] \n\t"
+        
+        "5: \n\t"
+        "movw r30, %[result] \n\t"  /* make z point to result */
+        "st z+, %[r0] \n\t"  /* Store the result. */
+        "movw %[result], r30 \n\t"  /* update result ptr*/
+        "mov %[r0], %[r1] \n\t"
+        "mov %[r1], %[r2] \n\t"
+        "mov %[r2], %[zero] \n\t"
+        
+        "inc %[k] \n\t"
+        "cpi %[k], %[max] \n\t"
+        "brlo 1b \n\t" /* loop if k < uECC_BYTES */
+        
+        "movw r30, %[result] \n\t"  /* make z point to result */
+        "st z+, %[r0] \n\t"  /* Store last result byte. */
+        
+        "eor r1, r1 \n\t" /* fix r1 to be 0 again */
+    
+        : [result] "+r" (p_result),
+          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero),
+          [k] "=&a" (k)
+        : [orig] "r" (p_left), [max] "M" (2*uECC_BYTES)
+        : "r0", "r26", "r27", "r30", "r31", "cc", "memory"
+    );
+}
+#define asm_square 1
+#endif
+#endif /* uECC_SQUARE_FUNC */
