@@ -22,4 +22,4 @@ See uECC.h for documentation for each function.
 #### Compilation Notes ####
 
  * When compiling for a Thumb-1 platform with inline assembly enabled (ie, `uECC_ASM` is defined to `uECC_asm_small` or `uECC_asm_fast`), you must use the `-fomit-frame-pointer` GCC option (this is enabled by default when compiling with `-O1` or higher).
- * When compiling for AVR with `uECC_ASM` defined to `uECC_asm_fast`, you must have optimizations enabled (compile with `-O1` or higher).
+ * When compiling for AVR with inline assembly enabled, you must have optimizations enabled (compile with `-O1` or higher).
