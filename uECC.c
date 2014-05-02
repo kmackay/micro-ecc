@@ -1688,7 +1688,7 @@ int uECC_shared_secret(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_
     return !EccPoint_isZero(&l_product);
 }
 
-void uECC_compress(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1])
+void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1])
 {
     wordcount_t i;
     for(i=0; i<uECC_BYTES; ++i)
@@ -1698,7 +1698,7 @@ void uECC_compress(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_
     p_compressed[0] = 2 + (p_publicKey[uECC_BYTES * 2 - 1] & 0x01);
 }
 
-void uECC_decompress(uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2])
+void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2])
 {
     EccPoint l_point;
     uECC_word_t _3[uECC_WORDS] = {3}; /* -a = 3 */

@@ -117,7 +117,7 @@ Inputs:
 Outputs:
     p_compressed - Will be filled in with the compressed public key.
 */
-void uECC_compress(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
+void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
 
 /* uECC_decompress() function.
 Decompress a compressed public key.
@@ -128,7 +128,7 @@ Inputs:
 Outputs:
     p_publicKey - Will be filled in with the decompressed public key.
 */
-void uECC_decompress(uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
+void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
 
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
