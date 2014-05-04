@@ -1,6 +1,6 @@
 import os
 
-c, link = emk.module("c", "link")
+c, link, asm, utils = emk.module("c", "link", "asm", "utils")
 
 default_compile_flags = ["-fvisibility=hidden", "-Wall", "-Wextra", "-Wshadow", "-Werror", "-Wno-missing-field-initializers", "-Wno-unused-parameter", \
     "-Wno-comment", "-Wno-unused", "-Wno-unknown-pragmas"]
@@ -63,13 +63,33 @@ def setup_avr():
 def setup_arm_thumb():
     global c
     global link
+    global asm
+    global utils
 
+    asm.assembler = asm.GccAssembler("/cross/arm_cortex/bin/arm-none-eabi-")
     c.compiler = c.GccCompiler("/cross/arm_cortex/bin/arm-none-eabi-")
     link.linker = link.GccLinker("/cross/arm_cortex/bin/arm-none-eabi-")
 
-    c.flags += ["-march=armv6-m", "-mthumb", "-ffunction-sections", "-fdata-sections"]
-    link.local_flags += ["-march=armv6-m", "-mthumb", "-Wl,--gc-sections"]
+    c.flags.extend(["-mcpu=cortex-m0", "-mthumb", "-ffunction-sections", "-fdata-sections", "-fno-builtin-fprintf", "-fno-builtin-printf"])
+    c.defines["LPC11XX"] = 1
+    
+    link.local_flags.extend(["-mcpu=cortex-m0", "-mthumb", "-nostartfiles", "-nostdlib", "-Wl,--gc-sections"])
+    link.local_flags.extend(["-Tflash.lds", "-L/Projects/lpc11xx/core", "/Projects/lpc11xx/core/" + emk.build_dir + "/board_cstartup.o"])
+    link.local_syslibs += ["gcc"]
+    link.depdirs += ["/Projects/lpc11xx/stdlib"]
+
+    def do_objcopy(produces, requires):
+        utils.call("/cross/arm_cortex/bin/arm-none-eabi-objcopy", "-O", "binary", requires[0], produces[0])
+
+    def handle_exe(path):
+        emk.depend(path, "/Projects/lpc11xx/core/" + emk.build_dir + "/board_cstartup.o")
+        emk.rule(do_objcopy, path + ".bin", path, cwd_safe=True, ex_safe=True)
+        emk.autobuild(path + ".bin")
+
+    link.exe_funcs.append(handle_exe)
     link.strip = True
+    
+    emk.recurse("/Projects/lpc11xx/core")
 
 setup_build_dir()
 

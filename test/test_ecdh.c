@@ -5,6 +5,29 @@
 #include <stdio.h>
 #include <string.h>
 
+#if LPC11XX
+
+#include "/Projects/lpc11xx/peripherals/uart.h"
+#include "/Projects/lpc11xx/peripherals/time.h"
+
+static uint64_t g_rand = 88172645463325252ull;
+int fake_rng(uint8_t *p_dest, unsigned p_size)
+{
+    while(p_size)
+    {
+        g_rand ^= (g_rand << 13);
+        g_rand ^= (g_rand >> 7);
+        g_rand ^= (g_rand << 17);
+
+        unsigned l_amount = (p_size > 8 ? 8 : p_size);
+        memcpy(p_dest, &g_rand, l_amount);
+        p_size -= l_amount;
+    }
+    return 1;
+}
+
+#endif
+
 void vli_print(uint8_t *p_vli, unsigned int p_size)
 {
     while(p_size)
@@ -16,6 +39,13 @@ void vli_print(uint8_t *p_vli, unsigned int p_size)
 
 int main()
 {
+#if LPC11XX
+    uartInit(BAUD_115200);
+	initTime();
+	
+    uECC_set_rng(&fake_rng);
+#endif
+	
     int i;
     
     uint8_t l_private1[uECC_BYTES];
@@ -32,7 +62,9 @@ int main()
     for(i=0; i<256; ++i)
     {
         printf(".");
+    #if !LPC11XX
         fflush(stdout);
+    #endif
 
         if(!uECC_make_key(l_public1, l_private1) || !uECC_make_key(l_public2, l_private2))
         {
