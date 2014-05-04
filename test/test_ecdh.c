@@ -34,8 +34,11 @@ int main()
         printf(".");
         fflush(stdout);
 
-        uECC_make_key(l_public1, l_private1);
-        uECC_make_key(l_public2, l_private2);
+        if(!uECC_make_key(l_public1, l_private1) || !uECC_make_key(l_public2, l_private2))
+        {
+            printf("uECC_make_key() failed\n");
+            return 1;
+        }
 
         if(!uECC_shared_secret(l_public2, l_private1, l_secret1))
         {

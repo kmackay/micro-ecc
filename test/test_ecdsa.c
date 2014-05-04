@@ -23,7 +23,11 @@ int main()
         printf(".");
         fflush(stdout);
         
-        uECC_make_key(l_public, l_private);
+        if(!uECC_make_key(l_public, l_private))
+        {
+            printf("uECC_make_key() failed\n");
+            continue;
+        }
         memcpy(l_hash, l_public, uECC_BYTES);
         
         if(!uECC_sign(l_private, l_hash, l_sig))
