@@ -25,7 +25,7 @@ Private keys are represented in the standard format.
 
 #### Using the Code ####
 
-I recommend just copying (or symlink) uECC.h and uECC.c into your project. Then just `#include "uECC.h"` to use the micro-ecc functions.
+I recommend just copying (or symlink) uECC.h, uECC.c, and the appropriate asm\_&lt;arch&gt;\_.inc (if any) into your project. Then just `#include "uECC.h"` to use the micro-ecc functions.
 
 See uECC.h for documentation for each function.
 
