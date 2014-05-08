@@ -561,7 +561,7 @@ static uECC_word_t vli_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word
 }
 #endif
 
-#if (!asm_mult || !asm_square)
+#if (!asm_mult || !asm_square || uECC_CURVE == uECC_secp256k1)
 static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r1, uECC_word_t *r2)
 {
 #if uECC_WORD_SIZE == 8 && !SUPPORTS_INT128
@@ -1312,7 +1312,6 @@ static void omega_mult(uint64_t * RESTRICT p_result, uint64_t * RESTRICT p_right
 #endif /* uECC_CURVE */
 #endif /* !asm_mmod_fast */
 
-
 /* Computes p_result = (p_left * p_right) % curve_p. */
 static void vli_modMult_fast(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
 {
@@ -1697,8 +1696,6 @@ static void mod_sqrt(uECC_word_t *a)
     }
     vli_set(a, l_result);
 }
-
-
 
 #if uECC_WORD_SIZE == 1
 
