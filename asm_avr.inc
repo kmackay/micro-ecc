@@ -15691,7 +15691,350 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
 }
 #define asm_mmod_fast 1
 
-#endif /* uECC_CURVE == uECC_secp160r1 */
+#elif (uECC_CURVE == uECC_secp256k1)
+static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
+{
+    uint8_t l_carry = 0;
+    __asm__ volatile (
+        "in r30, __SP_L__ \n\t"
+    	"in r31, __SP_H__ \n\t"
+    	"sbiw r30, 37 \n\t"
+    	"in r0, __SREG__ \n\t"
+    	"cli \n\t"
+    	"out __SP_H__, r31 \n\t"
+    	"out __SREG__, r0 \n\t"
+    	"out __SP_L__, r30 \n\t"
+    	
+    	"adiw r30, 1 \n\t" /* add 1 since z initially points below the stack */
+        "adiw r26, 32 \n\t" /* p_product + uECC_WORDS */
+        "ldi r25, 0x03 \n\t"
+        "ldi r24, 0xD1 \n\t"
+        "ld r18, x+ \n\t"
+        "ld r19, x+ \n\t"
+        "ld r20, x+ \n\t"
+        "ld r21, x+ \n\t"
+        
+        "mul r24, r18 \n\t"
+        "st z+, r0 \n\t"
+        "mov r22, r1 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "mul r24, r19 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t" /* can't overflow */
+        "mul r25, r18 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t" /* can't overflow */
+        "st z+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        "mul r24, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "mul r25, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "st z+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "mul r24, r21 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "mul r25, r20 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "st z+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        /* now we start adding the 2^32 part as well */
+        "add r23, r18 \n\t" // 28
+        "adc r22, r22 \n\t"
+        "ld r18, x+ \n\t"
+        "mul r24, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "mul r25, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "st z+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "add r22, r19 \n\t" // 27
+        "adc r23, r23 \n\t"
+        "ld r19, x+ \n\t"
+        "mul r24, r19 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "mul r25, r18 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "st z+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        REPEAT(6, // 26 - 3
+            "add r23, r20 \n\t"
+            "adc r22, r22 \n\t"
+            "ld r20, x+ \n\t"
+            "mul r24, r20 \n\t"
+            "add r23, r0 \n\t"
+            "adc r22, r1 \n\t"
+            "mul r25, r19 \n\t"
+            "add r23, r0 \n\t"
+            "adc r22, r1 \n\t"
+            "st z+, r23 \n\t"
+            "ldi r23, 0 \n\t"
+            
+            "add r22, r21 \n\t"
+            "adc r23, r23 \n\t"
+            "ld r21, x+ \n\t"
+            "mul r24, r21 \n\t"
+            "add r22, r0 \n\t"
+            "adc r23, r1 \n\t"
+            "mul r25, r20 \n\t"
+            "add r22, r0 \n\t"
+            "adc r23, r1 \n\t"
+            "st z+, r22 \n\t"
+            "ldi r22, 0 \n\t"
+            
+            "add r23, r18 \n\t"
+            "adc r22, r22 \n\t"
+            "ld r18, x+ \n\t"
+            "mul r24, r18 \n\t"
+            "add r23, r0 \n\t"
+            "adc r22, r1 \n\t"
+            "mul r25, r21 \n\t"
+            "add r23, r0 \n\t"
+            "adc r22, r1 \n\t"
+            "st z+, r23 \n\t"
+            "ldi r23, 0 \n\t"
+            
+            "add r22, r19 \n\t"
+            "adc r23, r23 \n\t"
+            "ld r19, x+ \n\t"
+            "mul r24, r19 \n\t"
+            "add r22, r0 \n\t"
+            "adc r23, r1 \n\t"
+            "mul r25, r18 \n\t"
+            "add r22, r0 \n\t"
+            "adc r23, r1 \n\t"
+            "st z+, r22 \n\t"
+            "ldi r22, 0 \n\t")
+
+        "add r23, r20 \n\t" // 2
+        "adc r22, r22 \n\t"
+        "ld r20, x+ \n\t"
+        "mul r24, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "mul r25, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "st z+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "add r22, r21 \n\t" // 1
+        "adc r23, r23 \n\t"
+        "ld r21, x+ \n\t"
+        "mul r24, r21 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "mul r25, r20 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "st z+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        /* Now finish the carries etc */
+        "add r23, r18 \n\t"
+        "adc r22, r22 \n\t"
+        "mul r25, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "st z+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "add r22, r19 \n\t"
+        "adc r23, r23 \n\t"
+        "st z+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        "add r23, r20 \n\t"
+        "adc r22, r22 \n\t"
+        "st z+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "add r22, r21 \n\t"
+        "adc r23, r23 \n\t"
+        "st z+, r22 \n\t"
+        "st z+, r23 \n\t"
+        "eor r1, r1 \n\t" /* make r1 be 0 again */
+        
+        "sbiw r30, 37 \n\t" /* move z back to point at tmp */
+        "subi r26, 64 \n\t" /* move x back to point at p_product */
+        "sbc r27, __zero_reg__ \n\t"
+        
+        /* add low bytes of tmp to p_product, storing in p_result */
+        "ld r18, z+ \n\t"
+        "ld r19, x+ \n\t"
+        "add r18, r19 \n\t"
+        "st y+, r18 \n\t"
+        REPEAT(31, "ld r18, z+ \n\t"
+            "ld r19, x+ \n\t"
+            "adc r18, r19 \n\t"
+            "st y+, r18 \n\t")
+        
+        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
+        /* at this point x is at the end of p_product, y is at the end of p_result, z is 32 bytes into tmp */
+        "sbiw r28, 32 \n\t" /* move y back to point at p_result */
+        
+        "eor r19, r19 \n\t"
+        "ld r18, z+ \n\t"
+        "add r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        "ld r18, z+ \n\t"
+        "adc r19, r18 \n\t"
+        /* now z points to the end of tmp */
+        "brcs mmod_remult \n\t" /* carry was set, so something was not zero (need to mult again) */
+        "cp r19, __zero_reg__ \n\t"
+        "brne mmod_remult \n\t" /* sum was not equal to zero (need to mult again) */
+        "rjmp mmod_after_remult \n\t"
+        
+        "mmod_remult: \n\t" /* do omega_mult with the 5 relevant bytes */
+        /* z points to the end of tmp, x points to the end of p_product */
+        "sbiw r30, 5 \n\t" /* move z back to point at l_tmp + uECC_WORDS */
+        "sbiw r26, 32 \n\t" /* shift x back to point into the p_product buffer (we can overwrite it now) */
+        
+        "ld r18, z+ \n\t"
+        "ld r19, z+ \n\t"
+        "ld r20, z+ \n\t"
+        "ld r21, z+ \n\t"
+        
+        "mul r24, r18 \n\t"
+        "st x+, r0 \n\t"
+        "mov r22, r1 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "mul r24, r19 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t" /* can't overflow */
+        "mul r25, r18 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t" /* can't overflow */
+        "st x+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        "mul r24, r20 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "mul r25, r19 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "st x+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "mul r24, r21 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "mul r25, r20 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "st x+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        "add r23, r18 \n\t"
+        "adc r22, r22 \n\t"
+        "ld r18, z+ \n\t"
+        "mul r24, r18 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "mul r25, r21 \n\t"
+        "add r23, r0 \n\t"
+        "adc r22, r1 \n\t"
+        "st x+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        /* Now finish the carries etc */
+        "add r22, r19 \n\t"
+        "adc r23, r23 \n\t"
+        "mul r25, r18 \n\t"
+        "add r22, r0 \n\t"
+        "adc r23, r1 \n\t"
+        "st x+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        "add r23, r20 \n\t"
+        "adc r22, r22 \n\t"
+        "st x+, r23 \n\t"
+        "ldi r23, 0 \n\t"
+        
+        "add r22, r21 \n\t"
+        "adc r23, r23 \n\t"
+        "st x+, r22 \n\t"
+        "ldi r22, 0 \n\t"
+        
+        "add r23, r18 \n\t"
+        "adc r22, r22 \n\t"
+        "st x+, r23 \n\t"
+        "st x+, r22 \n\t"
+        "eor r1, r1 \n\t" /* make r1 be 0 again */
+        
+        /* now z points to the end of tmp, x points to the end of p_product (y still points at p_result) */
+        "sbiw r26, 10 \n\t" /* move x back to point at beginning of actual data */
+        /* add into p_result */
+        "ld r18, x+ \n\t"
+        "ld r19, y \n\t"
+        "add r18, r19 \n\t"
+        "st y+, r18 \n\t"
+        REPEAT(9, "ld r18, x+ \n\t"
+            "ld r19, y \n\t"
+            "adc r18, r19 \n\t"
+            "st y+, r18 \n\t")
+        
+        /* Done adding, now propagate carry bit */
+        REPEAT(22, "ld r18, y \n\t"
+            "adc r18, __zero_reg__ \n\t"
+            "st y+, r18 \n\t")
+        
+        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
+        "sbiw r28, 32 \n\t" /* move y back to point at p_result */
+        
+        "mmod_after_remult: \n\t"
+        
+        "sbiw r30, 1 \n\t" /* fix stack pointer */
+    	"in r0, __SREG__ \n\t"
+    	"cli \n\t"
+    	"out __SP_H__, r31 \n\t"
+    	"out __SREG__, r0 \n\t"
+    	"out __SP_L__, r30 \n\t"
+        
+        : "+x" (p_product), [carry] "+r" (l_carry)
+        : "y" (p_result)
+        : "r0", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r30", "r31", "cc", "memory"
+    );
+    
+    if(l_carry > 0)
+    {
+        --l_carry;
+        vli_sub(p_result, p_result, curve_p);
+    }
+    if(l_carry > 0)
+    {
+        vli_sub(p_result, p_result, curve_p);
+    }
+    
+    if(vli_cmp(p_result, curve_p) > 0)
+    {
+        vli_sub(p_result, p_result, curve_p);
+    }
+}
+#define asm_mmod_fast 1
+
+#endif /* (uECC_CURVE == uECC_secp256k1) */
 
 #endif /* (uECC_ASM == uECC_asm_fast) */
 
