@@ -16128,6 +16128,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #endif
 
 #if !asm_mult
+__attribute((noinline))
 static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 {
     uint8_t r0 = 0;
