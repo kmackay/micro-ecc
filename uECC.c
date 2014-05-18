@@ -785,12 +785,9 @@ static void vli_mmod_fast(uECC_word_t *RESTRICT p_result, uECC_word_t *RESTRICT 
     omega_mult(l_tmp, p_product + uECC_WORDS); /* (Rq, q) = q * c */
     
     l_carry = vli_add(p_result, p_product, l_tmp); /* (C, r) = r + q       */
-    if(!vli_isZero(l_tmp + uECC_WORDS)) /* if Rq > 0 */
-    {
-        vli_clear(p_product);
-        omega_mult(p_product, l_tmp + uECC_WORDS); /* Rq*c */
-        l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
-    }
+    vli_clear(p_product);
+    omega_mult(p_product, l_tmp + uECC_WORDS); /* Rq*c */
+    l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
     
     while(l_carry > 0)
     {

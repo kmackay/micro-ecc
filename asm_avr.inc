@@ -15571,26 +15571,10 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
         /* at this point x is at the end of p_product, y is at the end of p_result, z is 20 bytes into tmp */
         "sbiw r28, 20 \n\t" /* move y back to point at p_result */
+        "adiw r30, 4 \n\t" /* move z to point to the end of tmp */
         
-        "eor r19, r19 \n\t"
-        "ld r18, z+ \n\t"
-        "add r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        /* now z points to the end of tmp */
-        "brcs mmod_remult \n\t" /* carry was set, so something was not zero (need to mult again) */
-        "cp r19, __zero_reg__ \n\t"
-        "brne mmod_remult \n\t" /* sum was not equal to zero (need to mult again) */
-        "rjmp mmod_after_remult \n\t"
-        
-        "mmod_remult: \n\t" /* do omega_mult with the 4 relevant bytes */
-        
-        /* z already points to the end of tmp, x points to the end of p_product */
-        
+        /* do omega_mult again with the 4 relevant bytes */
+        /* z points to the end of tmp, x points to the end of p_product */
         "ld r18, -z \n\t"  /* Load word. */
         "lsr r18 \n\t" /* Shift. */
         "st -x, r18 \n\t"  /* Store the first result word. */
@@ -15659,8 +15643,6 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         
         "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
         "sbiw r28, 20 \n\t" /* move y back to point at p_result */
-        
-        "mmod_after_remult: \n\t"
         
         "sbiw r30, 1 \n\t" /* fix stack pointer */
     	"in r0, __SREG__ \n\t"
@@ -15886,27 +15868,9 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
         /* at this point x is at the end of p_product, y is at the end of p_result, z is 32 bytes into tmp */
         "sbiw r28, 32 \n\t" /* move y back to point at p_result */
-        
-        "eor r19, r19 \n\t"
-        "ld r18, z+ \n\t"
-        "add r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        /* now z points to the end of tmp */
-        "brcs mmod_remult \n\t" /* carry was set, so something was not zero (need to mult again) */
-        "cp r19, __zero_reg__ \n\t"
-        "brne mmod_remult \n\t" /* sum was not equal to zero (need to mult again) */
-        "rjmp mmod_after_remult \n\t"
-        
-        "mmod_remult: \n\t" /* do omega_mult with the 5 relevant bytes */
-        /* z points to the end of tmp, x points to the end of p_product */
-        "sbiw r30, 5 \n\t" /* move z back to point at l_tmp + uECC_WORDS */
+
+        /* do omega_mult again with the 5 relevant bytes */
+        /* z points to l_tmp + uECC_WORDS, x points to the end of p_product */
         "sbiw r26, 32 \n\t" /* shift x back to point into the p_product buffer (we can overwrite it now) */
         
         "ld r18, z+ \n\t"
@@ -16002,8 +15966,6 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         
         "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
         "sbiw r28, 32 \n\t" /* move y back to point at p_result */
-        
-        "mmod_after_remult: \n\t"
         
         "sbiw r30, 1 \n\t" /* fix stack pointer */
     	"in r0, __SREG__ \n\t"
