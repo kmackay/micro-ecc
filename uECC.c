@@ -79,6 +79,9 @@ typedef int16_t bitcount_t;
 typedef int8_t cmpresult_t;
 
 #define HIGH_BIT_SET 0x80
+#define uECC_WORD_BITS 8
+#define uECC_WORD_BITS_SHIFT 3
+#define uECC_WORD_BITS_MASK 0x07
 
 #define uECC_WORDS_1 20
 #define uECC_WORDS_2 24
@@ -181,6 +184,9 @@ typedef int bitcount_t;
 typedef int cmpresult_t;
 
 #define HIGH_BIT_SET 0x80000000
+#define uECC_WORD_BITS 32
+#define uECC_WORD_BITS_SHIFT 5
+#define uECC_WORD_BITS_MASK 0x01F
 
 #define uECC_WORDS_1 5
 #define uECC_WORDS_2 6
@@ -235,6 +241,9 @@ typedef int bitcount_t;
 typedef int cmpresult_t;
 
 #define HIGH_BIT_SET 0x8000000000000000ull
+#define uECC_WORD_BITS 64
+#define uECC_WORD_BITS_SHIFT 6
+#define uECC_WORD_BITS_MASK 0x03F
 
 #define uECC_WORDS_1 3
 #define uECC_WORDS_2 3
@@ -277,9 +286,8 @@ typedef int cmpresult_t;
 #define Curve_N_3 {0xF3B9CAC2FC632551ull, 0xBCE6FAADA7179E84ull, 0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFF00000000ull}
 #define Curve_N_4 {0xBFD25E8CD0364141, 0xBAAEDCE6AF48A03B, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF}
 
-#endif
+#endif /* (uECC_WORD_SIZE == 8) */
 
-#define uECC_WORD_BITS (uECC_WORD_SIZE * 8)
 #define uECC_WORDS uECC_CONCAT(uECC_WORDS_, uECC_CURVE)
 #define uECC_N_WORDS uECC_CONCAT(uECC_N_WORDS_, uECC_CURVE)
 
@@ -434,7 +442,7 @@ static uECC_word_t vli_isZero(const uECC_word_t *p_vli)
 #if !asm_testBit
 static uECC_word_t vli_testBit(const uECC_word_t *p_vli, bitcount_t p_bit)
 {
-    return (p_vli[p_bit/uECC_WORD_BITS] & ((uECC_word_t)1 << (p_bit % uECC_WORD_BITS)));
+    return (p_vli[p_bit >> uECC_WORD_BITS_SHIFT] & ((uECC_word_t)1 << (p_bit & uECC_WORD_BITS_MASK)));
 }
 #endif
 
@@ -470,7 +478,7 @@ static bitcount_t vli_numBits(const uECC_word_t *p_vli, wordcount_t p_maxWords)
         l_digit >>= 1;
     }
     
-    return ((bitcount_t)(l_numDigits - 1) * uECC_WORD_BITS + i);
+    return (((bitcount_t)(l_numDigits - 1) << uECC_WORD_BITS_SHIFT) + i);
 }
 #endif /* !asm_numBits */
 
@@ -2074,7 +2082,7 @@ static void vli_modMult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_
     
     bitcount_t i;
     uECC_word_t l_index = 1;
-    for(i=0; i<=((uECC_N_WORDS * uECC_WORD_BITS) + (uECC_WORD_BITS - 1)); ++i) 
+    for(i=0; i<=((((bitcount_t)uECC_N_WORDS) << uECC_WORD_BITS_SHIFT) + (uECC_WORD_BITS - 1)); ++i)
     {
         uECC_word_t l_borrow = vli2_sub_n(v[1-l_index], v[l_index], l_modMultiple);
         l_index = !(l_index ^ l_borrow); /* Swap the index if there was no borrow */
