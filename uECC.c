@@ -1280,11 +1280,12 @@ static void omega_mult(uint32_t * RESTRICT p_result, uint32_t * RESTRICT p_right
 {
     /* Multiply by (2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
     uint32_t l_carry = 0;
-    wordcount_t i;
-    for(i=0; i<uECC_WORDS; ++i)
+    wordcount_t k;
+    
+    for(k = 0; k < uECC_WORDS; ++k)
     {
-        uint64_t p = (uint64_t)0x3D1 * p_right[i] + l_carry;
-        p_result[i] = (p & 0xffffffff);
+        uint64_t p = (uint64_t)0x3D1 * p_right[k] + l_carry;
+        p_result[k] = (p & 0xffffffff);
         l_carry = p >> 32;
     }
     p_result[uECC_WORDS] = l_carry;
