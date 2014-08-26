@@ -34,6 +34,7 @@ See uECC.h for documentation for each function.
 ### Compilation Notes ###
 
  * Should compile with any C/C++ compiler that supports stdint.h (this includes Visual Studio 2013).
+ * If you want to change the defaults for `uECC_CURVE` and `uECC_ASM`, you must change them in your Makefile or similar so that uECC.c is compiled with the desired values (ie, compile uECC.c with `-DuECC_CURVE=uECC_secp256r1` or whatever).
  * When compiling for a Thumb-1 platform with inline assembly enabled (ie, `uECC_ASM` is defined to `uECC_asm_small` or `uECC_asm_fast`), you must use the `-fomit-frame-pointer` GCC option (this is enabled by default when compiling with `-O1` or higher).
  * When compiling for AVR with inline assembly enabled, you must have optimizations enabled (compile with `-O1` or higher).
  * When building for Windows, you will need to link in the `advapi32.lib` system library.
