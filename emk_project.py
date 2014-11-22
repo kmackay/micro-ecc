@@ -91,9 +91,16 @@ def setup_arm_thumb():
     
     emk.recurse("/Projects/lpc11xx/core")
 
+def setup_linux_rpi():
+    global c
+    global link
+
+    c.compiler = c.GccCompiler("/Volumes/xtools/arm-none-linux-gnueabi/bin/arm-none-linux-gnueabi-")
+    link.linker = link.GccLinker("/Volumes/xtools/arm-none-linux-gnueabi/bin/arm-none-linux-gnueabi-")
+
 setup_build_dir()
 
-setup_funcs = {"osx":setup_osx, "avr":setup_avr, "arm_thumb":setup_arm_thumb}
+setup_funcs = {"osx":setup_osx, "avr":setup_avr, "arm_thumb":setup_arm_thumb, "rpi": setup_linux_rpi}
 
 if not emk.cleaning:
     build_arch = emk.options["arch"]
