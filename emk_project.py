@@ -97,6 +97,8 @@ def setup_linux_rpi():
 
     c.compiler = c.GccCompiler("/Volumes/xtools/arm-none-linux-gnueabi/bin/arm-none-linux-gnueabi-")
     link.linker = link.GccLinker("/Volumes/xtools/arm-none-linux-gnueabi/bin/arm-none-linux-gnueabi-")
+    
+    c.flags.extend(["-fomit-frame-pointer"])
 
 setup_build_dir()
 
