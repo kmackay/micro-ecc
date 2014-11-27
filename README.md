@@ -40,6 +40,41 @@ See uECC.h for documentation for each function.
  * When compiling for AVR with inline assembly enabled, you must have optimizations enabled (compile with `-O1` or higher).
  * When building for Windows, you will need to link in the `advapi32.lib` system library.
 
+### ARM Performance ###
+
+All tests were built using gcc 4.8.2 with `-O3`, and were run on a Raspberry Pi B+. `uECC_ASM` was defined to `uECC_asm_fast` and `ECC_SQUARE_FUNC` was defined to `1` in all cases. All times are in milliseconds.
+
+<table>
+	<tr>
+		<th></th>
+		<th>secp160r1</th>
+		<th>secp192r1</th>
+		<th>secp256r1</th>
+		<th>secp256k1</th>
+	</tr>
+	<tr>
+		<td><em>ECDH:</em></td>
+		<td>2.3</td>
+		<td>2.7</td>
+		<td>7.9</td>
+		<td>6.5</td>
+	</tr>
+	<tr>
+		<td><em>ECDSA sign:</em></td>
+		<td>2.8</td>
+		<td>3.1</td>
+		<td>8.6</td>
+		<td>7.2</td>
+	</tr>
+	<tr>
+		<td><em>ECDSA verify:</em></td>
+		<td>2.7</td>
+		<td>3.2</td>
+		<td>9.2</td>
+		<td>7.0</td>
+	</tr>
+</table>
+
 ### AVR Performance ###
 
 All tests were built using avr-gcc 4.8.1 with `-Os`, and were run on a 16 MHz ATmega256RFR2. Code size refers to the space used by micro-ecc code and data.
