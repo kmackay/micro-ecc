@@ -30,6 +30,7 @@ def mulacc(acc, r1, r2):
         emit("mov r14, r%s", acc[1])
         emit("umlal r%s, r%s, r%s, r%s", acc[0], acc[1], r1, r2)
         emit("cmp r14, r%s", acc[1])
+        emit("it hi")
         emit("adchi r%s, #0", acc[2])
 
 r = [2, 3, 4, 5, 6, 7]
