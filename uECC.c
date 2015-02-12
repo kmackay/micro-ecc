@@ -2333,3 +2333,13 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     /* Accept only if v == r. */
     return (vli_cmp(rx, r) == 0);
 }
+
+int uECC_bytes()
+{
+    return uECC_BYTES;
+}
+
+int uECC_curve()
+{
+    return uECC_CURVE;
+}
