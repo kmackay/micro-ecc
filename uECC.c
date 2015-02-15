@@ -308,6 +308,7 @@ static uECC_word_t vli_testBit(const uECC_word_t *p_vli, bitcount_t p_bit);
 static bitcount_t vli_numBits(const uECC_word_t *p_vli, wordcount_t p_maxWords);
 static void vli_set(uECC_word_t *p_dest, const uECC_word_t *p_src);
 static cmpresult_t vli_cmp(uECC_word_t *p_left, uECC_word_t *p_right);
+static cmpresult_t vli_equal(uECC_word_t *p_left, uECC_word_t *p_right);
 static void vli_rshift1(uECC_word_t *p_vli);
 static uECC_word_t vli_add(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right);
 static uECC_word_t vli_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right);
@@ -513,6 +514,19 @@ static cmpresult_t vli_cmp(uECC_word_t *p_left, uECC_word_t *p_right)
     return 0;
 }
 #endif
+
+static cmpresult_t vli_equal(uECC_word_t *p_left, uECC_word_t *p_right)
+{
+    uECC_word_t l_result = 0;
+    
+    swordcount_t i;
+    for(i = uECC_WORDS-1; i >= 0; --i)
+    {
+        l_result |= (p_left[i] ^ p_right[i]);
+    }
+    
+    return (l_result == 0);
+}
 
 /* Computes p_vli = p_vli >> 1. */
 #if !asm_rshift1
@@ -2331,7 +2345,7 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
 #endif
 
     /* Accept only if v == r. */
-    return (vli_cmp(rx, r) == 0);
+    return vli_equal(rx, r);
 }
 
 int uECC_bytes()
