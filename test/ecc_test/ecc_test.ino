@@ -1,22 +1,5 @@
 #include <uECC.h>
 
-#include <j0g.h>
-#include <js0n.h>
-
-#include <lwm.h>
-
-#include <bitlash.h>
-
-#include <GS.h>
-
-#include <SPI.h>
-#include <Wire.h>
-#include <Scout.h>
-#include <Shell.h>
-
-
-#include <uECC.h>
-
 extern "C" {
 
 static int RNG(uint8_t *p_dest, unsigned p_size)
@@ -56,8 +39,7 @@ static int RNG(uint8_t *p_dest, unsigned p_size)
 
 void setup()
 {
-  Scout.setup();
-  
+  Serial.begin(115200);
   Serial.print("Testing ecc\n");
   
   uECC_set_rng(&RNG);
