@@ -179,24 +179,14 @@ Returns 1 if the public key is valid, 0 if it is invalid.
 int uECC_valid_public_key(const uint8_t p_publicKey[uECC_BYTES*2]);
 
 /* uECC_bytes() function.
-Return the value of uECC_BYTES. Helpful for foreign-interfaces to higher-level languages.
-
-Inputs:
-    (none)
-
-Returns the value of uECC_BYTES
+Returns the value of uECC_BYTES. Helpful for foreign-interfaces to higher-level languages.
 */
-int uECC_bytes();
+int uECC_bytes(void);
 
 /* uECC_curve() function.
-Return the value of uECC_CURVE. Helpful for foreign-interfaces to higher-level languages.
-
-Inputs:
-    (none)
-
-Returns the value of uECC_CURVE
+Returns the value of uECC_CURVE. Helpful for foreign-interfaces to higher-level languages.
 */
-int uECC_curve();
+int uECC_curve(void);
 
 #ifdef __cplusplus
 } /* end of extern "C" */

@@ -2380,12 +2380,12 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     return vli_equal(rx, r);
 }
 
-int uECC_bytes()
+int uECC_bytes(void)
 {
     return uECC_BYTES;
 }
 
-int uECC_curve()
+int uECC_curve(void)
 {
     return uECC_CURVE;
 }
