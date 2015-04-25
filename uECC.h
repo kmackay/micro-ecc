@@ -110,28 +110,6 @@ Returns 1 if the shared secret was generated successfully, 0 if an error occurre
 */
 int uECC_shared_secret(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_privateKey[uECC_BYTES], uint8_t p_secret[uECC_BYTES]);
 
-/* uECC_compress() function.
-Compress a public key.
-
-Inputs:
-    p_publicKey - The public key to compress.
-
-Outputs:
-    p_compressed - Will be filled in with the compressed public key.
-*/
-void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
-
-/* uECC_decompress() function.
-Decompress a compressed public key.
-
-Inputs:
-    p_compressed - The compressed public key.
-
-Outputs:
-    p_publicKey - Will be filled in with the decompressed public key.
-*/
-void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
-
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
 
@@ -163,6 +141,42 @@ Inputs:
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
 int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uECC_BYTES], const uint8_t p_signature[uECC_BYTES*2]);
+
+/* uECC_compress() function.
+Compress a public key.
+
+Inputs:
+    p_publicKey - The public key to compress.
+
+Outputs:
+    p_compressed - Will be filled in with the compressed public key.
+*/
+void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
+
+/* uECC_decompress() function.
+Decompress a compressed public key.
+
+Inputs:
+    p_compressed - The compressed public key.
+
+Outputs:
+    p_publicKey - Will be filled in with the decompressed public key.
+*/
+void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
+
+/* uECC_valid_public_key() function.
+Check to see if a public key is valid.
+
+Note that you are not required to check for a valid public key before using any other uECC
+functions. However, you may wish to avoid spending CPU time computing a shared secret or
+verifying a signature using an invalid public key.
+
+Inputs:
+    p_publicKey - The public key to check.
+
+Returns 1 if the public key is valid, 0 if it is invalid.
+*/
+int uECC_valid_public_key(const uint8_t p_publicKey[uECC_BYTES*2]);
 
 /* uECC_bytes() function.
 Return the value of uECC_BYTES. Helpful for foreign-interfaces to higher-level languages.

@@ -1852,24 +1852,28 @@ void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed
     p_compressed[0] = 2 + (p_publicKey[uECC_BYTES * 2 - 1] & 0x01);
 }
 
+/* Computes p_result = x^3 + ax + b. p_result must not overlap x. */
+static void curve_x_side(uECC_word_t * RESTRICT p_result, uECC_word_t * RESTRICT x)
+{
+#if (uECC_CURVE == uECC_secp256k1)
+    vli_modSquare_fast(p_result, x); /* r = x^2 */
+    vli_modMult_fast(p_result, p_result, x); /* r = x^3 */
+    vli_modAdd(p_result, p_result, curve_b, curve_p); /* r = x^3 + b */
+#else
+    uECC_word_t _3[uECC_WORDS] = {3}; /* -a = 3 */
+
+    vli_modSquare_fast(p_result, x); /* r = x^2 */
+    vli_modSub_fast(p_result, p_result, _3); /* r = x^2 - 3 */
+    vli_modMult_fast(p_result, p_result, x); /* r = x^3 - 3x */
+    vli_modAdd(p_result, p_result, curve_b, curve_p); /* r = x^3 - 3x + b */
+#endif
+}
+
 void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2])
 {
     EccPoint l_point;
     vli_bytesToNative(l_point.x, p_compressed + 1);
-    
-#if (uECC_CURVE == uECC_secp256k1)
-    vli_modSquare_fast(l_point.y, l_point.x); /* r = x^2 */
-    vli_modMult_fast(l_point.y, l_point.y, l_point.x); /* r = x^3 */
-    vli_modAdd(l_point.y, l_point.y, curve_b, curve_p); /* r = x^3 + b */
-#else
-    uECC_word_t _3[uECC_WORDS] = {3}; /* -a = 3 */
-    
-    vli_modSquare_fast(l_point.y, l_point.x); /* y = x^2 */
-    vli_modSub_fast(l_point.y, l_point.y, _3); /* y = x^2 - 3 */
-    vli_modMult_fast(l_point.y, l_point.y, l_point.x); /* y = x^3 - 3x */
-    vli_modAdd(l_point.y, l_point.y, curve_b, curve_p); /* y = x^3 - 3x + b */
-#endif
-    
+    curve_x_side(l_point.y, l_point.x);
     mod_sqrt(l_point.y);
     
     if((l_point.y[0] & 0x01) != (p_compressed[0] & 0x01))
@@ -1879,6 +1883,34 @@ void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicK
     
     vli_nativeToBytes(p_publicKey, l_point.x);
     vli_nativeToBytes(p_publicKey + uECC_BYTES, l_point.y);
+}
+
+int uECC_valid_public_key(const uint8_t p_publicKey[uECC_BYTES*2])
+{
+    uECC_word_t l_tmp1[uECC_WORDS];
+    uECC_word_t l_tmp2[uECC_WORDS];
+    EccPoint l_public;
+    vli_bytesToNative(l_public.x, p_publicKey);
+    vli_bytesToNative(l_public.y, p_publicKey + uECC_BYTES);
+    
+    // The point at infinity is invalid.
+    if(EccPoint_isZero(&l_public))
+    {
+        return 0;
+    }
+    
+    // x and y must be smaller than p.
+    if(vli_cmp(curve_p, l_public.x) != 1 || vli_cmp(curve_p, l_public.y) != 1)
+    {
+        return 0;
+    }
+    
+    vli_modSquare_fast(l_tmp1, l_public.y); /* tmp1 = y^2 */
+    
+    curve_x_side(l_tmp2, l_public.x); /* tmp2 = x^3 + ax + b */
+    
+    /* Make sure that y^2 == x^3 + ax + b */
+    return (vli_cmp(l_tmp1, l_tmp2) == 0);
 }
 
 /* -------- ECDSA code -------- */
