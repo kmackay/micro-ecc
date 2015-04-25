@@ -307,20 +307,20 @@ static uECC_word_t vli_isZero(const uECC_word_t *p_vli);
 static uECC_word_t vli_testBit(const uECC_word_t *p_vli, bitcount_t p_bit);
 static bitcount_t vli_numBits(const uECC_word_t *p_vli, wordcount_t p_maxWords);
 static void vli_set(uECC_word_t *p_dest, const uECC_word_t *p_src);
-static cmpresult_t vli_cmp(uECC_word_t *p_left, uECC_word_t *p_right);
-static cmpresult_t vli_equal(uECC_word_t *p_left, uECC_word_t *p_right);
+static cmpresult_t vli_cmp(const uECC_word_t *p_left, const uECC_word_t *p_right);
+static cmpresult_t vli_equal(const uECC_word_t *p_left, const uECC_word_t *p_right);
 static void vli_rshift1(uECC_word_t *p_vli);
-static uECC_word_t vli_add(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right);
-static uECC_word_t vli_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right);
-static void vli_mult(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right);
-static void vli_modAdd(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right, uECC_word_t *p_mod);
-static void vli_modSub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right, uECC_word_t *p_mod);
+static uECC_word_t vli_add(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right);
+static uECC_word_t vli_sub(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right);
+static void vli_mult(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right);
+static void vli_modAdd(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right, const uECC_word_t *p_mod);
+static void vli_modSub(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right, const uECC_word_t *p_mod);
 static void vli_mmod_fast(uECC_word_t *RESTRICT p_result, uECC_word_t *RESTRICT p_product);
-static void vli_modMult_fast(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right);
-static void vli_modInv(uECC_word_t *p_result, uECC_word_t *p_input, uECC_word_t *p_mod);
+static void vli_modMult_fast(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right);
+static void vli_modInv(uECC_word_t *p_result, const uECC_word_t *p_input, const uECC_word_t *p_mod);
 #if uECC_SQUARE_FUNC
-static void vli_square(uECC_word_t *p_result, uECC_word_t *p_left);
-static void vli_modSquare_fast(uECC_word_t *p_result, uECC_word_t *p_left);
+static void vli_square(uECC_word_t *p_result, const uECC_word_t *p_left);
+static void vli_modSquare_fast(uECC_word_t *p_result, const uECC_word_t *p_left);
 #endif
 
 #if (defined(_WIN32) || defined(_WIN64))
@@ -497,7 +497,7 @@ static void vli_set(uECC_word_t *p_dest, const uECC_word_t *p_src)
 
 /* Returns sign of p_left - p_right. */
 #if !asm_cmp
-static cmpresult_t vli_cmp(uECC_word_t *p_left, uECC_word_t *p_right)
+static cmpresult_t vli_cmp(const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     swordcount_t i;
     for(i = uECC_WORDS-1; i >= 0; --i)
@@ -515,7 +515,7 @@ static cmpresult_t vli_cmp(uECC_word_t *p_left, uECC_word_t *p_right)
 }
 #endif
 
-static cmpresult_t vli_equal(uECC_word_t *p_left, uECC_word_t *p_right)
+static cmpresult_t vli_equal(const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_result = 0;
     
@@ -547,7 +547,7 @@ static void vli_rshift1(uECC_word_t *p_vli)
 
 /* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
 #if !asm_add
-static uECC_word_t vli_add(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static uECC_word_t vli_add(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_carry = 0;
     wordcount_t i;
@@ -566,7 +566,7 @@ static uECC_word_t vli_add(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word
 
 /* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
 #if !asm_sub
-static uECC_word_t vli_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static uECC_word_t vli_sub(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_borrow = 0;
     wordcount_t i;
@@ -625,7 +625,7 @@ static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r
 #endif
 
 #if !asm_mult
-static void vli_mult(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static void vli_mult(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
@@ -708,7 +708,7 @@ static void mul2add(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *
 #endif
 }
 
-static void vli_square(uECC_word_t *p_result, uECC_word_t *p_left)
+static void vli_square(uECC_word_t *p_result, const uECC_word_t *p_left)
 {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
@@ -750,7 +750,7 @@ static void vli_square(uECC_word_t *p_result, uECC_word_t *p_left)
 /* Computes p_result = (p_left + p_right) % p_mod.
    Assumes that p_left < p_mod and p_right < p_mod, p_result != p_mod. */
 #if !asm_modAdd
-static void vli_modAdd(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right, uECC_word_t *p_mod)
+static void vli_modAdd(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right, const uECC_word_t *p_mod)
 {
     uECC_word_t l_carry = vli_add(p_result, p_left, p_right);
     if(l_carry || vli_cmp(p_result, p_mod) >= 0)
@@ -763,7 +763,7 @@ static void vli_modAdd(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *
 /* Computes p_result = (p_left - p_right) % p_mod.
    Assumes that p_left < p_mod and p_right < p_mod, p_result != p_mod. */
 #if !asm_modSub
-static void vli_modSub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right, uECC_word_t *p_mod)
+static void vli_modSub(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right, const uECC_word_t *p_mod)
 {
     uECC_word_t l_borrow = vli_sub(p_result, p_left, p_right);
     if(l_borrow)
@@ -782,7 +782,7 @@ static void vli_modSub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *
 
 #if (uECC_CURVE == uECC_secp160r1 || uECC_CURVE == uECC_secp256k1)
 /* omega_mult() is defined farther below for the different curves / word sizes */
-static void omega_mult(uECC_word_t * RESTRICT p_result, uECC_word_t * RESTRICT p_right);
+static void omega_mult(uECC_word_t * RESTRICT p_result, const uECC_word_t * RESTRICT p_right);
 
 /* Computes p_result = p_product % curve_p
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354
@@ -820,7 +820,7 @@ static void vli_mmod_fast(uECC_word_t *RESTRICT p_result, uECC_word_t *RESTRICT 
 #if uECC_CURVE == uECC_secp160r1
 
 #if uECC_WORD_SIZE == 1
-static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
+static void omega_mult(uint8_t * RESTRICT p_result, const uint8_t * RESTRICT p_right)
 {
     uint8_t l_carry;
     uint8_t i;
@@ -839,7 +839,7 @@ static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
     }
 }
 #elif uECC_WORD_SIZE == 4
-static void omega_mult(uint32_t * RESTRICT p_result, uint32_t * RESTRICT p_right)
+static void omega_mult(uint32_t * RESTRICT p_result, const uint32_t * RESTRICT p_right)
 {
     uint32_t l_carry;
     unsigned i;
@@ -1257,7 +1257,7 @@ static void vli_mmod_fast(uint64_t *RESTRICT p_result, uint64_t *RESTRICT p_prod
 #elif uECC_CURVE == uECC_secp256k1
 
 #if uECC_WORD_SIZE == 1
-static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
+static void omega_mult(uint8_t * RESTRICT p_result, const uint8_t * RESTRICT p_right)
 {
     /* Multiply by (2^32 + 2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
     uECC_word_t r0 = 0;
@@ -1290,7 +1290,7 @@ static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
     p_result[4 + uECC_WORDS] = vli_add(p_result + 4, p_result + 4, p_right); /* add the 2^32 multiple */
 }
 #elif uECC_WORD_SIZE == 4
-static void omega_mult(uint32_t * RESTRICT p_result, uint32_t * RESTRICT p_right)
+static void omega_mult(uint32_t * RESTRICT p_result, const uint32_t * RESTRICT p_right)
 {
     /* Multiply by (2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
     uint32_t l_carry = 0;
@@ -1307,7 +1307,7 @@ static void omega_mult(uint32_t * RESTRICT p_result, uint32_t * RESTRICT p_right
     p_result[1 + uECC_WORDS] = vli_add(p_result + 1, p_result + 1, p_right); /* add the 2^32 multiple */
 }
 #else
-static void omega_mult(uint64_t * RESTRICT p_result, uint64_t * RESTRICT p_right)
+static void omega_mult(uint64_t * RESTRICT p_result, const uint64_t * RESTRICT p_right)
 {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
@@ -1333,7 +1333,7 @@ static void omega_mult(uint64_t * RESTRICT p_result, uint64_t * RESTRICT p_right
 #endif /* !asm_mmod_fast */
 
 /* Computes p_result = (p_left * p_right) % curve_p. */
-static void vli_modMult_fast(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static void vli_modMult_fast(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_product[2 * uECC_WORDS];
     vli_mult(l_product, p_left, p_right);
@@ -1343,7 +1343,7 @@ static void vli_modMult_fast(uECC_word_t *p_result, uECC_word_t *p_left, uECC_wo
 #if uECC_SQUARE_FUNC
 
 /* Computes p_result = p_left^2 % curve_p. */
-static void vli_modSquare_fast(uECC_word_t *p_result, uECC_word_t *p_left)
+static void vli_modSquare_fast(uECC_word_t *p_result, const uECC_word_t *p_left)
 {
     uECC_word_t l_product[2 * uECC_WORDS];
     vli_square(l_product, p_left);
@@ -1362,7 +1362,7 @@ static void vli_modSquare_fast(uECC_word_t *p_result, uECC_word_t *p_left)
    See "From Euclid's GCD to Montgomery Multiplication to the Great Divide"
    https://labs.oracle.com/techrep/2001/smli_tr-2001-95.pdf */
 #if !asm_modInv
-static void vli_modInv(uECC_word_t *p_result, uECC_word_t *p_input, uECC_word_t *p_mod)
+static void vli_modInv(uECC_word_t *p_result, const uECC_word_t *p_input, const uECC_word_t *p_mod)
 {
     uECC_word_t a[uECC_WORDS], b[uECC_WORDS], u[uECC_WORDS], v[uECC_WORDS];
     uECC_word_t l_carry;
@@ -1455,7 +1455,7 @@ static void vli_modInv(uECC_word_t *p_result, uECC_word_t *p_input, uECC_word_t 
 /* ------ Point operations ------ */
 
 /* Returns 1 if p_point is the point at infinity, 0 otherwise. */
-static cmpresult_t EccPoint_isZero(EccPoint *p_point)
+static cmpresult_t EccPoint_isZero(const EccPoint *p_point)
 {
     return (vli_isZero(p_point->x) && vli_isZero(p_point->y));
 }
@@ -1556,7 +1556,7 @@ static void EccPoint_double_jacobian(uECC_word_t * RESTRICT X1, uECC_word_t * RE
 #endif
 
 /* Modify (x1, y1) => (x1 * z^2, y1 * z^3) */
-static void apply_z(uECC_word_t * RESTRICT X1, uECC_word_t * RESTRICT Y1, uECC_word_t * RESTRICT Z)
+static void apply_z(uECC_word_t * RESTRICT X1, uECC_word_t * RESTRICT Y1, const uECC_word_t * RESTRICT Z)
 {
     uECC_word_t t1[uECC_WORDS];
 
@@ -1853,7 +1853,7 @@ void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed
 }
 
 /* Computes p_result = x^3 + ax + b. p_result must not overlap x. */
-static void curve_x_side(uECC_word_t * RESTRICT p_result, uECC_word_t * RESTRICT x)
+static void curve_x_side(uECC_word_t * RESTRICT p_result, const uECC_word_t * RESTRICT x)
 {
 #if (uECC_CURVE == uECC_secp256k1)
     vli_modSquare_fast(p_result, x); /* r = x^2 */
@@ -1937,7 +1937,7 @@ static void vli_set_n(uECC_word_t *p_dest, const uECC_word_t *p_src)
     p_dest[uECC_N_WORDS-1] = p_src[uECC_N_WORDS-1];
 }
 
-static cmpresult_t vli_cmp_n(uECC_word_t *p_left, uECC_word_t *p_right)
+static cmpresult_t vli_cmp_n(const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     if(p_left[uECC_N_WORDS-1] > p_right[uECC_N_WORDS-1])
     {
@@ -1957,7 +1957,7 @@ static void vli_rshift1_n(uECC_word_t *p_vli)
     p_vli[uECC_N_WORDS-1] = p_vli[uECC_N_WORDS-1] >> 1;
 }
 
-static uECC_word_t vli_add_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static uECC_word_t vli_add_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_carry = vli_add(p_result, p_left, p_right);
     uECC_word_t l_sum = p_left[uECC_N_WORDS-1] + p_right[uECC_N_WORDS-1] + l_carry;
@@ -1969,7 +1969,7 @@ static uECC_word_t vli_add_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_wo
     return l_carry;
 }
 
-static uECC_word_t vli_sub_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static uECC_word_t vli_sub_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_borrow = vli_sub(p_result, p_left, p_right);
     uECC_word_t l_diff = p_left[uECC_N_WORDS-1] - p_right[uECC_N_WORDS-1] - l_borrow;
@@ -1994,7 +1994,7 @@ static void muladd(uECC_word_t a, uECC_word_t b, uECC_word_t *r0, uECC_word_t *r
 #define muladd_exists 1
 #endif
 
-static void vli_mult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static void vli_mult_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
@@ -2018,7 +2018,7 @@ static void vli_mult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *
     p_result[uECC_N_WORDS*2 - 1] = r0;
 }
 
-static void vli_modAdd_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right, uECC_word_t *p_mod)
+static void vli_modAdd_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right, const uECC_word_t *p_mod)
 {
     uECC_word_t l_carry = vli_add_n(p_result, p_left, p_right);
     if(l_carry || vli_cmp_n(p_result, p_mod) >= 0)
@@ -2027,7 +2027,7 @@ static void vli_modAdd_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t
     }
 }
 
-static void vli_modInv_n(uECC_word_t *p_result, uECC_word_t *p_input, uECC_word_t *p_mod)
+static void vli_modInv_n(uECC_word_t *p_result, const uECC_word_t *p_input, const uECC_word_t *p_mod)
 {
     uECC_word_t a[uECC_N_WORDS], b[uECC_N_WORDS], u[uECC_N_WORDS], v[uECC_N_WORDS];
     uECC_word_t l_carry;
@@ -2093,7 +2093,7 @@ static void vli2_rshift1_n(uECC_word_t *p_vli)
     vli_rshift1_n(p_vli + uECC_N_WORDS);
 }
 
-static uECC_word_t vli2_sub_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static uECC_word_t vli2_sub_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_borrow = 0;
     wordcount_t i;
@@ -2110,7 +2110,7 @@ static uECC_word_t vli2_sub_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_w
 }
 
 /* Computes p_result = (p_left * p_right) % curve_n. */
-static void vli_modMult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static void vli_modMult_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_product[2 * uECC_N_WORDS];
     uECC_word_t l_modMultiple[2 * uECC_N_WORDS];
@@ -2148,7 +2148,7 @@ static void vli2_rshift1(uECC_word_t *p_vli)
     vli_rshift1(p_vli + uECC_WORDS);
 }
 
-static uECC_word_t vli2_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static uECC_word_t vli2_sub(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_borrow = 0;
     wordcount_t i;
@@ -2165,7 +2165,7 @@ static uECC_word_t vli2_sub(uECC_word_t *p_result, uECC_word_t *p_left, uECC_wor
 }
 
 /* Computes p_result = (p_left * p_right) % curve_n. */
-static void vli_modMult_n(uECC_word_t *p_result, uECC_word_t *p_left, uECC_word_t *p_right)
+static void vli_modMult_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
     uECC_word_t l_product[2 * uECC_WORDS];
     uECC_word_t l_modMultiple[2 * uECC_WORDS];

@@ -20,7 +20,7 @@
 
 #if (uECC_ASM == uECC_asm_fast)
 
-static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static uint32_t vli_add(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     uint32_t l_carry = 0;
     uint32_t l_left;
@@ -57,7 +57,7 @@ static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 }
 #define asm_add 1
 
-static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static uint32_t vli_sub(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     uint32_t l_carry = 0;
     uint32_t l_left;
@@ -96,11 +96,11 @@ static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 
 #if (uECC_PLATFORM != uECC_arm_thumb)
 #if (uECC_WORDS == 5)
-static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static void vli_mult(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
-    register uint32_t *r2 __asm__("r2") = p_right;
+    register const uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r2 __asm__("r2") = p_right;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -267,11 +267,11 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 #endif /* (uECC_WORDS == 5) */
 
 #if (uECC_WORDS == 6)
-static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static void vli_mult(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
-    register uint32_t *r2 __asm__("r2") = p_right;
+    register const uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r2 __asm__("r2") = p_right;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -503,11 +503,11 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 #endif /* (uECC_WORDS == 6) */
 
 #if (uECC_WORDS == 8)
-static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static void vli_mult(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
-    register uint32_t *r2 __asm__("r2") = p_right;
+    register const uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r2 __asm__("r2") = p_right;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -924,10 +924,10 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 #endif /* (uECC_WORDS == 8) */
 
 #if (uECC_WORDS == 5)
-static void vli_square(uint32_t *p_result, uint32_t *p_left)
+static void vli_square(uint32_t *p_result, const uint32_t *p_left)
 {
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r1 __asm__("r1") = p_left;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -1046,10 +1046,10 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
 #endif /* (uECC_WORDS == 5) */
 
 #if (uECC_WORDS == 6)
-static void vli_square(uint32_t *p_result, uint32_t *p_left)
+static void vli_square(uint32_t *p_result, const uint32_t *p_left)
 {
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r1 __asm__("r1") = p_left;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -1204,10 +1204,10 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
 #endif /* (uECC_WORDS == 6) */
 
 #if (uECC_WORDS == 8)
-static void vli_square(uint32_t *p_result, uint32_t *p_left)
+static void vli_square(uint32_t *p_result, const uint32_t *p_left)
 {
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r1 __asm__("r1") = p_left;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -1492,7 +1492,7 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
 #endif /* (uECC_ASM == uECC_asm_fast) */
 
 #if !asm_add
-static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static uint32_t vli_add(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     uint32_t l_counter = uECC_WORDS;
     uint32_t l_carry = 0; /* carry = 0 initially */
@@ -1529,7 +1529,7 @@ static uint32_t vli_add(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 #endif
 
 #if !asm_sub
-static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static uint32_t vli_sub(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
     uint32_t l_counter = uECC_WORDS;
     uint32_t l_carry = 1; /* carry = 1 initially (means don't borrow) */
@@ -1566,7 +1566,7 @@ static uint32_t vli_sub(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 #endif
 
 #if !asm_mult
-static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
+static void vli_mult(uint32_t *p_result, const uint32_t *p_left, const uint32_t *p_right)
 {
 #if (uECC_PLATFORM != uECC_arm_thumb)
     uint32_t c0 = 0;
@@ -1631,8 +1631,8 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 #else /* Thumb-1 */
 
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
-    register uint32_t *r2 __asm__("r2") = p_right;
+    register const uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r2 __asm__("r2") = p_right;
     
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -1725,7 +1725,7 @@ static void vli_mult(uint32_t *p_result, uint32_t *p_left, uint32_t *p_right)
 
 #if uECC_SQUARE_FUNC
 #if !asm_square
-static void vli_square(uint32_t *p_result, uint32_t *p_left)
+static void vli_square(uint32_t *p_result, const uint32_t *p_left)
 {
 #if (uECC_PLATFORM != uECC_arm_thumb)
     uint32_t c0 = 0;
@@ -1800,7 +1800,7 @@ static void vli_square(uint32_t *p_result, uint32_t *p_left)
 #else
 
     register uint32_t *r0 __asm__("r0") = p_result;
-    register uint32_t *r1 __asm__("r1") = p_left;
+    register const uint32_t *r1 __asm__("r1") = p_left;
     
     __asm__ volatile (
         ".syntax unified \n\t"

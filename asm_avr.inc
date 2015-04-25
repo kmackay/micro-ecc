@@ -89,7 +89,7 @@ static void vli_rshift1(uint8_t *p_vli)
 #define asm_rshift1 1
 
 /* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
-static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static uint8_t vli_add(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     uint8_t l_carry = 0;
     uint8_t l_left;
@@ -121,7 +121,7 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #define asm_add 1
 
 /* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
-static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static uint8_t vli_sub(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     uint8_t l_borrow = 0;
     uint8_t l_left;
@@ -154,7 +154,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 
 #if (uECC_BYTES == 20)
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     __asm__ volatile (
         "adiw r30, 10 \n\t"
@@ -2069,7 +2069,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #define asm_mult 1
 #elif (uECC_BYTES == 24)
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     __asm__ volatile (
         "adiw r30, 20 \n\t"
@@ -4852,7 +4852,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #define asm_mult 1
 #elif (uECC_BYTES == 32)
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     __asm__ volatile (
         "adiw r30, 30 \n\t"
@@ -9781,7 +9781,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #if uECC_SQUARE_FUNC
 
 #if (uECC_BYTES == 20)
-static void vli_square(uint8_t *p_result, uint8_t *p_left)
+static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 {
     __asm__ volatile (
         "ld r2, x+ \n\t"
@@ -10948,7 +10948,7 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
 #elif (uECC_BYTES == 24)
 
 __attribute((noinline))
-static void vli_square(uint8_t *p_result, uint8_t *p_left)
+static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
@@ -12607,7 +12607,7 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
 #elif (uECC_BYTES == 32)
 
 __attribute((noinline))
-static void vli_square(uint8_t *p_result, uint8_t *p_left)
+static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
@@ -15442,7 +15442,7 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
 #endif /* uECC_BYTES == xx */
 #endif /* uECC_SQUARE_FUNC */
 
-static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_modSub_fast(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     uint8_t t1, t2;
     __asm__ volatile (
@@ -16024,7 +16024,7 @@ static void vli_rshift1(uint8_t *p_vli)
 #endif
 
 #if !asm_add
-static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static uint8_t vli_add(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     uint8_t i = uECC_BYTES;
     uint8_t l_carry = 0;
@@ -16057,7 +16057,7 @@ static uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 #endif
 
 #if !asm_sub
-static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static uint8_t vli_sub(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     uint8_t i = uECC_BYTES;
     uint8_t l_borrow = 0;
@@ -16091,7 +16091,7 @@ static uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 
 #if !asm_mult
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
 {
     uint8_t r0 = 0;
     uint8_t r1 = 0;
@@ -16188,7 +16188,7 @@ static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
 
 #if uECC_SQUARE_FUNC
 #if !asm_square
-static void vli_square(uint8_t *p_result, uint8_t *p_left)
+static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 {
     uint8_t r0 = 0;
     uint8_t r1 = 0;
