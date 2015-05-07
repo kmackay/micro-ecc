@@ -297,10 +297,10 @@ typedef struct EccPoint
     uECC_word_t y[uECC_WORDS];
 } EccPoint;
 
-static uECC_word_t curve_p[uECC_WORDS] = uECC_CONCAT(Curve_P_, uECC_CURVE);
-static uECC_word_t curve_b[uECC_WORDS] = uECC_CONCAT(Curve_B_, uECC_CURVE);
-static EccPoint curve_G = uECC_CONCAT(Curve_G_, uECC_CURVE);
-static uECC_word_t curve_n[uECC_N_WORDS] = uECC_CONCAT(Curve_N_, uECC_CURVE);
+static const uECC_word_t curve_p[uECC_WORDS] = uECC_CONCAT(Curve_P_, uECC_CURVE);
+static const uECC_word_t curve_b[uECC_WORDS] = uECC_CONCAT(Curve_B_, uECC_CURVE);
+static const EccPoint curve_G = uECC_CONCAT(Curve_G_, uECC_CURVE);
+static const uECC_word_t curve_n[uECC_N_WORDS] = uECC_CONCAT(Curve_N_, uECC_CURVE);
 
 static void vli_clear(uECC_word_t *p_vli);
 static uECC_word_t vli_isZero(const uECC_word_t *p_vli);
@@ -1653,7 +1653,7 @@ static void XYcZ_addC(uECC_word_t * RESTRICT X1, uECC_word_t * RESTRICT Y1, uECC
     vli_set(X1, t7);
 }
 
-static void EccPoint_mult(EccPoint * RESTRICT p_result, EccPoint * RESTRICT p_point,
+static void EccPoint_mult(EccPoint * RESTRICT p_result, const EccPoint * RESTRICT p_point,
     const uECC_word_t * RESTRICT p_scalar, const uECC_word_t * RESTRICT p_initialZ, bitcount_t p_numBits)
 {
     /* R0 and R1 */
@@ -2338,10 +2338,10 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     apply_z(l_sum.x, l_sum.y, z);
     
     /* Use Shamir's trick to calculate u1*G + u2*Q */
-    EccPoint *l_points[4] = {0, &curve_G, &l_public, &l_sum};
+    const EccPoint *l_points[4] = {0, &curve_G, &l_public, &l_sum};
     bitcount_t l_numBits = smax(vli_numBits(u1, uECC_N_WORDS), vli_numBits(u2, uECC_N_WORDS));
     
-    EccPoint *l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
+    const EccPoint *l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
     vli_set(rx, l_point->x);
     vli_set(ry, l_point->y);
     vli_clear(z);
