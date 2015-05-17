@@ -13,7 +13,7 @@ Features
  * Supports 8, 32, and 64-bit architectures.
  * Small code size.
  * No dynamic memory allocation.
- * Support for 4 standard curves: secp160r1, secp192r1, secp256r1, and secp256k1.
+ * Support for 5 standard curves: secp160r1, secp192r1, secp256r1, secp256k1, and nistp256.
  * BSD 2-clause license.
 
 Usage Notes
