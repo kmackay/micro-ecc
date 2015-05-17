@@ -34,8 +34,9 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_secp192r1 2
 #define uECC_secp256r1 3
 #define uECC_secp256k1 4
+#define uECC_nistp256 5
 #ifndef uECC_CURVE
-    #define uECC_CURVE uECC_secp160r1
+    #define uECC_CURVE uECC_nistp256
 #endif
 
 /* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be used for (scalar) squaring
@@ -49,6 +50,7 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_size_2 24 /* secp192r1 */
 #define uECC_size_3 32 /* secp256r1 */
 #define uECC_size_4 32 /* secp256k1 */
+#define uECC_size_5 32 /* nistp256 */
 
 #define uECC_BYTES uECC_CONCAT(uECC_size_, uECC_CURVE)
 
