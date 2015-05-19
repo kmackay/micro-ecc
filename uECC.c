@@ -2380,6 +2380,18 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     return vli_equal(rx, r);
 }
 
+void uECC_compute_public_key(const uint8_t p_privateKey[uECC_BYTES], uint8_t p_publicKey[uECC_BYTES * 2]) {
+    EccPoint l_public;
+    uECC_word_t l_private[uECC_WORDS];
+
+    vli_bytesToNative(l_private, p_privateKey);
+
+    EccPoint_mult(&l_public, &curve_G, l_private, 0, vli_numBits(l_private, uECC_WORDS));
+
+    vli_nativeToBytes(p_publicKey, l_public.x);
+    vli_nativeToBytes(p_publicKey + uECC_BYTES, l_public.y);
+}
+
 int uECC_bytes(void)
 {
     return uECC_BYTES;

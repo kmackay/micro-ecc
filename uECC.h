@@ -178,6 +178,18 @@ Returns 1 if the public key is valid, 0 if it is invalid.
 */
 int uECC_valid_public_key(const uint8_t p_publicKey[uECC_BYTES*2]);
 
+/* uECC_compute_public_key() function.
+Compute the corresponding public key for a private key.
+
+Inputs:
+    p_privateKey - The private key to compute the public key for
+
+Outputs:
+    p_publicKey - Will be filled in with the corresponding public key
+*/
+void uECC_compute_public_key(const uint8_t p_privateKey[uECC_BYTES], uint8_t p_publicKey[uECC_BYTES * 2]);
+
+
 /* uECC_bytes() function.
 Returns the value of uECC_BYTES. Helpful for foreign-interfaces to higher-level languages.
 */
