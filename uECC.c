@@ -1789,36 +1789,26 @@ static void vli_bytesToNative(uint64_t *p_native, const uint8_t *p_bytes)
 
 int uECC_make_key(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_privateKey[uECC_BYTES])
 {
-    EccPoint l_public;
     uECC_word_t l_private[uECC_WORDS];
     uECC_word_t l_tries = 0;
-    
-    do
+
+    while (1)
     {
-    repeat:
         if(!g_rng((uint8_t *)l_private, sizeof(l_private)) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
         if(vli_isZero(l_private))
         {
-            goto repeat;
+            continue;
         }
-    
-        /* Make sure the private key is in the range [1, n-1]. */
-    #if uECC_CURVE != uECC_secp160r1
-        if(vli_cmp(curve_n, l_private) != 1)
-        {
-            goto repeat;
-        }
-    #endif
 
-        EccPoint_mult(&l_public, &curve_G, l_private, 0, vli_numBits(l_private, uECC_WORDS));
-    } while(EccPoint_isZero(&l_public));
-    
-    vli_nativeToBytes(p_privateKey, l_private);
-    vli_nativeToBytes(p_publicKey, l_public.x);
-    vli_nativeToBytes(p_publicKey + uECC_BYTES, l_public.y);
+        vli_nativeToBytes(p_privateKey, l_private);
+        if (uECC_compute_public_key(p_privateKey, p_publicKey)) {
+            break;
+        }
+    }
+
     return 1;
 }
 
