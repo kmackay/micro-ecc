@@ -372,7 +372,7 @@ static int default_RNG(uint8_t *p_dest, unsigned p_size)
     size_t l_left = p_size;
     while(l_left > 0)
     {
-        int l_read = read(l_fd, l_ptr, l_left);
+        ssize_t l_read = read(l_fd, l_ptr, l_left);
         if(l_read <= 0)
         { // read failed
             close(l_fd);
