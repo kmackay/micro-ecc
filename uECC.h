@@ -78,7 +78,7 @@ return 1 if the random data was generated, or 0 if the random data could not be 
 
 On platforms where there is no predefined RNG function (eg embedded platforms), this must
 be called before uECC_make_key() or uECC_sign() are used.
-    
+
 Inputs:
     p_rng  - The function that will be used to generate random bytes.
 */
@@ -86,7 +86,7 @@ void uECC_set_rng(uECC_RNG_Function p_rng);
 
 /* uECC_make_key() function.
 Create a public/private key pair.
-    
+
 Outputs:
     p_publicKey  - Will be filled in with the public key.
     p_privateKey - Will be filled in with the private key.
