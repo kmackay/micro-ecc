@@ -2380,16 +2380,36 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     return vli_equal(rx, r);
 }
 
-void uECC_compute_public_key(const uint8_t p_privateKey[uECC_BYTES], uint8_t p_publicKey[uECC_BYTES * 2]) {
-    EccPoint l_public;
+int uECC_compute_public_key(const uint8_t p_privateKey[uECC_BYTES], uint8_t p_publicKey[uECC_BYTES * 2]) {
     uECC_word_t l_private[uECC_WORDS];
-
     vli_bytesToNative(l_private, p_privateKey);
 
+    /* Make sure the private key is in the range [1, n-1]. */
+    if(vli_isZero(l_private))
+    {
+        return 0;
+    }
+
+#if uECC_CURVE != uECC_secp160r1
+    if(vli_cmp(curve_n, l_private) != 1)
+    {
+        return 0;
+    }
+#endif
+
+    /* Compute the public point */
+    EccPoint l_public;
     EccPoint_mult(&l_public, &curve_G, l_private, 0, vli_numBits(l_private, uECC_WORDS));
+
+    if (EccPoint_isZero(&l_public))
+    {
+        return 0;
+    }
 
     vli_nativeToBytes(p_publicKey, l_public.x);
     vli_nativeToBytes(p_publicKey + uECC_BYTES, l_public.y);
+
+    return 1;
 }
 
 int uECC_bytes(void)
