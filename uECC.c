@@ -1826,10 +1826,6 @@ int uECC_make_key(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_privateKey[uECC_B
         {
             return 0;
         }
-        if(vli_isZero(l_private))
-        {
-            continue;
-        }
 
         if (EccPoint_compute_public_key(&l_public, l_private)) {
             break;
