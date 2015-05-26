@@ -14,6 +14,7 @@ Possible values for uECC_PLATFORM are defined below: */
 #define uECC_arm        3
 #define uECC_arm_thumb  4
 #define uECC_avr        5
+#define uECC_arm_thumb2 6
 
 /* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 4, or 8 bytes).
 If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your platform. */
@@ -40,7 +41,9 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 
 /* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be used for (scalar) squaring
     instead of the generic multiplication function. This will make things faster by about 8% but increases the code size. */
-#define uECC_SQUARE_FUNC 1
+#ifndef uECC_SQUARE_FUNC
+    #define uECC_SQUARE_FUNC 1
+#endif
 
 #define uECC_CONCAT1(a, b) a##b
 #define uECC_CONCAT(a, b) uECC_CONCAT1(a, b)
