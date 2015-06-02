@@ -1843,6 +1843,7 @@ int uECC_make_key(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_privateKey[uECC_B
 int uECC_shared_secret(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_privateKey[uECC_BYTES], uint8_t p_secret[uECC_BYTES])
 {
     EccPoint l_public;
+    EccPoint l_product;
     uECC_word_t l_private[uECC_WORDS];
     uECC_word_t l_random[uECC_WORDS];
     
@@ -1852,7 +1853,6 @@ int uECC_shared_secret(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_
     vli_bytesToNative(l_public.x, p_publicKey);
     vli_bytesToNative(l_public.y, p_publicKey + uECC_BYTES);
     
-    EccPoint l_product;
     EccPoint_mult(&l_product, &l_public, l_private, (vli_isZero(l_random) ? 0: l_random), vli_numBits(l_private, uECC_WORDS));
     
     vli_nativeToBytes(p_secret, l_product.x);
@@ -2130,10 +2130,12 @@ static uECC_word_t vli2_sub_n(uECC_word_t *p_result, const uECC_word_t *p_left, 
 /* Computes p_result = (p_left * p_right) % curve_n. */
 static void vli_modMult_n(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right)
 {
+    bitcount_t i;
     uECC_word_t l_product[2 * uECC_N_WORDS];
     uECC_word_t l_modMultiple[2 * uECC_N_WORDS];
     uECC_word_t l_tmp[2 * uECC_N_WORDS];
     uECC_word_t *v[2] = {l_tmp, l_product};
+    uECC_word_t l_index = 1;
     
     vli_mult_n(l_product, p_left, p_right);
     vli_clear_n(l_modMultiple);
@@ -2142,8 +2144,6 @@ static void vli_modMult_n(uECC_word_t *p_result, const uECC_word_t *p_left, cons
     l_modMultiple[2 * uECC_N_WORDS - 1] |= HIGH_BIT_SET;
     l_modMultiple[uECC_N_WORDS] = HIGH_BIT_SET;
     
-    bitcount_t i;
-    uECC_word_t l_index = 1;
     for(i=0; i<=((((bitcount_t)uECC_N_WORDS) << uECC_WORD_BITS_SHIFT) + (uECC_WORD_BITS - 1)); ++i)
     {
         uECC_word_t l_borrow = vli2_sub_n(v[1-l_index], v[l_index], l_modMultiple);
@@ -2215,6 +2215,7 @@ int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_
     uECC_word_t *k2[2] = {l_tmp, s};
     EccPoint p;
     uECC_word_t l_tries = 0;
+    uECC_word_t l_carry;
     
     do
     {
@@ -2238,7 +2239,7 @@ int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_
         
         /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
         vli_add_n(l_tmp, k, curve_n);
-        uECC_word_t l_carry = (l_tmp[uECC_WORDS] & 0x02);
+        l_carry = (l_tmp[uECC_WORDS] & 0x02);
         vli_add_n(s, l_tmp, curve_n);
     
         /* p = k * G */
@@ -2316,11 +2317,17 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     uECC_word_t tx[uECC_WORDS];
     uECC_word_t ty[uECC_WORDS];
     uECC_word_t tz[uECC_WORDS];
+    uECC_word_t l_index;
     
+    const EccPoint *l_points[4];
+    const EccPoint *l_point;
+    bitcount_t l_numBits;
+    bitcount_t i;
+
     uECC_word_t r[uECC_N_WORDS], s[uECC_N_WORDS];
     r[uECC_N_WORDS-1] = 0;
     s[uECC_N_WORDS-1] = 0;
-    
+
     vli_bytesToNative(l_public.x, p_publicKey);
     vli_bytesToNative(l_public.y, p_publicKey + uECC_BYTES);
     vli_bytesToNative(r, p_signature);
@@ -2356,21 +2363,23 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     apply_z(l_sum.x, l_sum.y, z);
     
     /* Use Shamir's trick to calculate u1*G + u2*Q */
-    const EccPoint *l_points[4] = {0, &curve_G, &l_public, &l_sum};
-    bitcount_t l_numBits = smax(vli_numBits(u1, uECC_N_WORDS), vli_numBits(u2, uECC_N_WORDS));
+    l_points[0] = 0;
+    l_points[1] = &curve_G;
+    l_points[2] = &l_public;
+    l_points[3] = &l_sum;
+    l_numBits = smax(vli_numBits(u1, uECC_N_WORDS), vli_numBits(u2, uECC_N_WORDS));
     
-    const EccPoint *l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
+    l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
     vli_set(rx, l_point->x);
     vli_set(ry, l_point->y);
     vli_clear(z);
     z[0] = 1;
 
-    bitcount_t i;
     for(i = l_numBits - 2; i >= 0; --i)
     {
         EccPoint_double_jacobian(rx, ry, z);
         
-        uECC_word_t l_index = (!!vli_testBit(u1, i)) | ((!!vli_testBit(u2, i)) << 1);
+        l_index = (!!vli_testBit(u1, i)) | ((!!vli_testBit(u2, i)) << 1);
         l_point = l_points[l_index];
         if(l_point)
         {
@@ -2401,9 +2410,10 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
 int uECC_compute_public_key(const uint8_t p_privateKey[uECC_BYTES], uint8_t p_publicKey[uECC_BYTES * 2])
 {
     uECC_word_t l_private[uECC_WORDS];
+    EccPoint l_public;
+
     vli_bytesToNative(l_private, p_privateKey);
 
-    EccPoint l_public;
     if (!EccPoint_compute_public_key(&l_public, l_private)) {
         return 0;
     }

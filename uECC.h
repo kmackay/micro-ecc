@@ -55,6 +55,12 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 
 #define uECC_BYTES uECC_CONCAT(uECC_size_, uECC_CURVE)
 
+#if(__SDCC_mcs51)
+#define uECC_FPTR_FIXUP __reentrant
+#else //SDCC_mcs51
+#define uECC_FPTR_FIXUP
+#endif //SDCC_mcs51
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -73,7 +79,7 @@ If you are building on another POSIX-compliant system that supports /dev/random 
 you can define uECC_POSIX to use the predefined RNG. For embedded platforms there is no predefined
 RNG function; you must provide your own.
 */
-typedef int (*uECC_RNG_Function)(uint8_t *p_dest, unsigned p_size);
+typedef int (*uECC_RNG_Function)(uint8_t *p_dest, unsigned p_size) uECC_FPTR_FIXUP;
 
 /* uECC_set_rng() function.
 Set the function that will be used to generate random bytes. The RNG function should
