@@ -2215,10 +2215,10 @@ int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_
     uECC_word_t *k2[2] = {l_tmp, s};
     EccPoint p;
     uECC_word_t l_tries = 0;
-    uECC_word_t l_carry;
     
     do
     {
+        uECC_word_t l_carry;
     repeat:
         if(!g_rng((uint8_t *)k, sizeof(k)) || (l_tries++ >= MAX_TRIES))
         {
@@ -2251,7 +2251,7 @@ int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_
         }
         
         /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
-        uECC_word_t l_carry = vli_add(l_tmp, k, curve_n);
+        l_carry = vli_add(l_tmp, k, curve_n);
         vli_add(s, l_tmp, curve_n);
     
         /* p = k * G */
@@ -2317,7 +2317,6 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     uECC_word_t tx[uECC_WORDS];
     uECC_word_t ty[uECC_WORDS];
     uECC_word_t tz[uECC_WORDS];
-    uECC_word_t l_index;
     
     const EccPoint *l_points[4];
     const EccPoint *l_point;
@@ -2377,6 +2376,7 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
 
     for(i = l_numBits - 2; i >= 0; --i)
     {
+        uECC_word_t l_index;
         EccPoint_double_jacobian(rx, ry, z);
         
         l_index = (!!vli_testBit(u1, i)) | ((!!vli_testBit(u2, i)) << 1);
