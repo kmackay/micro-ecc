@@ -1847,7 +1847,9 @@ int uECC_shared_secret(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_
     uECC_word_t l_private[uECC_WORDS];
     uECC_word_t l_random[uECC_WORDS];
     
-    g_rng((uint8_t *)l_random, sizeof(l_random));
+    if (!g_rng((uint8_t *)l_random, sizeof(l_random))) {
+        return 0;
+    }
     
     vli_bytesToNative(l_private, p_privateKey);
     vli_bytesToNative(l_public.x, p_publicKey);
