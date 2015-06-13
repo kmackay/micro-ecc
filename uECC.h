@@ -71,6 +71,9 @@ The filled-in values should be either truly random, or from a cryptographically-
 A correctly functioning RNG function must be set (using uECC_set_rng()) before calling
 uECC_make_key() or uECC_sign().
 
+Setting a correctly functioning RNG function improves the resistance to side-channel attacks
+for uECC_shared_secret().
+
 A correct RNG function is set by default when building for Windows, Linux, or OS X.
 If you are building on another POSIX-compliant system that supports /dev/random or /dev/urandom,
 you can define uECC_POSIX to use the predefined RNG. For embedded platforms there is no predefined

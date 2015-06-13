@@ -69,7 +69,7 @@
     #define SUPPORTS_INT128 0
 #endif
 
-#define MAX_TRIES 16
+#define MAX_TRIES 64
 
 #if (uECC_WORD_SIZE == 1)
 
@@ -1488,17 +1488,17 @@ static void XYcZ_initial_double(uECC_word_t * RESTRICT X1,
                                 uECC_word_t * RESTRICT Y1,
                                 uECC_word_t * RESTRICT X2,
                                 uECC_word_t * RESTRICT Y2,
-                                const uECC_word_t * RESTRICT p_initialZ) {
+                                const uECC_word_t * RESTRICT initial_Z) {
     uECC_word_t z[uECC_WORDS];
-    
+    if (initial_Z) {
+        vli_set(z, initial_Z);
+    } else {
+        vli_clear(z);
+        z[0] = 1;
+    }
+
     vli_set(X2, X1);
     vli_set(Y2, Y1);
-    
-    vli_clear(z);
-    z[0] = 1;
-    if (p_initialZ) {
-        vli_set(z, p_initialZ);
-    }
 
     apply_z(X1, Y1, z);
     EccPoint_double_jacobian(X1, Y1, z);
@@ -1744,18 +1744,24 @@ int uECC_shared_secret(const uint8_t public_key[uECC_BYTES*2],
     EccPoint product;
     uECC_word_t private[uECC_WORDS];
     uECC_word_t random[uECC_WORDS];
+    uECC_word_t *initial_Z = 0;
+    uECC_word_t tries;
     
-    g_rng_function((uint8_t *)random, sizeof(random));
+    // Try to get a random initial Z value to improve protection against side-channel
+    // attacks. If the RNG fails every time (eg it was not defined), we continue so that
+    // uECC_shared_secret() can still work without an RNG defined.
+    for (tries = 0; tries < MAX_TRIES; ++tries) {
+        if (g_rng_function((uint8_t *)random, sizeof(random)) && !vli_isZero(random)) {
+            initial_Z = random;
+            break;
+        }
+    }
     
     vli_bytesToNative(private, private_key);
     vli_bytesToNative(public.x, public_key);
     vli_bytesToNative(public.y, public_key + uECC_BYTES);
     
-    EccPoint_mult(&product,
-                  &public,
-                  private,
-                  (vli_isZero(random) ? 0: random),
-                  vli_numBits(private, uECC_WORDS));
+    EccPoint_mult(&product, &public, private, initial_Z, vli_numBits(private, uECC_WORDS));
     vli_nativeToBytes(secret, product.x);
     return !EccPoint_isZero(&product);
 }
@@ -2114,67 +2120,63 @@ static void vli_modMult_n(uECC_word_t *result, const uECC_word_t *left, const uE
 }
 #endif /* (uECC_CURVE != uECC_secp160r1) */
 
-int uECC_sign(const uint8_t private_key[uECC_BYTES],
-              const uint8_t hash[uECC_BYTES],
-              uint8_t signature[uECC_BYTES*2]) {
-    uECC_word_t k[uECC_N_WORDS];
+// 0 < k < curve_n
+static int uECC_sign_with_k(const uint8_t private_key[uECC_BYTES],
+                            const uint8_t hash[uECC_BYTES],
+                            uECC_word_t k[uECC_N_WORDS],
+                            uint8_t signature[uECC_BYTES*2]) {
     uECC_word_t tmp[uECC_N_WORDS];
     uECC_word_t s[uECC_N_WORDS];
     uECC_word_t *k2[2] = {tmp, s};
     EccPoint p;
-    uECC_word_t tries = 0;
+    uECC_word_t carry;
+    uECC_word_t tries;
+
+#if (uECC_CURVE == uECC_secp160r1)
+    /* Make sure that we don't leak timing information about k.
+       See http://eprint.iacr.org/2011/232.pdf */
+    vli_add_n(tmp, k, curve_n);
+    carry = (tmp[uECC_WORDS] & 0x02);
+    vli_add_n(s, tmp, curve_n);
+
+    /* p = k * G */
+    EccPoint_mult(&p, &curve_G, k2[!carry], 0, (uECC_BYTES * 8) + 2);
+#else
+    /* Make sure that we don't leak timing information about k.
+       See http://eprint.iacr.org/2011/232.pdf */
+    carry = vli_add(tmp, k, curve_n);
+    vli_add(s, tmp, curve_n);
+
+    /* p = k * G */
+    EccPoint_mult(&p, &curve_G, k2[!carry], 0, (uECC_BYTES * 8) + 1);
+
+    /* r = x1 (mod n) */
+    if (vli_cmp(curve_n, p.x) != 1) {
+        vli_sub(p.x, p.x, curve_n);
+    }
+#endif
+    if (vli_isZero(p.x)) {
+        return 0;
+    }
     
-    do
-    {
-        uECC_word_t carry;
-    repeat:
-        if (!g_rng_function((uint8_t *)k, sizeof(k)) || (tries++ >= MAX_TRIES)) {
-            return 0;
+    // Attempt to get a random number to prevent side channel analysis of k.
+    // If the RNG fails every time (eg it was not defined), we continue so that
+    // deterministic signing can still work (with reduced security) without
+    // an RNG defined.
+    carry = 0; // use to signal that the RNG succeeded at least once.
+    for (tries = 0; tries < MAX_TRIES; ++tries) {
+        if (!g_rng_function((uint8_t *)tmp, sizeof(tmp))) {
+            continue;
         }
-        
-        if (vli_isZero(k)) {
-            goto repeat;
+        carry = 1;
+        if (!vli_isZero(tmp)) {
+            break;
         }
-        
-    #if (uECC_CURVE == uECC_secp160r1)
-        k[uECC_WORDS] &= 0x01;
-        if (vli_cmp_n(curve_n, k) != 1) {
-            goto repeat;
-        }
-        
-        /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
-        vli_add_n(tmp, k, curve_n);
-        carry = (tmp[uECC_WORDS] & 0x02);
-        vli_add_n(s, tmp, curve_n);
-    
-        /* p = k * G */
-        EccPoint_mult(&p, &curve_G, k2[!carry], 0, (uECC_BYTES * 8) + 2);
-    #else
-        if (vli_cmp(curve_n, k) != 1) {
-            goto repeat;
-        }
-        
-        /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
-        carry = vli_add(tmp, k, curve_n);
-        vli_add(s, tmp, curve_n);
-    
-        /* p = k * G */
-        EccPoint_mult(&p, &curve_G, k2[!carry], 0, (uECC_BYTES * 8) + 1);
-    
-        /* r = x1 (mod n) */
-        if (vli_cmp(curve_n, p.x) != 1) {
-            vli_sub(p.x, p.x, curve_n);
-        }
-    #endif
-    } while (vli_isZero(p.x));
-    
-    tries = 0;
-    do
-    {
-        if (!g_rng_function((uint8_t *)tmp, sizeof(tmp)) || (tries++ >= MAX_TRIES)) {
-            return 0;
-        }
-    } while (vli_isZero(tmp));
+    }
+    if (!carry) {
+        vli_clear(tmp);
+        tmp[0] = 1;
+    }
     
     /* Prevent side channel analysis of vli_modInv() to determine
        bits of k / the private key by premultiplying by a random number */
@@ -2195,12 +2197,39 @@ int uECC_sign(const uint8_t private_key[uECC_BYTES],
     vli_modMult_n(s, s, k); /* s = (e + r*d) / k */
 #if (uECC_CURVE == uECC_secp160r1)
     if (s[uECC_N_WORDS - 1]) {
-        goto repeat;
+        return 0;
     }
 #endif
     vli_nativeToBytes(signature + uECC_BYTES, s);
-    
     return 1;
+}
+
+int uECC_sign(const uint8_t private_key[uECC_BYTES],
+              const uint8_t hash[uECC_BYTES],
+              uint8_t signature[uECC_BYTES*2]) {
+    uECC_word_t k[uECC_N_WORDS];
+    uECC_word_t tmp[uECC_N_WORDS];
+    uECC_word_t s[uECC_N_WORDS];
+    uECC_word_t *k2[2] = {tmp, s};
+    EccPoint p;
+    uECC_word_t tries;
+    
+    for (tries = 0; tries < MAX_TRIES; ++tries) {
+        if(!g_rng_function((uint8_t *)k, sizeof(k))) {
+            return 0;
+        }
+    #if (uECC_CURVE == uECC_secp160r1)
+        k[uECC_WORDS] &= 0x01;
+    #endif
+        
+        if (vli_isZero(k) || vli_cmp_n(curve_n, k) != 1) {
+            continue;
+        }
+        if (uECC_sign_with_k(private_key, hash, k, signature)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static bitcount_t smax(bitcount_t a, bitcount_t b) {
