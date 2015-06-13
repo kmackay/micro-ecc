@@ -44,32 +44,30 @@
 
 #if (uECC_ASM == uECC_asm_fast)
 
-static void vli_clear(uint8_t *p_vli)
-{
+static void vli_clear(uint8_t *vli) {
     __asm__ volatile (
-        REPEAT(uECC_BYTES, "st %a[ptr]+, r1 \n\t")
-
-        : [ptr] "+e" (p_vli)
+        REPEAT(uECC_BYTES,
+            "st %a[ptr]+, r1 \n\t")
+        : [ptr] "+e" (vli)
         :
         : "r0", "cc", "memory"
     );
 }
 #define asm_clear 1
 
-static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
-{
+static void vli_set(uint8_t *dest, const uint8_t *src) {
     __asm__ volatile (
-        REPEAT(uECC_BYTES, "ld r0, %a[sptr]+ \n\t"
+        REPEAT(uECC_BYTES,
+            "ld r0, %a[sptr]+ \n\t"
             "st %a[dptr]+, r0 \n\t")
-        : [dptr] "+e" (p_dest), [sptr] "+e" (p_src)
+        : [dptr] "+e" (dest), [sptr] "+e" (src)
         :
         : "r0", "cc", "memory"
     );
 }
 #define asm_set 1
 
-static void vli_rshift1(uint8_t *p_vli)
-{
+static void vli_rshift1(uint8_t *vli) {
     __asm__ volatile (
         "adiw r30, " STR(uECC_BYTES) " \n\t"
         "ld r0, -z \n\t"  /* Load byte. */
@@ -77,23 +75,22 @@ static void vli_rshift1(uint8_t *p_vli)
         "st z, r0 \n\t"  /* Store the first result byte. */
 
         /* Now we just do the remaining bytes with the carry bit (using ROR) */
-        REPEAT(DEC(uECC_BYTES), "ld r0, -z \n\t"
+        REPEAT(DEC(uECC_BYTES),
+            "ld r0, -z \n\t"
             "ror r0 \n\t"
             "st z, r0 \n\t")
-
-        : "+z" (p_vli)
+        : "+z" (vli)
         :
         : "r0", "cc", "memory"
     );
 }
 #define asm_rshift1 1
 
-/* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
-static uint8_t vli_add(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
-    uint8_t l_carry = 0;
-    uint8_t l_left;
-    uint8_t l_right;
+/* Computes result = left + right, returning carry. Can modify in place. */
+static uint8_t vli_add(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+    uint8_t carry = 0;
+    uint8_t left_byte;
+    uint8_t right_byte;
 
     __asm__ volatile (
         "ld %[left], x+ \n\t"  /* Load left byte. */
@@ -102,30 +99,29 @@ static uint8_t vli_add(uint8_t *p_result, const uint8_t *p_left, const uint8_t *
         "st z+, %[left] \n\t"  /* Store the first result byte. */
         
         /* Now we just do the remaining bytes with the carry bit (using ADC) */
-        REPEAT(DEC(uECC_BYTES), "ld %[left], x+ \n\t"
+        REPEAT(DEC(uECC_BYTES),
+            "ld %[left], x+ \n\t"
             "ld %[right], y+ \n\t"
             "adc %[left], %[right] \n\t"
             "st z+, %[left] \n\t")
         
-        "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
-        
+        "adc %[carry], %[carry] \n\t" /* Store carry bit. */
         "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
-        : "+z" (p_result), "+x" (p_left),
-            [carry] "+r" (l_carry), [left] "=&r" (l_left), [right] "=&r" (l_right)
-        : "y" (p_right)
+        : "+z" (result), "+x" (left),
+          [carry] "+r" (carry), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
+        : "y" (right)
         : "cc", "memory"
     );
-    return l_carry;
+    return carry;
 }
 #define asm_add 1
 
-/* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
-static uint8_t vli_sub(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
-    uint8_t l_borrow = 0;
-    uint8_t l_left;
-    uint8_t l_right;
+/* Computes result = left - right, returning borrow. Can modify in place. */
+static uint8_t vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+    uint8_t borrow = 0;
+    uint8_t left_byte;
+    uint8_t right_byte;
 
     __asm__ volatile (
         "ld %[left], x+ \n\t"  /* Load left byte. */
@@ -134,28 +130,27 @@ static uint8_t vli_sub(uint8_t *p_result, const uint8_t *p_left, const uint8_t *
         "st z+, %[left] \n\t"  /* Store the first result byte. */
         
         /* Now we just do the remaining bytes with the carry bit (using SBC) */
-        REPEAT(DEC(uECC_BYTES), "ld %[left], x+ \n\t"
+        REPEAT(DEC(uECC_BYTES),
+            "ld %[left], x+ \n\t"
             "ld %[right], y+ \n\t"
             "sbc %[left], %[right] \n\t"
             "st z+, %[left] \n\t")
         
-        "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_borrow. */
-        
+        "adc %[borrow], %[borrow] \n\t" /* Store carry bit in borrow. */
         "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
-        : "+z" (p_result), "+x" (p_left),
-            [borrow] "+r" (l_borrow), [left] "=&r" (l_left), [right] "=&r" (l_right)
-        : "y" (p_right)
+        : "+z" (result), "+x" (left),
+            [borrow] "+r" (borrow), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
+        : "y" (right)
         : "cc", "memory"
     );
-    return l_borrow;
+    return borrow;
 }
 #define asm_sub 1
 
 #if (uECC_BYTES == 20)
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 10 \n\t"
         "adiw r28, 10 \n\t"
@@ -2060,17 +2055,17 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
         "st z+, r23 \n\t"
         "st z+, r24 \n\t"
         "eor r1, r1 \n\t"
-        : "+x" (p_left), "+y" (p_right), "+z" (p_result)
+        : "+x" (left), "+y" (right), "+z" (result)
         :
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20",
+          "r21", "r22", "r23", "r24", "r25", "cc", "memory"
     );
 }
 #define asm_mult 1
 #elif (uECC_BYTES == 24)
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 20 \n\t"
         "adiw r28, 20 \n\t"
@@ -4843,17 +4838,17 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
         "st z+, r23 \n\t"
 
         "eor r1, r1 \n\t"
-        : "+x" (p_left), "+y" (p_right), "+z" (p_result)
+        : "+x" (left), "+y" (right), "+z" (result)
         :
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20",
+          "r21", "r22", "r23", "r24", "r25", "cc", "memory"
     );
 }
 #define asm_mult 1
 #elif (uECC_BYTES == 32)
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 30 \n\t"
         "adiw r28, 30 \n\t"
@@ -9769,10 +9764,11 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
         "st z+, r24 \n\t"
 
         "eor r1, r1 \n\t"
-        : "+x" (p_left), "+y" (p_right), "+z" (p_result)
+        : "+x" (left), "+y" (right), "+z" (result)
         :
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20",
+          "r21", "r22", "r23", "r24", "r25", "cc", "memory"
     );
 }
 #define asm_mult 1
@@ -9781,8 +9777,7 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
 #if uECC_SQUARE_FUNC
 
 #if (uECC_BYTES == 20)
-static void vli_square(uint8_t *p_result, const uint8_t *p_left)
-{
+static void vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ld r2, x+ \n\t"
         "ld r3, x+ \n\t"
@@ -10937,10 +10932,11 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
         "st z+, r23 \n\t"
         "st z+, r25 \n\t"
         "eor r1, r1 \n\t"
-        : "+x" (p_left), "+z" (p_result)
+        : "+x" (left), "+z" (result)
         :
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20",
+          "r21", "r22", "r23", "r24", "r25", "cc", "memory"
     );
 }
 #define asm_square 1
@@ -10948,8 +10944,7 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 #elif (uECC_BYTES == 24)
 
 __attribute((noinline))
-static void vli_square(uint8_t *p_result, const uint8_t *p_left)
-{
+static void vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
         "movw r28, r26 \n\t"
@@ -12596,10 +12591,11 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
         "st z+, r23 \n\t"
         "st z+, r28 \n\t"
         "eor r1, r1 \n\t"
-        : "+x" (p_left), "+z" (p_result)
+        : "+x" (left), "+z" (result)
         :
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20",
+          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
     );
 }
 #define asm_square 1
@@ -12607,8 +12603,7 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 #elif (uECC_BYTES == 32)
 
 __attribute((noinline))
-static void vli_square(uint8_t *p_result, const uint8_t *p_left)
-{
+static void vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
         "movw r28, r26 \n\t"
@@ -15431,10 +15426,11 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
         "st z+, r23 \n\t"
         "st z+, r28 \n\t"
         "eor r1, r1 \n\t"
-        : "+x" (p_left), "+z" (p_result)
+        : "+x" (left), "+z" (result)
         :
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20",
+          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
     );
 }
 #define asm_square 1
@@ -15442,29 +15438,29 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
 #endif /* uECC_BYTES == xx */
 #endif /* uECC_SQUARE_FUNC */
 
-static void vli_modSub_fast(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static void vli_modSub_fast(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t t1, t2;
     __asm__ volatile (
         "push r28 \n\t" /* Save Y */
         "push r29 \n\t"
         
-        "ld %[t1], x+ \n\t"  /* Load left word. */
-        "ld %[t2], y+ \n\t" /* Load right word. */
+        "ld %[t1], x+ \n\t"     /* Load left word. */
+        "ld %[t2], y+ \n\t"     /* Load right word. */
         "sub %[t1], %[t2] \n\t" /* Subtract the first word. */
-        "st z+, %[t1] \n\t"  /* Store the first result word. */
+        "st z+, %[t1] \n\t"     /* Store the first result word. */
         
         /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT(DEC(uECC_BYTES), "ld %[t1], x+ \n\t"
+        REPEAT(DEC(uECC_BYTES),
+            "ld %[t1], x+ \n\t"
             "ld %[t2], y+ \n\t"
             "sbc %[t1], %[t2] \n\t"
             "st z+, %[t1] \n\t")
         
-        "brcs 1f \n\t" /* If borrow is set, then we need to add */
+        "brcs 1f \n\t"   /* If borrow is set, then we need to add */
         "rjmp done \n\t" /* otherwise we are done */
         "1: \n\t"
         
-        "sbiw r30, " STR(uECC_BYTES) " \n\t" /* make z point at p_result again */
+        "sbiw r30, " STR(uECC_BYTES) " \n\t" /* make z point at result again */
         "ldi r28, lo8(curve_p) \n\t" /* make y point at curve_p */
     	"ldi r29, hi8(curve_p) \n\t"
     	
@@ -15473,7 +15469,8 @@ static void vli_modSub_fast(uint8_t *p_result, const uint8_t *p_left, const uint
         "ld %[t2], y+ \n\t"
         "add %[t1], %[t2] \n\t"
         "st z+, %[t1] \n\t"
-        REPEAT(DEC(uECC_BYTES), "ld %[t1], z \n\t"
+        REPEAT(DEC(uECC_BYTES),
+            "ld %[t1], z \n\t"
             "ld %[t2], y+ \n\t"
             "adc %[t1], %[t2] \n\t"
             "st z+, %[t1] \n\t")
@@ -15482,18 +15479,17 @@ static void vli_modSub_fast(uint8_t *p_result, const uint8_t *p_left, const uint
         "pop r29 \n\t" /* Restore Y */
         "pop r28 \n\t"
 
-        : "+z" (p_result), "+x" (p_left),
+        : "+z" (result), "+x" (left),
           [t1] "=&r" (t1), [t2] "=&r" (t2)
-        : "y" (p_right)
+        : "y" (right)
         : "cc", "memory"
     );
 }
 #define asm_modSub_fast 1
 
 #if uECC_CURVE == uECC_secp160r1
-static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
-{
-    uint8_t l_carry = 0;
+static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
+    uint8_t carry = 0;
     __asm__ volatile (
         "in r30, __SP_L__ \n\t"
     	"in r31, __SP_H__ \n\t"
@@ -15504,23 +15500,25 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
     	"out __SREG__, r0 \n\t"
     	"out __SP_L__, r30 \n\t"
     	
-    	"adiw r30, 25 \n\t" /* we are shifting by 31 bits, so shift over 4 bytes (+ 1 since z initially points below the stack) */
-        "adiw r26, 40 \n\t" /* end of p_product */
-        "ld r18, -x \n\t"  /* Load word. */
-        "lsr r18 \n\t" /* Shift. */
-        "st -z, r18 \n\t"  /* Store the first result word. */
+    	"adiw r30, 25 \n\t" /* we are shifting by 31 bits, so shift over 4 bytes
+    	                       (+ 1 since z initially points below the stack) */
+        "adiw r26, 40 \n\t" /* end of product */
+        "ld r18, -x \n\t"   /* Load word. */
+        "lsr r18 \n\t"      /* Shift. */
+        "st -z, r18 \n\t"   /* Store the first result word. */
 
         /* Now we just do the remaining words with the carry bit (using ROR) */
-        REPEAT(19, "ld r18, -x \n\t"
+        REPEAT(19,
+            "ld r18, -x \n\t"
             "ror r18 \n\t"
             "st -z, r18 \n\t")
 
         "eor r18, r18 \n\t" /* r18 = 0 */
-        "ror r18 \n\t" /* get last bit */
-        "st -z, r18 \n\t" /* store it */
+        "ror r18 \n\t"      /* get last bit */
+        "st -z, r18 \n\t"   /* store it */
 
         "sbiw r30, 3 \n\t" /* move z back to point at tmp */
-        /* now we add p_right */
+        /* now we add right */
         "ld r18, x+ \n\t"
         "st z+, r18 \n\t" /* the first 3 bytes do not need to be added */
         "ld r18, x+ \n\t"
@@ -15534,12 +15532,13 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "st z+, r18 \n\t"
 
         /* Now we just do the remaining words with the carry bit (using ADC) */
-        REPEAT(16, "ld r18, x+ \n\t"
+        REPEAT(16,
+            "ld r18, x+ \n\t"
             "ld r19, z \n\t"
             "adc r18, r19 \n\t"
             "st z+, r18 \n\t")
 
-        /* Propagate over the remaining bytes of p_result */
+        /* Propagate over the remaining bytes of result */
         "ld r18, z \n\t"
         "adc r18, r1 \n\t"
         "st z+, r18 \n\t"
@@ -15557,27 +15556,29 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "st z+, r18 \n\t"
         
         "sbiw r30, 24 \n\t" /* move z back to point at tmp */
-        "sbiw r26, 40 \n\t" /* move x back to point at p_product */
+        "sbiw r26, 40 \n\t" /* move x back to point at product */
         
-        /* add low bytes of tmp to p_product, storing in p_result */
+        /* add low bytes of tmp to product, storing in result */
         "ld r18, z+ \n\t"
         "ld r19, x+ \n\t"
         "add r18, r19 \n\t"
         "st y+, r18 \n\t"
-        REPEAT(19, "ld r18, z+ \n\t"
+        REPEAT(19,
+            "ld r18, z+ \n\t"
             "ld r19, x+ \n\t"
             "adc r18, r19 \n\t"
             "st y+, r18 \n\t")
-        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
-        /* at this point x is at the end of p_product, y is at the end of p_result, z is 20 bytes into tmp */
-        "sbiw r28, 20 \n\t" /* move y back to point at p_result */
-        "adiw r30, 4 \n\t" /* move z to point to the end of tmp */
+        "adc %[carry], __zero_reg__ \n\t" /* Store carry bit (carry flag is cleared). */
+        /* at this point x is at the end of product, y is at the end of result,
+           z is 20 bytes into tmp */
+        "sbiw r28, 20 \n\t" /* move y back to point at result */
+        "adiw r30, 4 \n\t"  /* move z to point to the end of tmp */
         
         /* do omega_mult again with the 4 relevant bytes */
-        /* z points to the end of tmp, x points to the end of p_product */
-        "ld r18, -z \n\t"  /* Load word. */
-        "lsr r18 \n\t" /* Shift. */
-        "st -x, r18 \n\t"  /* Store the first result word. */
+        /* z points to the end of tmp, x points to the end of product */
+        "ld r18, -z \n\t" /* Load word. */
+        "lsr r18 \n\t"    /* Shift. */
+        "st -x, r18 \n\t" /* Store the first result word. */
         
         "ld r18, -z \n\t"
         "ror r18 \n\t"
@@ -15590,8 +15591,8 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "st -x, r18 \n\t"
         
         "eor r18, r18 \n\t" /* r18 = 0 */
-        "ror r18 \n\t" /* get last bit */
-        "st -x, r18 \n\t" /* store it */
+        "ror r18 \n\t"      /* get last bit */
+        "st -x, r18 \n\t"   /* store it */
         
         "sbiw r26, 3 \n\t" /* move x back to point at beginning */
         /* now we add a copy of the 4 bytes */
@@ -15624,25 +15625,28 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "adc r18, r1 \n\t"
         "st x+, r18 \n\t"
         
-        /* now z points to the end of tmp, x points to the end of p_product (y still points at p_result) */
+        /* now z points to the end of tmp, x points to the end of product
+           (y still points at result) */
         "sbiw r26, 8 \n\t" /* move x back to point at beginning of actual data */
-        /* add into p_result */
+        /* add into result */
         "ld r18, x+ \n\t"
         "ld r19, y \n\t"
         "add r18, r19 \n\t"
         "st y+, r18 \n\t"
-        REPEAT(7, "ld r18, x+ \n\t"
+        REPEAT(7,
+            "ld r18, x+ \n\t"
             "ld r19, y \n\t"
             "adc r18, r19 \n\t"
             "st y+, r18 \n\t")
         
         /* Done adding, now propagate carry bit */
-        REPEAT(12, "ld r18, y \n\t"
+        REPEAT(12,
+            "ld r18, y \n\t"
             "adc r18, __zero_reg__ \n\t"
             "st y+, r18 \n\t")
         
-        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
-        "sbiw r28, 20 \n\t" /* move y back to point at p_result */
+        "adc %[carry], __zero_reg__ \n\t" /* Store carry bit (carry flag is cleared). */
+        "sbiw r28, 20 \n\t" /* move y back to point at result */
         
         "sbiw r30, 1 \n\t" /* fix stack pointer */
     	"in r0, __SREG__ \n\t"
@@ -15651,32 +15655,27 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
     	"out __SREG__, r0 \n\t"
     	"out __SP_L__, r30 \n\t"
         
-        : "+x" (p_product), [carry] "+r" (l_carry)
-        : "y" (p_result)
+        : "+x" (product), [carry] "+r" (carry)
+        : "y" (result)
         : "r0", "r18", "r19", "r30", "r31", "cc", "memory"
     );
     
-    if(l_carry > 0)
-    {
-        --l_carry;
-        vli_sub(p_result, p_result, curve_p);
+    if (carry > 0) {
+        --carry;
+        vli_sub(result, result, curve_p);
     }
-    if(l_carry > 0)
-    {
-        vli_sub(p_result, p_result, curve_p);
+    if (carry > 0) {
+        vli_sub(result, result, curve_p);
     }
-    
-    if(vli_cmp(p_result, curve_p) > 0)
-    {
-        vli_sub(p_result, p_result, curve_p);
+    if (vli_cmp(result, curve_p) > 0) {
+        vli_sub(result, result, curve_p);
     }
 }
 #define asm_mmod_fast 1
 
 #elif (uECC_CURVE == uECC_secp256k1)
-static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
-{
-    uint8_t l_carry = 0;
+static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
+    uint8_t carry = 0;
     __asm__ volatile (
         "in r30, __SP_L__ \n\t"
     	"in r31, __SP_H__ \n\t"
@@ -15687,8 +15686,8 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
     	"out __SREG__, r0 \n\t"
     	"out __SP_L__, r30 \n\t"
     	
-    	"adiw r30, 1 \n\t" /* add 1 since z initially points below the stack */
-        "adiw r26, 32 \n\t" /* p_product + uECC_WORDS */
+    	"adiw r30, 1 \n\t"  /* add 1 since z initially points below the stack */
+        "adiw r26, 32 \n\t" /* product + uECC_WORDS */
         "ldi r25, 0x03 \n\t"
         "ldi r24, 0xD1 \n\t"
         "ld r18, x+ \n\t"
@@ -15852,27 +15851,29 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "eor r1, r1 \n\t" /* make r1 be 0 again */
         
         "sbiw r30, 37 \n\t" /* move z back to point at tmp */
-        "subi r26, 64 \n\t" /* move x back to point at p_product */
+        "subi r26, 64 \n\t" /* move x back to point at product */
         "sbc r27, __zero_reg__ \n\t"
         
-        /* add low bytes of tmp to p_product, storing in p_result */
+        /* add low bytes of tmp to product, storing in result */
         "ld r18, z+ \n\t"
         "ld r19, x+ \n\t"
         "add r18, r19 \n\t"
         "st y+, r18 \n\t"
-        REPEAT(31, "ld r18, z+ \n\t"
+        REPEAT(31,
+            "ld r18, z+ \n\t"
             "ld r19, x+ \n\t"
             "adc r18, r19 \n\t"
             "st y+, r18 \n\t")
         
-        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
-        /* at this point x is at the end of p_product, y is at the end of p_result, z is 32 bytes into tmp */
-        "sbiw r28, 32 \n\t" /* move y back to point at p_result */
+        "adc %[carry], __zero_reg__ \n\t" /* Store carry bit (carry flag is cleared). */
+        /* at this point x is at the end of product, y is at the end of result,
+           z is 32 bytes into tmp */
+        "sbiw r28, 32 \n\t" /* move y back to point at result */
 
         /* do omega_mult again with the 5 relevant bytes */
-        /* z points to l_tmp + uECC_WORDS, x points to the end of p_product */
-        "sbiw r26, 32 \n\t" /* shift x back to point into the p_product buffer (we can overwrite it now) */
-        
+        /* z points to tmp + uECC_WORDS, x points to the end of product */
+        "sbiw r26, 32 \n\t" /* shift x back to point into the product buffer
+                               (we can overwrite it now) */
         "ld r18, z+ \n\t"
         "ld r19, z+ \n\t"
         "ld r20, z+ \n\t"
@@ -15947,25 +15948,28 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
         "st x+, r22 \n\t"
         "eor r1, r1 \n\t" /* make r1 be 0 again */
         
-        /* now z points to the end of tmp, x points to the end of p_product (y still points at p_result) */
+        /* now z points to the end of tmp, x points to the end of product
+           (y still points at result) */
         "sbiw r26, 10 \n\t" /* move x back to point at beginning of actual data */
-        /* add into p_result */
+        /* add into result */
         "ld r18, x+ \n\t"
         "ld r19, y \n\t"
         "add r18, r19 \n\t"
         "st y+, r18 \n\t"
-        REPEAT(9, "ld r18, x+ \n\t"
+        REPEAT(9,
+            "ld r18, x+ \n\t"
             "ld r19, y \n\t"
             "adc r18, r19 \n\t"
             "st y+, r18 \n\t")
         
         /* Done adding, now propagate carry bit */
-        REPEAT(22, "ld r18, y \n\t"
+        REPEAT(22,
+            "ld r18, y \n\t"
             "adc r18, __zero_reg__ \n\t"
             "st y+, r18 \n\t")
         
         "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
-        "sbiw r28, 32 \n\t" /* move y back to point at p_result */
+        "sbiw r28, 32 \n\t" /* move y back to point at result */
         
         "sbiw r30, 1 \n\t" /* fix stack pointer */
     	"in r0, __SREG__ \n\t"
@@ -15974,24 +15978,20 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
     	"out __SREG__, r0 \n\t"
     	"out __SP_L__, r30 \n\t"
         
-        : "+x" (p_product), [carry] "+r" (l_carry)
-        : "y" (p_result)
+        : "+x" (product), [carry] "+r" (carry)
+        : "y" (result)
         : "r0", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r30", "r31", "cc", "memory"
     );
     
-    if(l_carry > 0)
-    {
-        --l_carry;
-        vli_sub(p_result, p_result, curve_p);
+    if (carry > 0) {
+        --carry;
+        vli_sub(result, result, curve_p);
     }
-    if(l_carry > 0)
-    {
-        vli_sub(p_result, p_result, curve_p);
+    if (carry > 0) {
+        vli_sub(result, result, curve_p);
     }
-    
-    if(vli_cmp(p_result, curve_p) > 0)
-    {
-        vli_sub(p_result, p_result, curve_p);
+    if (vli_cmp(result, curve_p) > 0) {
+        vli_sub(result, result, curve_p);
     }
 }
 #define asm_mmod_fast 1
@@ -16001,8 +16001,7 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
 #endif /* (uECC_ASM == uECC_asm_fast) */
 
 #if !asm_rshift1
-static void vli_rshift1(uint8_t *p_vli)
-{
+static void vli_rshift1(uint8_t *vli) {
     uint8_t i = uECC_BYTES;
     __asm__ volatile (
         "adiw r30, " STR(uECC_BYTES) " \n\t"
@@ -16015,7 +16014,7 @@ static void vli_rshift1(uint8_t *p_vli)
         "dec %[i] \n\t"
         "brne 1b \n\t"
 
-        : "+z" (p_vli), [i] "+r" (i)
+        : "+z" (vli), [i] "+r" (i)
         : 
         : "r0", "cc", "memory"
     );
@@ -16024,12 +16023,11 @@ static void vli_rshift1(uint8_t *p_vli)
 #endif
 
 #if !asm_add
-static uint8_t vli_add(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static uint8_t vli_add(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t i = uECC_BYTES;
-    uint8_t l_carry = 0;
-    uint8_t l_left;
-    uint8_t l_right;
+    uint8_t carry = 0;
+    uint8_t left_byte;
+    uint8_t right_byte;
 
     __asm__ volatile (
         "clc \n\t"
@@ -16042,27 +16040,25 @@ static uint8_t vli_add(uint8_t *p_result, const uint8_t *p_left, const uint8_t *
         "dec %[i] \n\t"
         "brne 1b \n\t"
         
-        "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
-        
+        "adc %[carry], %[carry] \n\t" /* Store carry bit. */
         "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
-        : "+z" (p_result), "+x" (p_left), [i] "+r" (i),
-            [carry] "+r" (l_carry), [left] "=&r" (l_left), [right] "=&r" (l_right)
-        : "y" (p_right)
+        : "+z" (result), "+x" (left), [i] "+r" (i),
+            [carry] "+r" (carry), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
+        : "y" (right)
         : "cc", "memory"
     );
-    return l_carry;
+    return carry;
 }
 #define asm_add 1
 #endif
 
 #if !asm_sub
-static uint8_t vli_sub(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static uint8_t vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t i = uECC_BYTES;
-    uint8_t l_borrow = 0;
-    uint8_t l_left;
-    uint8_t l_right;
+    uint8_t borrow = 0;
+    uint8_t left_byte;
+    uint8_t right_byte;
 
     __asm__ volatile (
         "clc \n\t"
@@ -16075,37 +16071,33 @@ static uint8_t vli_sub(uint8_t *p_result, const uint8_t *p_left, const uint8_t *
         "dec %[i] \n\t"
         "brne 1b \n\t"
         
-        "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_borrow. */
-        
+        "adc %[borrow], %[borrow] \n\t" /* Store carry bit in borrow. */
         "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
 
-        : "+z" (p_result), "+x" (p_left), [i] "+r" (i),
-            [borrow] "+r" (l_borrow), [left] "=&r" (l_left), [right] "=&r" (l_right)
-        : "y" (p_right)
+        : "+z" (result), "+x" (left), [i] "+r" (i),
+            [borrow] "+r" (borrow), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
+        : "y" (right)
         : "cc", "memory"
     );
-    return l_borrow;
+    return borrow;
 }
 #define asm_sub 1
 #endif
 
 #if !asm_mult
 __attribute((noinline))
-static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_right)
-{
+static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
-    
-    uint8_t l_zero = 0;
-    
+    uint8_t zero = 0;
     uint8_t k, i;
     
     __asm__ volatile (
         "ldi %[k], 1 \n\t" /* k = 1; k < uECC_BYTES; ++k */
         
         "1: \n\t"
-        "ldi %[i], 0 \n\t"  /* i=0; i < k; ++i */
+        "ldi %[i], 0 \n\t"  /* i = 0; i < k; ++i */
         
         "add r28, %[k] \n\t" /* pre-add right ptr */
         "adc r29, %[zero] \n\t"
@@ -16137,10 +16129,10 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
         
         /* second half */
         "ldi %[k], " STR(uECC_BYTES) " \n\t" /* k = uECC_BYTES; k > 0; --k */
-        "adiw r28, " STR(uECC_BYTES) " \n\t" /* move right ptr to point at the end of p_right */
+        "adiw r28, " STR(uECC_BYTES) " \n\t" /* move right ptr to point at the end of right */
         
         "1: \n\t"
-        "ldi %[i], 0 \n\t" /* i=0; i < k; ++i */
+        "ldi %[i], 0 \n\t" /* i = 0; i < k; ++i */
         
         "2: \n\t"
         "ld r0, x+ \n\t"
@@ -16164,22 +16156,21 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
         "mov %[r2], %[zero] \n\t"
         
         "dec %[k] \n\t"
-        "sub r26, %[k] \n\t" /* fix up left ptr (after k is decremented, so next time we start 1 higher) */
+        "sub r26, %[k] \n\t" /* fix up left ptr (after k is decremented, so next time
+                                we start 1 higher) */
         "sbc r27, %[zero] \n\t"
         
         "cpi %[k], 0 \n\t"
         "brne 1b \n\t" /* loop if k > 0 */
         
         "st z+, %[r0] \n\t"  /* Store last result byte. */
-        
         "eor r1, r1 \n\t" /* fix r1 to be 0 again */
-        
         "sbiw r28, " STR(uECC_BYTES) " \n\t" /* Restore Y */
     
-        : "+z" (p_result), "+x" (p_left),
-          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero),
+        : "+z" (result), "+x" (left),
+          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (zero),
           [k] "=&a" (k), [i] "=&a" (i)
-        : "y" (p_right)
+        : "y" (right)
         : "r0", "cc", "memory"
     );
 }
@@ -16188,18 +16179,15 @@ static void vli_mult(uint8_t *p_result, const uint8_t *p_left, const uint8_t *p_
 
 #if uECC_SQUARE_FUNC
 #if !asm_square
-static void vli_square(uint8_t *p_result, const uint8_t *p_left)
-{
+static void vli_square(uint8_t *result, const uint8_t *left) {
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
-    
-    uint8_t l_zero = 0;
-    
+    uint8_t zero = 0;
     uint8_t k;
     
     __asm__ volatile (
-        "ldi %[k], 1 \n\t" /* k = 1; k < uECC_BYTES*2; ++k */
+        "ldi %[k], 1 \n\t" /* k = 1; k < uECC_BYTES * 2; ++k */
         
         "1: \n\t"
         
@@ -16223,7 +16211,8 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
         
         "3: \n\t"
         "ld r0, x+ \n\t"
-        "cp r26, r30 \n\t" /* if left == right here, then we are done after this mult (and we don't need to double) */
+        "cp r26, r30 \n\t" /* if left == right here, then we are done after this mult
+                              (and we don't need to double) */
         "breq 4f \n\t"
         "ld r1, -z \n\t"
         "mul r0, r1 \n\t"
@@ -16248,9 +16237,9 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
         "adc %[r2], %[zero] \n\t"
         
         "5: \n\t"
-        "movw r30, %[result] \n\t"  /* make z point to result */
-        "st z+, %[r0] \n\t"  /* Store the result. */
-        "movw %[result], r30 \n\t"  /* update result ptr*/
+        "movw r30, %[result] \n\t" /* make z point to result */
+        "st z+, %[r0] \n\t"        /* Store the result. */
+        "movw %[result], r30 \n\t" /* update result ptr*/
         "mov %[r0], %[r1] \n\t"
         "mov %[r1], %[r2] \n\t"
         "mov %[r2], %[zero] \n\t"
@@ -16261,13 +16250,12 @@ static void vli_square(uint8_t *p_result, const uint8_t *p_left)
         
         "movw r30, %[result] \n\t"  /* make z point to result */
         "st z+, %[r0] \n\t"  /* Store last result byte. */
-        
         "eor r1, r1 \n\t" /* fix r1 to be 0 again */
     
-        : [result] "+r" (p_result),
-          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (l_zero),
+        : [result] "+r" (result),
+          [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (zero),
           [k] "=&a" (k)
-        : [orig] "r" (p_left), [max] "M" (2*uECC_BYTES)
+        : [orig] "r" (left), [max] "M" (2*uECC_BYTES)
         : "r0", "r26", "r27", "r30", "r31", "cc", "memory"
     );
 }

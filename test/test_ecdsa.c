@@ -11,25 +11,22 @@
 #include "/Projects/lpc11xx/peripherals/time.h"
 
 static uint64_t g_rand = 88172645463325252ull;
-int fake_rng(uint8_t *p_dest, unsigned p_size)
-{
-    while(p_size)
-    {
+int fake_rng(uint8_t *dest, unsigned size) {
+    while (size) {
         g_rand ^= (g_rand << 13);
         g_rand ^= (g_rand >> 7);
         g_rand ^= (g_rand << 17);
 
-        unsigned l_amount = (p_size > 8 ? 8 : p_size);
-        memcpy(p_dest, &g_rand, l_amount);
-        p_size -= l_amount;
+        unsigned amount = (size > 8 ? 8 : size);
+        memcpy(dest, &g_rand, amount);
+        size -= amount;
     }
     return 1;
 }
 
 #endif
 
-int main()
-{
+int main() {
 #if LPC11XX
     uartInit(BAUD_115200);
 	initTime();
@@ -37,39 +34,31 @@ int main()
     uECC_set_rng(&fake_rng);
 #endif
 
-    uint8_t l_public[uECC_BYTES*2];
-    uint8_t l_private[uECC_BYTES];
-
-    uint8_t l_hash[uECC_BYTES];
-    
-    uint8_t l_sig[uECC_BYTES*2];
+    uint8_t public[uECC_BYTES * 2];
+    uint8_t private[uECC_BYTES];
+    uint8_t hash[uECC_BYTES];
+    uint8_t sig[uECC_BYTES * 2];
     
     int i;
-    
     printf("Testing 256 signatures\n");
-    
-    for(i=0; i<256; ++i)
-    {
+    for (i = 0; i < 256; ++i) {
         printf(".");
     #if !LPC11XX
         fflush(stdout);
     #endif
         
-        if(!uECC_make_key(l_public, l_private))
-        {
+        if (!uECC_make_key(public, private)) {
             printf("uECC_make_key() failed\n");
             continue;
         }
-        memcpy(l_hash, l_public, uECC_BYTES);
+        memcpy(hash, public, uECC_BYTES);
         
-        if(!uECC_sign(l_private, l_hash, l_sig))
-        {
+        if (!uECC_sign(private, hash, sig)) {
             printf("uECC_sign() failed\n");
             continue;
         }
         
-        if(!uECC_verify(l_public, l_hash, l_sig))
-        {
+        if (!uECC_verify(public, hash, sig)) {
             printf("uECC_verify() failed\n");
         }
     }

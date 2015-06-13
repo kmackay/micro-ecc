@@ -17,11 +17,13 @@ Possible values for uECC_PLATFORM are defined below: */
 #define uECC_arm_thumb2 6
 
 /* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 4, or 8 bytes).
-If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your platform. */
+If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your
+platform. */
 
 /* Inline assembly options.
 uECC_asm_none  - Use standard C99 only.
-uECC_asm_small - Use GCC inline assembly for the target platform (if available), optimized for minimum size.
+uECC_asm_small - Use GCC inline assembly for the target platform (if available), optimized for
+                 minimum size.
 uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_asm_none  0
 #define uECC_asm_small 1
@@ -39,8 +41,9 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
     #define uECC_CURVE uECC_secp160r1
 #endif
 
-/* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be used for (scalar) squaring
-    instead of the generic multiplication function. This will make things faster by about 8% but increases the code size. */
+/* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be
+used for (scalar) squaring instead of the generic multiplication function. This will make things
+faster by about 8% but increases the code size. */
 #ifndef uECC_SQUARE_FUNC
     #define uECC_SQUARE_FUNC 1
 #endif
@@ -61,8 +64,8 @@ extern "C"
 #endif
 
 /* uECC_RNG_Function type
-The RNG function should fill p_size random bytes into p_dest. It should return 1 if
-p_dest was filled with random data, or 0 if the random data could not be generated.
+The RNG function should fill 'size' random bytes into 'dest'. It should return 1 if
+'dest' was filled with random data, or 0 if the random data could not be generated.
 The filled-in values should be either truly random, or from a cryptographically-secure PRNG.
 
 A correctly functioning RNG function must be set (using uECC_set_rng()) before calling
@@ -73,7 +76,7 @@ If you are building on another POSIX-compliant system that supports /dev/random 
 you can define uECC_POSIX to use the predefined RNG. For embedded platforms there is no predefined
 RNG function; you must provide your own.
 */
-typedef int (*uECC_RNG_Function)(uint8_t *p_dest, unsigned p_size);
+typedef int (*uECC_RNG_Function)(uint8_t *dest, unsigned size);
 
 /* uECC_set_rng() function.
 Set the function that will be used to generate random bytes. The RNG function should
@@ -83,35 +86,38 @@ On platforms where there is no predefined RNG function (eg embedded platforms), 
 be called before uECC_make_key() or uECC_sign() are used.
 
 Inputs:
-    p_rng  - The function that will be used to generate random bytes.
+    rng_function - The function that will be used to generate random bytes.
 */
-void uECC_set_rng(uECC_RNG_Function p_rng);
+void uECC_set_rng(uECC_RNG_Function rng_function);
 
 /* uECC_make_key() function.
 Create a public/private key pair.
 
 Outputs:
-    p_publicKey  - Will be filled in with the public key.
-    p_privateKey - Will be filled in with the private key.
+    public_key  - Will be filled in with the public key.
+    private_key - Will be filled in with the private key.
 
 Returns 1 if the key pair was generated successfully, 0 if an error occurred.
 */
-int uECC_make_key(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_privateKey[uECC_BYTES]);
+int uECC_make_key(uint8_t public_key[uECC_BYTES*2], uint8_t private_key[uECC_BYTES]);
 
 /* uECC_shared_secret() function.
 Compute a shared secret given your secret key and someone else's public key.
-Note: It is recommended that you hash the result of uECC_shared_secret() before using it for symmetric encryption or HMAC.
+Note: It is recommended that you hash the result of uECC_shared_secret() before using it for
+symmetric encryption or HMAC.
 
 Inputs:
-    p_publicKey  - The public key of the remote party.
-    p_privateKey - Your private key.
+    public_key  - The public key of the remote party.
+    private_key - Your private key.
 
 Outputs:
-    p_secret - Will be filled in with the shared secret value.
+    secret - Will be filled in with the shared secret value.
 
 Returns 1 if the shared secret was generated successfully, 0 if an error occurred.
 */
-int uECC_shared_secret(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_privateKey[uECC_BYTES], uint8_t p_secret[uECC_BYTES]);
+int uECC_shared_secret(const uint8_t public_key[uECC_BYTES*2],
+                       const uint8_t private_key[uECC_BYTES],
+                       uint8_t secret[uECC_BYTES]);
 
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
@@ -120,15 +126,17 @@ Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pa
 this function along with your private key.
 
 Inputs:
-    p_privateKey - Your private key.
-    p_hash       - The message hash to sign.
+    private_key - Your private key.
+    hash        - The message hash to sign.
 
 Outputs:
-    p_signature  - Will be filled in with the signature value.
+    signature - Will be filled in with the signature value.
 
 Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
-int uECC_sign(const uint8_t p_privateKey[uECC_BYTES], const uint8_t p_hash[uECC_BYTES], uint8_t p_signature[uECC_BYTES*2]);
+int uECC_sign(const uint8_t private_key[uECC_BYTES],
+              const uint8_t hash[uECC_BYTES],
+              uint8_t signature[uECC_BYTES*2]);
 
 /* uECC_verify() function.
 Verify an ECDSA signature.
@@ -137,35 +145,37 @@ Usage: Compute the hash of the signed data using the same hash as the signer and
 pass it to this function along with the signer's public key and the signature values (r and s).
 
 Inputs:
-    p_publicKey - The signer's public key
-    p_hash      - The hash of the signed data.
-    p_signature - The signature value.
+    public_key - The signer's public key
+    hash       - The hash of the signed data.
+    signature  - The signature value.
 
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
-int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uECC_BYTES], const uint8_t p_signature[uECC_BYTES*2]);
+int uECC_verify(const uint8_t private_key[uECC_BYTES*2],
+                const uint8_t hash[uECC_BYTES],
+                const uint8_t signature[uECC_BYTES*2]);
 
 /* uECC_compress() function.
 Compress a public key.
 
 Inputs:
-    p_publicKey - The public key to compress.
+    public_key - The public key to compress.
 
 Outputs:
-    p_compressed - Will be filled in with the compressed public key.
+    compressed - Will be filled in with the compressed public key.
 */
-void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
+void uECC_compress(const uint8_t public_key[uECC_BYTES*2], uint8_t compressed[uECC_BYTES+1]);
 
 /* uECC_decompress() function.
 Decompress a compressed public key.
 
 Inputs:
-    p_compressed - The compressed public key.
+    compressed - The compressed public key.
 
 Outputs:
-    p_publicKey - Will be filled in with the decompressed public key.
+    public_key - Will be filled in with the decompressed public key.
 */
-void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
+void uECC_decompress(const uint8_t compressed[uECC_BYTES+1], uint8_t public_key[uECC_BYTES*2]);
 
 /* uECC_valid_public_key() function.
 Check to see if a public key is valid.
@@ -175,24 +185,25 @@ functions. However, you may wish to avoid spending CPU time computing a shared s
 verifying a signature using an invalid public key.
 
 Inputs:
-    p_publicKey - The public key to check.
+    public_key - The public key to check.
 
 Returns 1 if the public key is valid, 0 if it is invalid.
 */
-int uECC_valid_public_key(const uint8_t p_publicKey[uECC_BYTES*2]);
+int uECC_valid_public_key(const uint8_t public_key[uECC_BYTES*2]);
 
 /* uECC_compute_public_key() function.
 Compute the corresponding public key for a private key.
 
 Inputs:
-    p_privateKey - The private key to compute the public key for
+    private_key - The private key to compute the public key for
 
 Outputs:
-    p_publicKey - Will be filled in with the corresponding public key
+    public_key - Will be filled in with the corresponding public key
 
 Returns 1 if the key was computed successfully, 0 if an error occurred.
 */
-int uECC_compute_public_key(const uint8_t p_privateKey[uECC_BYTES], uint8_t p_publicKey[uECC_BYTES * 2]);
+int uECC_compute_public_key(const uint8_t private_key[uECC_BYTES],
+                            uint8_t public_key[uECC_BYTES * 2]);
 
 
 /* uECC_bytes() function.
