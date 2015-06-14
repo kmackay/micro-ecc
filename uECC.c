@@ -2121,9 +2121,8 @@ static void vli_modMult_n(uECC_word_t *result, const uECC_word_t *left, const uE
 }
 #endif /* (uECC_CURVE != uECC_secp160r1) */
 
-// 0 < k < curve_n
 static int uECC_sign_with_k(const uint8_t private_key[uECC_BYTES],
-                            const uint8_t hash[uECC_BYTES],
+                            const uint8_t message_hash[uECC_BYTES],
                             uECC_word_t k[uECC_N_WORDS],
                             uint8_t signature[uECC_BYTES*2]) {
     uECC_word_t tmp[uECC_N_WORDS];
@@ -2132,6 +2131,11 @@ static int uECC_sign_with_k(const uint8_t private_key[uECC_BYTES],
     EccPoint p;
     uECC_word_t carry;
     uECC_word_t tries;
+    
+    /* Make sure 0 < k < curve_n */
+    if (vli_isZero(k) || vli_cmp_n(curve_n, k) != 1) {
+        return 0;
+    }
 
 #if (uECC_CURVE == uECC_secp160r1)
     /* Make sure that we don't leak timing information about k.
@@ -2193,7 +2197,7 @@ static int uECC_sign_with_k(const uint8_t private_key[uECC_BYTES],
     vli_set(s, p.x);
     vli_modMult_n(s, tmp, s); /* s = r*d */
 
-    vli_bytesToNative(tmp, hash);
+    vli_bytesToNative(tmp, message_hash);
     vli_modAdd_n(s, tmp, s, curve_n); /* s = e + r*d */
     vli_modMult_n(s, s, k); /* s = (e + r*d) / k */
 #if (uECC_CURVE == uECC_secp160r1)
@@ -2206,7 +2210,7 @@ static int uECC_sign_with_k(const uint8_t private_key[uECC_BYTES],
 }
 
 int uECC_sign(const uint8_t private_key[uECC_BYTES],
-              const uint8_t hash[uECC_BYTES],
+              const uint8_t message_hash[uECC_BYTES],
               uint8_t signature[uECC_BYTES*2]) {
     uECC_word_t k[uECC_N_WORDS];
     uECC_word_t tmp[uECC_N_WORDS];
@@ -2223,15 +2227,125 @@ int uECC_sign(const uint8_t private_key[uECC_BYTES],
         k[uECC_WORDS] &= 0x01;
     #endif
         
-        if (vli_isZero(k) || vli_cmp_n(curve_n, k) != 1) {
-            continue;
-        }
-        if (uECC_sign_with_k(private_key, hash, k, signature)) {
+        if (uECC_sign_with_k(private_key, message_hash, k, signature)) {
             return 1;
         }
     }
     return 0;
 }
+
+#if defined(uECC_HASH_BLOCK_SIZE) && defined(uECC_HASH_RESULT_SIZE)
+
+/* Compute an HMAC using K as a key (as in RFC 6979). Note that K is always
+   the same size as the hash result size. */
+static void HMAC_init(uECC_HashContext *hash_context, const uint8_t *K) {
+    uint8_t pad[uECC_HASH_BLOCK_SIZE];
+    unsigned i;
+    for (i = 0; i < uECC_HASH_RESULT_SIZE; ++i)
+        pad[i] = K[i] ^ 0x36;
+    for (i = uECC_HASH_RESULT_SIZE; i < uECC_HASH_BLOCK_SIZE; ++i)
+        pad[i] = 0x36;
+    
+    hash_context->init_hash(hash_context);
+    hash_context->update_hash(hash_context, pad, uECC_HASH_BLOCK_SIZE);
+}
+
+static void HMAC_update(uECC_HashContext *hash_context,
+                        const uint8_t *message,
+                        unsigned message_size) {
+    hash_context->update_hash(hash_context, message, message_size);
+}
+
+static void HMAC_finish(uECC_HashContext *hash_context, const uint8_t *K, uint8_t *result) {
+    uint8_t pad[uECC_HASH_BLOCK_SIZE];
+    unsigned i;
+    for (i = 0; i < uECC_HASH_RESULT_SIZE; ++i)
+        pad[i] = K[i] ^ 0x5c;
+    for (i = uECC_HASH_RESULT_SIZE; i < uECC_HASH_BLOCK_SIZE; ++i)
+        pad[i] = 0x5c;
+
+    hash_context->finish_hash(hash_context, result);
+    
+    hash_context->init_hash(hash_context);
+    hash_context->update_hash(hash_context, pad, uECC_HASH_BLOCK_SIZE);
+    hash_context->update_hash(hash_context, result, uECC_HASH_RESULT_SIZE);
+    hash_context->finish_hash(hash_context, result);
+}
+
+/* V = HMAC_K(V) */
+static void update_V(uECC_HashContext *hash_context, uint8_t *K, uint8_t *V) {
+    HMAC_init(hash_context, K);
+    HMAC_update(hash_context, V, uECC_HASH_RESULT_SIZE);
+    HMAC_finish(hash_context, K, V);
+}
+
+/* Deterministic signing, similar to RFC 6979. Differences are:
+    * We just use (truncated) H(m) directly rather than bits2octets(H(m))
+      (it is not reduced modulo curve_n).
+    * We generate a value for k (aka T) directly rather than converting endianness. */
+int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
+                            const uint8_t message_hash[uECC_BYTES],
+                            uECC_HashContext *hash_context,
+                            uint8_t signature[uECC_BYTES*2]) {
+    uint8_t V[uECC_HASH_RESULT_SIZE + 1];
+    uint8_t K[uECC_HASH_RESULT_SIZE];
+    uECC_word_t tries;
+    unsigned i;
+    for (i = 0; i < uECC_HASH_RESULT_SIZE; ++i) {
+        V[i] = 0x01;
+        K[i] = 0;
+    }
+    
+    // K = HMAC_K(V || 0x00 || int2octets(x) || h(m))
+    V[uECC_HASH_RESULT_SIZE] = 0x00;
+    HMAC_init(hash_context, K);
+    HMAC_update(hash_context, V, uECC_HASH_RESULT_SIZE + 1);
+    HMAC_update(hash_context, private_key, uECC_BYTES);
+    HMAC_update(hash_context, message_hash, uECC_BYTES);
+    HMAC_finish(hash_context, K, K);
+    
+    update_V(hash_context, K, V);
+    
+    // K = HMAC_K(V || 0x01 || int2octets(x) || h(m))
+    V[uECC_HASH_RESULT_SIZE] = 0x01;
+    HMAC_init(hash_context, K);
+    HMAC_update(hash_context, V, uECC_HASH_RESULT_SIZE + 1);
+    HMAC_update(hash_context, private_key, uECC_BYTES);
+    HMAC_update(hash_context, message_hash, uECC_BYTES);
+    HMAC_finish(hash_context, K, K);
+    
+    update_V(hash_context, K, V);
+
+    for (tries = 0; tries < MAX_TRIES; ++tries) {
+        uECC_word_t T[uECC_N_WORDS];
+        uint8_t *T_ptr = (uint8_t *)T;
+        unsigned T_bytes = 0;
+        while (T_bytes < sizeof(T)) {
+            update_V(hash_context, K, V);
+            for (i = 0; i < uECC_HASH_RESULT_SIZE && T_bytes < sizeof(T); ++i, ++T_bytes) {
+                T_ptr[T_bytes] = V[i];
+            }
+        }
+    #if (uECC_CURVE == uECC_secp160r1)
+        T[uECC_WORDS] &= 0x01;
+    #endif
+    
+        if (uECC_sign_with_k(private_key, message_hash, T, signature)) {
+            return 1;
+        }
+
+        // K = HMAC_K(V || 0x00)
+        V[uECC_HASH_RESULT_SIZE] = 0x00;
+        HMAC_init(hash_context, K);
+        HMAC_update(hash_context, V, uECC_HASH_RESULT_SIZE + 1);
+        HMAC_finish(hash_context, K, K);
+        
+        update_V(hash_context, K, V);
+    }
+    return 0;
+}
+
+#endif /* defined(uECC_HASH_BLOCK_SIZE) && defined(uECC_HASH_RESULT_SIZE) */
 
 static bitcount_t smax(bitcount_t a, bitcount_t b) {
     return (a > b ? a : b);

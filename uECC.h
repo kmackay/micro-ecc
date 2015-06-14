@@ -72,7 +72,7 @@ A correctly functioning RNG function must be set (using uECC_set_rng()) before c
 uECC_make_key() or uECC_sign().
 
 Setting a correctly functioning RNG function improves the resistance to side-channel attacks
-for uECC_shared_secret().
+for uECC_shared_secret() and uECC_sign_deterministic().
 
 A correct RNG function is set by default when building for Windows, Linux, or OS X.
 If you are building on another POSIX-compliant system that supports /dev/random or /dev/urandom,
@@ -129,8 +129,8 @@ Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pa
 this function along with your private key.
 
 Inputs:
-    private_key - Your private key.
-    hash        - The message hash to sign.
+    private_key  - Your private key.
+    message_hash - The hash of the message to sign.
 
 Outputs:
     signature - Will be filled in with the signature value.
@@ -138,8 +138,87 @@ Outputs:
 Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
 int uECC_sign(const uint8_t private_key[uECC_BYTES],
-              const uint8_t hash[uECC_BYTES],
+              const uint8_t message_hash[uECC_BYTES],
               uint8_t signature[uECC_BYTES*2]);
+
+/* Define uECC_HASH_BLOCK_SIZE to the block size in bytes of your hash algorithm
+   (eg 64 for SHA-256) */
+/* #define uECC_HASH_BLOCK_SIZE 64 */
+/* Define uECC_HASH_RESULT_SIZE to the output size in bytes of your hash algorithm
+   (eg 32 for SHA-256) */
+/* #define uECC_HASH_RESULT_SIZE 32 */
+#if defined(uECC_HASH_BLOCK_SIZE) && defined(uECC_HASH_RESULT_SIZE)
+
+/* uECC_HashContext structure.
+This is used to pass in an arbitrary hash function to uECC_sign_deterministic().
+The structure will be used for multiple hash computations; each time a new hash
+is computed, init_hash() will be called, followed by one or more calls to
+update_hash(), and finally a call to finish_hash() to prudoce the resulting hash.
+
+The intention is that you will create a structure that includes uECC_HashContext
+followed by any hash-specific data. For example:
+
+typedef struct SHA256_HashContext {
+    uECC_HashContext uECC;
+    SHA256_CTX ctx;
+} SHA256_HashContext;
+
+void SHA256_init(uECC_HashContext *base) {
+    SHA256_HashContext *context = (SHA256_HashContext *)base;
+    SHA256_Init(&context->ctx);
+}
+
+void SHA256_update(uECC_HashContext *base,
+                   const uint8_t *message,
+                   unsigned message_size) {
+    SHA256_HashContext *context = (SHA256_HashContext *)base;
+    SHA256_Update(&context->ctx, message, message_size);
+}
+
+void SHA256_finish(uECC_HashContext *base, uint8_t *hash_result) {
+    SHA256_HashContext *context = (SHA256_HashContext *)base;
+    SHA256_Final(hash_result, &context->ctx);
+}
+
+... when signing ...
+{
+    SHA256_HashContext ctx = {{&SHA256_init, &SHA256_update, &SHA256_finish}};
+    uECC_sign_deterministic(key, message_hash, &ctx, signature);
+}
+*/
+typedef struct uECC_HashContext {
+    void (*init_hash)(struct uECC_HashContext *context);
+    void (*update_hash)(struct uECC_HashContext *context,
+                        const uint8_t *message,
+                        unsigned message_size);
+    void (*finish_hash)(struct uECC_HashContext *context, uint8_t *hash_result);
+} uECC_HashContext;
+
+/* uECC_sign_deterministic() function.
+Generate an ECDSA signature for a given hash value, using a deterministic algorithm
+(see RFC 6979). You do not need to set the RNG using uECC_set_rng() before calling
+this function; however, if the RNG is defined it will improve resistance to side-channel
+attacks.
+
+Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pass it in to
+this function along with your private key and a hash context.
+
+Inputs:
+    private_key  - Your private key.
+    message_hash - The hash of the message to sign.
+    hash_context - A hash context to use.
+
+Outputs:
+    signature - Will be filled in with the signature value.
+
+Returns 1 if the signature generated successfully, 0 if an error occurred.
+*/
+int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
+                            const uint8_t message_hash[uECC_BYTES],
+                            uECC_HashContext *hash_context,
+                            uint8_t signature[uECC_BYTES*2]);
+
+#endif /* defined(uECC_HASH_BLOCK_SIZE) && defined(uECC_HASH_RESULT_SIZE) */
 
 /* uECC_verify() function.
 Verify an ECDSA signature.
