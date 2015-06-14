@@ -2074,6 +2074,7 @@ static void vli_modMult_n(uECC_word_t *result, const uECC_word_t *left, const uE
 
 #else
 
+#define vli_cmp_n vli_cmp
 #define vli_modInv_n vli_modInv
 #define vli_modAdd_n vli_modAdd
 
