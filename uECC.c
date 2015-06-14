@@ -1719,22 +1719,18 @@ static void vli_bytesToNative(uint64_t *native, const uint8_t *bytes) {
 
 int uECC_make_key(uint8_t public_key[uECC_BYTES*2], uint8_t private_key[uECC_BYTES]) {
     uECC_word_t private[uECC_WORDS];
-    uECC_word_t tries = 0;
     EccPoint public;
-
-    while (1) {
-        if (!g_rng_function((uint8_t *)private, sizeof(private)) || (tries++ >= MAX_TRIES)) {
-            return 0;
-        }
-        if (EccPoint_compute_public_key(&public, private)) {
-            break;
+    uECC_word_t tries;
+    for (tries = 0; tries < MAX_TRIES; ++tries) {
+        if (g_rng_function((uint8_t *)private, sizeof(private)) &&
+                EccPoint_compute_public_key(&public, private)) {
+            vli_nativeToBytes(private_key, private);
+            vli_nativeToBytes(public_key, public.x);
+            vli_nativeToBytes(public_key + uECC_BYTES, public.y);
+            return 1;
         }
     }
-
-    vli_nativeToBytes(private_key, private);
-    vli_nativeToBytes(public_key, public.x);
-    vli_nativeToBytes(public_key + uECC_BYTES, public.y);
-    return 1;
+    return 0;
 }
 
 int uECC_shared_secret(const uint8_t public_key[uECC_BYTES*2],
@@ -2220,15 +2216,13 @@ int uECC_sign(const uint8_t private_key[uECC_BYTES],
     uECC_word_t tries;
     
     for (tries = 0; tries < MAX_TRIES; ++tries) {
-        if(!g_rng_function((uint8_t *)k, sizeof(k))) {
-            return 0;
-        }
-    #if (uECC_CURVE == uECC_secp160r1)
-        k[uECC_WORDS] &= 0x01;
-    #endif
-        
-        if (uECC_sign_with_k(private_key, message_hash, k, signature)) {
-            return 1;
+        if(g_rng_function((uint8_t *)k, sizeof(k))) {
+        #if (uECC_CURVE == uECC_secp160r1)
+            k[uECC_WORDS] &= 0x01;
+        #endif
+            if (uECC_sign_with_k(private_key, message_hash, k, signature)) {
+                return 1;
+            }
         }
     }
     return 0;
