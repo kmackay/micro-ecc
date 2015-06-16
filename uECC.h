@@ -183,7 +183,7 @@ void SHA256_finish(uECC_HashContext *base, uint8_t *hash_result) {
 ... when signing ...
 {
     SHA256_HashContext ctx = {{&SHA256_init, &SHA256_update, &SHA256_finish}};
-    uECC_sign_deterministic(key, message_hash, &ctx, signature);
+    uECC_sign_deterministic(key, message_hash, &ctx.uECC, signature);
 }
 */
 typedef struct uECC_HashContext {
