@@ -141,14 +141,6 @@ int uECC_sign(const uint8_t private_key[uECC_BYTES],
               const uint8_t message_hash[uECC_BYTES],
               uint8_t signature[uECC_BYTES*2]);
 
-/* Define uECC_HASH_BLOCK_SIZE to the block size in bytes of your hash algorithm
-   (eg 64 for SHA-256) */
-/* #define uECC_HASH_BLOCK_SIZE 64 */
-/* Define uECC_HASH_RESULT_SIZE to the output size in bytes of your hash algorithm
-   (eg 32 for SHA-256) */
-/* #define uECC_HASH_RESULT_SIZE 32 */
-#if defined(uECC_HASH_BLOCK_SIZE) && defined(uECC_HASH_RESULT_SIZE)
-
 /* uECC_HashContext structure.
 This is used to pass in an arbitrary hash function to uECC_sign_deterministic().
 The structure will be used for multiple hash computations; each time a new hash
@@ -163,26 +155,27 @@ typedef struct SHA256_HashContext {
     SHA256_CTX ctx;
 } SHA256_HashContext;
 
-void SHA256_init(uECC_HashContext *base) {
+void init_SHA256(uECC_HashContext *base) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Init(&context->ctx);
 }
 
-void SHA256_update(uECC_HashContext *base,
+void update_SHA256(uECC_HashContext *base,
                    const uint8_t *message,
                    unsigned message_size) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Update(&context->ctx, message, message_size);
 }
 
-void SHA256_finish(uECC_HashContext *base, uint8_t *hash_result) {
+void finish_SHA256(uECC_HashContext *base, uint8_t *hash_result) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Final(hash_result, &context->ctx);
 }
 
 ... when signing ...
 {
-    SHA256_HashContext ctx = {{&SHA256_init, &SHA256_update, &SHA256_finish}};
+    uint8_t tmp[32 + 32 + 64];
+    SHA256_HashContext ctx = {{&init_SHA256, &update_SHA256, &finish_SHA256, 64, 32, tmp}};
     uECC_sign_deterministic(key, message_hash, &ctx.uECC, signature);
 }
 */
@@ -192,6 +185,9 @@ typedef struct uECC_HashContext {
                         const uint8_t *message,
                         unsigned message_size);
     void (*finish_hash)(struct uECC_HashContext *context, uint8_t *hash_result);
+    unsigned block_size; /* Hash function block size in bytes, eg 64 for SHA-256. */
+    unsigned result_size; /* Hash function result size in bytes, eg 32 for SHA-256. */
+    uint8_t *tmp; /* Must point to a buffer of at least (2 * result_size + block_size) bytes. */
 } uECC_HashContext;
 
 /* uECC_sign_deterministic() function.
@@ -217,8 +213,6 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
                             const uint8_t message_hash[uECC_BYTES],
                             uECC_HashContext *hash_context,
                             uint8_t signature[uECC_BYTES*2]);
-
-#endif /* defined(uECC_HASH_BLOCK_SIZE) && defined(uECC_HASH_RESULT_SIZE) */
 
 /* uECC_verify() function.
 Verify an ECDSA signature.

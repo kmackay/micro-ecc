@@ -44,19 +44,19 @@ typedef struct SHA256_HashContext {
     SHA256_CTX ctx;
 } SHA256_HashContext;
 
-static void SHA256_init(uECC_HashContext *base) {
+static void init_SHA256(uECC_HashContext *base) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Init(&context->ctx);
 }
 
-static void SHA256_update(uECC_HashContext *base,
+static void update_SHA256(uECC_HashContext *base,
                           const uint8_t *message,
                           unsigned message_size) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Update(&context->ctx, message, message_size);
 }
 
-static void SHA256_finish(uECC_HashContext *base, uint8_t *hash_result) {
+static void finish_SHA256(uECC_HashContext *base, uint8_t *hash_result) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Final(hash_result, &context->ctx);
 }
@@ -73,7 +73,15 @@ int main() {
     uint8_t private[uECC_BYTES];
     uint8_t hash[uECC_BYTES];
     uint8_t sig[uECC_BYTES * 2];
-    SHA256_HashContext ctx = {{&SHA256_init, &SHA256_update, &SHA256_finish}};
+    uint8_t tmp[2 * SHA256_DIGEST_LENGTH + SHA256_BLOCK_LENGTH];
+    SHA256_HashContext ctx = {{
+        &init_SHA256,
+        &update_SHA256,
+        &finish_SHA256,
+        SHA256_BLOCK_LENGTH,
+        SHA256_DIGEST_LENGTH,
+        tmp
+    }};
     
     int i;
     printf("Testing 256 signatures\n");
