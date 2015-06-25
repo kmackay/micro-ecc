@@ -1551,24 +1551,24 @@ static void XYcZ_addC(uECC_word_t * RESTRICT X1,
     vli_modSquare_fast(t5, t5);      /* t5 = (x2 - x1)^2 = A */
     vli_modMult_fast(X1, X1, t5);    /* t1 = x1*A = B */
     vli_modMult_fast(X2, X2, t5);    /* t3 = x2*A = C */
-    vli_modAdd(t5, Y2, Y1, curve_p); /* t4 = y2 + y1 */
+    vli_modAdd(t5, Y2, Y1, curve_p); /* t5 = y2 + y1 */
     vli_modSub_fast(Y2, Y2, Y1);     /* t4 = y2 - y1 */
 
     vli_modSub_fast(t6, X2, X1);     /* t6 = C - B */
-    vli_modMult_fast(Y1, Y1, t6);    /* t2 = y1 * (C - B) */
+    vli_modMult_fast(Y1, Y1, t6);    /* t2 = y1 * (C - B) = E */
     vli_modAdd(t6, X1, X2, curve_p); /* t6 = B + C */
-    vli_modSquare_fast(X2, Y2);      /* t3 = (y2 - y1)^2 */
-    vli_modSub_fast(X2, X2, t6);     /* t3 = x3 */
+    vli_modSquare_fast(X2, Y2);      /* t3 = (y2 - y1)^2 = D */
+    vli_modSub_fast(X2, X2, t6);     /* t3 = D - (B + C) = x3 */
     
     vli_modSub_fast(t7, X1, X2);  /* t7 = B - x3 */
     vli_modMult_fast(Y2, Y2, t7); /* t4 = (y2 - y1)*(B - x3) */
-    vli_modSub_fast(Y2, Y2, Y1);  /* t4 = y3 */
+    vli_modSub_fast(Y2, Y2, Y1);  /* t4 = (y2 - y1)*(B - x3) - E = y3 */
     
     vli_modSquare_fast(t7, t5);   /* t7 = (y2 + y1)^2 = F */
-    vli_modSub_fast(t7, t7, t6);  /* t7 = x3' */
+    vli_modSub_fast(t7, t7, t6);  /* t7 = F - (B + C) = x3' */
     vli_modSub_fast(t6, t7, X1);  /* t6 = x3' - B */
     vli_modMult_fast(t6, t6, t5); /* t6 = (y2 + y1)*(x3' - B) */
-    vli_modSub_fast(Y1, t6, Y1);  /* t2 = y3' */
+    vli_modSub_fast(Y1, t6, Y1);  /* t2 = (y2 + y1)*(x3' - B) - E = y3' */
     
     vli_set(X1, t7);
 }
