@@ -1582,7 +1582,6 @@ static void EccPoint_mult(EccPoint * RESTRICT result,
     uECC_word_t Rx[2][uECC_WORDS];
     uECC_word_t Ry[2][uECC_WORDS];
     uECC_word_t z[uECC_WORDS];
-    
     bitcount_t i;
     uECC_word_t nb;
     
@@ -1804,6 +1803,7 @@ int uECC_valid_public_key(const uint8_t public_key[uECC_BYTES*2]) {
     uECC_word_t tmp1[uECC_WORDS];
     uECC_word_t tmp2[uECC_WORDS];
     EccPoint public;
+    
     vli_bytesToNative(public.x, public_key);
     vli_bytesToNative(public.y, public_key + uECC_BYTES);
     
@@ -2101,13 +2101,13 @@ static void vli_modMult_n(uECC_word_t *result, const uECC_word_t *left, const uE
     uECC_word_t modMultiple[2 * uECC_WORDS];
     uECC_word_t tmp[2 * uECC_WORDS];
     uECC_word_t *v[2] = {tmp, product};
+    bitcount_t i;
+    uECC_word_t index = 1;
     
     vli_mult(product, left, right);
     vli_set(modMultiple + uECC_WORDS, curve_n); /* works if curve_n has its highest bit set */
     vli_clear(modMultiple);
     
-    bitcount_t i;
-    uECC_word_t index = 1;
     for (i = 0; i <= uECC_BYTES * 8; ++i) {
         uECC_word_t borrow = vli2_sub(v[1 - index], v[index], modMultiple);
         index = !(index ^ borrow); /* Swap the index if there was no borrow */
@@ -2354,12 +2354,10 @@ int uECC_verify(const uint8_t public_key[uECC_BYTES*2],
     uECC_word_t tx[uECC_WORDS];
     uECC_word_t ty[uECC_WORDS];
     uECC_word_t tz[uECC_WORDS];
-    
     const EccPoint *points[4];
     const EccPoint *point;
     bitcount_t numBits;
     bitcount_t i;
-
     uECC_word_t r[uECC_N_WORDS], s[uECC_N_WORDS];
     r[uECC_N_WORDS - 1] = 0;
     s[uECC_N_WORDS - 1] = 0;
