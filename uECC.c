@@ -1615,20 +1615,35 @@ static void EccPoint_mult(EccPoint * RESTRICT result,
     vli_set(result->y, Ry[0]);
 }
 
-static int EccPoint_compute_public_key(EccPoint *result, const uECC_word_t *private) {
+static int EccPoint_compute_public_key(EccPoint *result, uECC_word_t *private) {
+    uECC_word_t tmp1[uECC_WORDS];
+    uECC_word_t tmp2[uECC_WORDS];
+    uECC_word_t *p2[2] = {tmp1, tmp2};
+    uECC_word_t carry;
+
     /* Make sure the private key is in the range [1, n-1]. */
     if (vli_isZero(private)) {
         return 0;
     }
 
-#if uECC_CURVE != uECC_secp160r1
+#if (uECC_CURVE == uECC_secp160r1)
+    // Don't regularize the bitcount for secp160r1, since it would have a larger performance
+    // impact (about 2% slower on average) and requires the vli_xxx_n functions, leading to
+    // a significant increase in code size.
+
+    EccPoint_mult(result, &curve_G, private, 0, vli_numBits(private, uECC_WORDS));
+#else
     if (vli_cmp(curve_n, private) != 1) {
         return 0;
     }
+
+    // Regularize the bitcount for the private key so that attackers cannot use a side channel
+    // attack to learn the number of leading zeros.
+    carry = vli_add(tmp1, private, curve_n);
+    vli_add(tmp2, tmp1, curve_n);
+    EccPoint_mult(result, &curve_G, p2[!carry], 0, (uECC_BYTES * 8) + 1);
 #endif
 
-    /* Compute the public point */
-    EccPoint_mult(result, &curve_G, private, 0, vli_numBits(private, uECC_WORDS));
     if (EccPoint_isZero(result)) {
         return 0;
     }
@@ -1738,9 +1753,12 @@ int uECC_shared_secret(const uint8_t public_key[uECC_BYTES*2],
     EccPoint public;
     EccPoint product;
     uECC_word_t private[uECC_WORDS];
+    uECC_word_t tmp[uECC_WORDS];
+    uECC_word_t *p2[2] = {private, tmp};
     uECC_word_t random[uECC_WORDS];
     uECC_word_t *initial_Z = 0;
     uECC_word_t tries;
+    uECC_word_t carry;
     
     // Try to get a random initial Z value to improve protection against side-channel
     // attacks. If the RNG fails every time (eg it was not defined), we continue so that
@@ -1756,7 +1774,17 @@ int uECC_shared_secret(const uint8_t public_key[uECC_BYTES*2],
     vli_bytesToNative(public.x, public_key);
     vli_bytesToNative(public.y, public_key + uECC_BYTES);
     
+#if (uECC_CURVE == uECC_secp160r1)
+    // Don't regularize the bitcount for secp160r1.
     EccPoint_mult(&product, &public, private, initial_Z, vli_numBits(private, uECC_WORDS));
+#else
+    // Regularize the bitcount for the private key so that attackers cannot use a side channel
+    // attack to learn the number of leading zeros.
+    carry = vli_add(private, private, curve_n);
+    vli_add(tmp, private, curve_n);
+    EccPoint_mult(&product, &public, p2[!carry], initial_Z, (uECC_BYTES * 8) + 1);
+#endif
+
     vli_nativeToBytes(secret, product.x);
     return !EccPoint_isZero(&product);
 }
