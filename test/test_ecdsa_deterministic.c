@@ -19,6 +19,7 @@ int fake_rng(uint8_t *dest, unsigned size) {
 
         unsigned amount = (size > 8 ? 8 : size);
         memcpy(dest, &g_rand, amount);
+        dest += amount;
         size -= amount;
     }
     return 1;
