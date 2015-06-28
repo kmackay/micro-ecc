@@ -30,7 +30,7 @@
     #endif
 #endif
 
-#if (uECC_CURVE == uECC_secp160r1) && (uECC_WORD_SIZE == 8)
+#if (uECC_CURVE == uECC_secp160r1 || uECC_CURVE == uECC_secp224r1) && (uECC_WORD_SIZE == 8)
     #undef uECC_WORD_SIZE
     #define uECC_WORD_SIZE 4
     #if (uECC_PLATFORM == uECC_x86_64)
@@ -89,11 +89,13 @@ typedef int8_t cmpresult_t;
 #define uECC_WORDS_2 24
 #define uECC_WORDS_3 32
 #define uECC_WORDS_4 32
+#define uECC_WORDS_5 28
 
 #define uECC_N_WORDS_1 21
 #define uECC_N_WORDS_2 24
 #define uECC_N_WORDS_3 32
 #define uECC_N_WORDS_4 32
+#define uECC_N_WORDS_5 28
 
 #define Curve_P_1 {0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
@@ -109,6 +111,10 @@ typedef int8_t cmpresult_t;
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+#define Curve_P_5 {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, \
+                   0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, \
+                   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
+                   0xFF, 0xFF, 0xFF, 0xFF}
 
 #define Curve_B_1 {0x45, 0xFA, 0x65, 0xC5, 0xAD, 0xD4, 0xD4, 0x81, \
                    0x9F, 0xF8, 0xAC, 0x65, 0x8B, 0x7A, 0xBD, 0x54, \
@@ -124,6 +130,10 @@ typedef int8_t cmpresult_t;
                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, \
                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, \
                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+#define Curve_B_5 {0xB4, 0xFF, 0x55, 0x23, 0x43, 0x39, 0x0B, 0x27, \
+                   0xBA, 0xD8, 0xBF, 0xD7, 0xB7, 0xB0, 0x44, 0x50, \
+                   0x56, 0x32, 0x41, 0xF5, 0xAB, 0xB3, 0x04, 0x0C, \
+                   0x85, 0x0A, 0x05, 0xB4}
 
 #define Curve_G_1 { \
     {0x82, 0xFC, 0xCB, 0x13, 0xB9, 0x8B, 0xC3, 0x68, \
@@ -161,6 +171,16 @@ typedef int8_t cmpresult_t;
         0xA8, 0x08, 0x11, 0x0E, 0xFC, 0xFB, 0xA4, 0x5D, \
         0x65, 0xC4, 0xA3, 0x26, 0x77, 0xDA, 0x3A, 0x48}}
 
+#define Curve_G_5 { \
+    {0x21, 0x1D, 0x5C, 0x11, 0xD6, 0x80, 0x32, 0x34, \
+        0x22, 0x11, 0xC2, 0x56, 0xD3, 0xC1, 0x03, 0x4A, \
+        0xB9, 0x90, 0x13, 0x32, 0x7F, 0xBF, 0xB4, 0x6B, \
+        0xBD, 0x0C, 0x0E, 0xB7}, \
+    {0x34, 0x7E, 0x00, 0x85, 0x99, 0x81, 0xD5, 0x44, \
+        0x64, 0x47, 0x07, 0x5A, 0xA0, 0x75, 0x43, 0xCD, \
+        0xE6, 0xDF, 0x22, 0x4C, 0xFB, 0x23, 0xF7, 0xB5, \
+        0x88, 0x63, 0x37, 0xBD}}
+
 #define Curve_N_1 {0x57, 0x22, 0x75, 0xCA, 0xD3, 0xAE, 0x27, 0xF9, \
                    0xC8, 0xF4, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, \
                    0x00, 0x00, 0x00, 0x00, 0x01}
@@ -175,6 +195,10 @@ typedef int8_t cmpresult_t;
                    0x3B, 0xA0, 0x48, 0xAF, 0xE6, 0xDC, 0xAE, 0xBA, \
                    0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+#define Curve_N_5 {0x3D, 0x2A, 0x5C, 0x5C, 0x45, 0x29, 0xDD, 0x13, \
+                   0x3E, 0xF0, 0xB8, 0xE0, 0xA2, 0x16, 0xFF, 0xFF, \
+                   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
+                   0xFF, 0xFF, 0xFF, 0xFF}
 
 #elif (uECC_WORD_SIZE == 4)
 
@@ -194,11 +218,13 @@ typedef int cmpresult_t;
 #define uECC_WORDS_2 6
 #define uECC_WORDS_3 8
 #define uECC_WORDS_4 8
+#define uECC_WORDS_5 7
 
 #define uECC_N_WORDS_1 6
 #define uECC_N_WORDS_2 6
 #define uECC_N_WORDS_3 8
 #define uECC_N_WORDS_4 8
+#define uECC_N_WORDS_5 7
 
 #define Curve_P_1 {0x7FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_P_2 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
@@ -206,6 +232,8 @@ typedef int cmpresult_t;
                    0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
 #define Curve_P_4 {0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, \
                    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_P_5 {0x00000001, 0x00000000, 0x00000000, 0xFFFFFFFF, \
+                   0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
 #define Curve_B_1 {0xC565FA45, 0x81D4D4AD, 0x65ACF89F, 0x54BD7A8B, 0x1C97BEFC}
 #define Curve_B_2 {0xC146B9B1, 0xFEB8DEEC, 0x72243049, 0x0FA7E9AB, 0xE59C80E7, 0x64210519}
@@ -213,6 +241,8 @@ typedef int cmpresult_t;
                    0x769886BC, 0xB3EBBD55, 0xAA3A93E7, 0x5AC635D8}
 #define Curve_B_4 {0x00000007, 0x00000000, 0x00000000, 0x00000000, \
                    0x00000000, 0x00000000, 0x00000000, 0x00000000}
+#define Curve_B_5 {0x2355FFB4, 0x270B3943, 0xD7BFD8BA, 0x5044B0B7, \
+                   0xF5413256, 0x0C04B3AB, 0xB4050A85}
 
 #define Curve_G_1 { \
     {0x13CBFC82, 0x68C38BB9, 0x46646989, 0x8EF57328, 0x4A96B568}, \
@@ -234,12 +264,20 @@ typedef int cmpresult_t;
     {0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448,  \
      0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77}}
 
+#define Curve_G_5 { \
+    {0x115C1D21, 0x343280D6, 0x56C21122, 0x4A03C1D3, \
+     0x321390B9, 0x6BB4BF7F, 0xB70E0CBD}, \
+    {0x85007E34, 0x44D58199, 0x5A074764, 0xCD4375A0, \
+     0x4C22DFE6, 0xB5F723FB, 0xBD376388}}
+
 #define Curve_N_1 {0xCA752257, 0xF927AED3, 0x0001F4C8, 0x00000000, 0x00000000, 0x00000001}
 #define Curve_N_2 {0xB4D22831, 0x146BC9B1, 0x99DEF836, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 #define Curve_N_3 {0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, \
                    0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0xFFFFFFFF}
 #define Curve_N_4 {0xD0364141, 0xBFD25E8C, 0xAF48A03B, 0xBAAEDCE6, \
                    0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_N_5 {0x5C5C2A3D, 0x13DD2945, 0xE0B8F03E, 0xFFFF16A2, \
+                   0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
 
 #elif (uECC_WORD_SIZE == 8)
 
@@ -261,11 +299,13 @@ typedef int cmpresult_t;
 #define uECC_WORDS_2 3
 #define uECC_WORDS_3 4
 #define uECC_WORDS_4 4
+#define uECC_WORDS_5 4
 
 #define uECC_N_WORDS_1 3
 #define uECC_N_WORDS_2 3
 #define uECC_N_WORDS_3 4
 #define uECC_N_WORDS_4 4
+#define uECC_N_WORDS_5 4
 
 #define Curve_P_1 {0xFFFFFFFF7FFFFFFFull, 0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull}
 #define Curve_P_2 {0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFEull, 0xFFFFFFFFFFFFFFFFull}
@@ -273,6 +313,8 @@ typedef int cmpresult_t;
                    0x0000000000000000ull, 0xFFFFFFFF00000001ull}
 #define Curve_P_4 {0xFFFFFFFEFFFFFC2Full, 0xFFFFFFFFFFFFFFFFull, \
                    0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull}
+#define Curve_P_5 {0x0000000000000001ull, 0xFFFFFFFF00000000ull, \
+                   0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull}
 
 #define Curve_B_1 {0x81D4D4ADC565FA45ull, 0x54BD7A8B65ACF89Full, 0x000000001C97BEFCull}
 #define Curve_B_2 {0xFEB8DEECC146B9B1ull, 0x0FA7E9AB72243049ull, 0x64210519E59C80E7ull}
@@ -280,6 +322,8 @@ typedef int cmpresult_t;
                    0xB3EBBD55769886BCull, 0x5AC635D8AA3A93E7ull}
 #define Curve_B_4 {0x0000000000000007ull, 0x0000000000000000ull, \
                    0x0000000000000000ull, 0x0000000000000000ull}
+#define Curve_B_5 {0x270B39432355FFB4ull, 0x5044B0B7D7BFD8BAull, \
+                   0x0C04B3ABF5413256ull, 0x00000000B4050A85ull}
 
 #define Curve_G_1 { \
     {0x68C38BB913CBFC82ull, 0x8EF5732846646989ull, 0x000000004A96B568ull}, \
@@ -297,12 +341,18 @@ typedef int cmpresult_t;
     {0x59F2815B16F81798ull, 0x029BFCDB2DCE28D9ull, 0x55A06295CE870B07ull, 0x79BE667EF9DCBBACull}, \
     {0x9C47D08FFB10D4B8ull, 0xFD17B448A6855419ull, 0x5DA4FBFC0E1108A8ull, 0x483ADA7726A3C465ull}}
 
+#define Curve_G_5 { \
+    {0x343280D6115C1D21ull, 0x4A03C1D356C21122ull, 0x6BB4BF7F321390B9ull, 0x00000000B70E0CBDull}, \
+    {0x44D5819985007E34ull, 0xCD4375A05A074764ull, 0xB5F723FB4C22DFE6ull, 0x00000000BD376388ull}}
+
 #define Curve_N_1 {0xF927AED3CA752257ull, 0x000000000001F4C8ull, 0x0000000100000000ull}
 #define Curve_N_2 {0x146BC9B1B4D22831ull, 0xFFFFFFFF99DEF836ull, 0xFFFFFFFFFFFFFFFFull}
 #define Curve_N_3 {0xF3B9CAC2FC632551ull, 0xBCE6FAADA7179E84ull, \
                    0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFF00000000ull}
 #define Curve_N_4 {0xBFD25E8CD0364141ull, 0xBAAEDCE6AF48A03Bull, \
                    0xFFFFFFFFFFFFFFFEull, 0xFFFFFFFFFFFFFFFFull}
+#define Curve_N_5 {0x13DD29455C5C2A3Dull, 0xFFFF16A2E0B8F03Eull, \
+                   0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull}
 
 #endif /* (uECC_WORD_SIZE == 8) */
 
@@ -319,37 +369,37 @@ static const uECC_word_t curve_b[uECC_WORDS] = uECC_CONCAT(Curve_B_, uECC_CURVE)
 static const EccPoint curve_G = uECC_CONCAT(Curve_G_, uECC_CURVE);
 static const uECC_word_t curve_n[uECC_N_WORDS] = uECC_CONCAT(Curve_N_, uECC_CURVE);
 
-static void vli_clear(uECC_word_t *p_vli);
-static uECC_word_t vli_isZero(const uECC_word_t *p_vli);
-static uECC_word_t vli_testBit(const uECC_word_t *p_vli, bitcount_t p_bit);
-static bitcount_t vli_numBits(const uECC_word_t *p_vli, wordcount_t p_maxWords);
-static void vli_set(uECC_word_t *p_dest, const uECC_word_t *p_src);
-static cmpresult_t vli_cmp(const uECC_word_t *p_left, const uECC_word_t *p_right);
-static cmpresult_t vli_equal(const uECC_word_t *p_left, const uECC_word_t *p_right);
-static void vli_rshift1(uECC_word_t *p_vli);
-static uECC_word_t vli_add(uECC_word_t *p_result,
-                           const uECC_word_t *p_left,
-                           const uECC_word_t *p_right);
-static uECC_word_t vli_sub(uECC_word_t *p_result,
-                           const uECC_word_t *p_left,
-                           const uECC_word_t *p_right);
-static void vli_mult(uECC_word_t *p_result, const uECC_word_t *p_left, const uECC_word_t *p_right);
-static void vli_modAdd(uECC_word_t *p_result,
-                       const uECC_word_t *p_left,
-                       const uECC_word_t *p_right,
-                       const uECC_word_t *p_mod);
-static void vli_modSub(uECC_word_t *p_result,
-                       const uECC_word_t *p_left,
-                       const uECC_word_t *p_right,
-                       const uECC_word_t *p_mod);
-static void vli_mmod_fast(uECC_word_t *RESTRICT p_result, uECC_word_t *RESTRICT p_product);
-static void vli_modMult_fast(uECC_word_t *p_result,
-                             const uECC_word_t *p_left,
-                             const uECC_word_t *p_right);
-static void vli_modInv(uECC_word_t *p_result, const uECC_word_t *p_input, const uECC_word_t *p_mod);
+static void vli_clear(uECC_word_t *vli);
+static uECC_word_t vli_isZero(const uECC_word_t *vli);
+static uECC_word_t vli_testBit(const uECC_word_t *vli, bitcount_t bit);
+static bitcount_t vli_numBits(const uECC_word_t *vli, wordcount_t max_words);
+static void vli_set(uECC_word_t *dest, const uECC_word_t *src);
+static cmpresult_t vli_cmp(const uECC_word_t *left, const uECC_word_t *right);
+static cmpresult_t vli_equal(const uECC_word_t *left, const uECC_word_t *right);
+static void vli_rshift1(uECC_word_t *vli);
+static uECC_word_t vli_add(uECC_word_t *result,
+                           const uECC_word_t *left,
+                           const uECC_word_t *right);
+static uECC_word_t vli_sub(uECC_word_t *result,
+                           const uECC_word_t *left,
+                           const uECC_word_t *right);
+static void vli_mult(uECC_word_t *result, const uECC_word_t *left, const uECC_word_t *right);
+static void vli_modAdd(uECC_word_t *result,
+                       const uECC_word_t *left,
+                       const uECC_word_t *right,
+                       const uECC_word_t *mod);
+static void vli_modSub(uECC_word_t *result,
+                       const uECC_word_t *left,
+                       const uECC_word_t *right,
+                       const uECC_word_t *mod);
+static void vli_mmod_fast(uECC_word_t *RESTRICT result, uECC_word_t *RESTRICT product);
+static void vli_modMult_fast(uECC_word_t *result,
+                             const uECC_word_t *left,
+                             const uECC_word_t *right);
+static void vli_modInv(uECC_word_t *result, const uECC_word_t *input, const uECC_word_t *mod);
 #if uECC_SQUARE_FUNC
-static void vli_square(uECC_word_t *p_result, const uECC_word_t *p_left);
-static void vli_modSquare_fast(uECC_word_t *p_result, const uECC_word_t *p_left);
+static void vli_square(uECC_word_t *result, const uECC_word_t *left);
+static void vli_modSquare_fast(uECC_word_t *result, const uECC_word_t *left);
 #endif
 
 #if (defined(_WIN32) || defined(_WIN64))
@@ -1273,6 +1323,118 @@ static void omega_mult(uint64_t * RESTRICT result, const uint64_t * RESTRICT rig
 }
 #endif /* uECC_WORD_SIZE */
 
+#elif uECC_CURVE == uECC_secp224r1
+
+/* Computes result = product % curve_p
+   from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+#if uECC_WORD_SIZE == 1
+void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
+    uint8_t tmp[uECC_WORDS];
+    int8_t carry;
+
+    /* t */
+    vli_set(result, product);
+
+    /* s1 */
+    tmp[0] = tmp[1] = tmp[2] = tmp[3] = 0;
+    tmp[4] = tmp[5] = tmp[6] = tmp[7] = 0;
+    tmp[8] = tmp[9] = tmp[10] = tmp[11] = 0;
+    tmp[12] = product[28]; tmp[13] = product[29]; tmp[14] = product[30]; tmp[15] = product[31];
+    tmp[16] = product[32]; tmp[17] = product[33]; tmp[18] = product[34]; tmp[19] = product[35];
+    tmp[20] = product[36]; tmp[21] = product[37]; tmp[22] = product[38]; tmp[23] = product[39];
+    tmp[24] = product[40]; tmp[25] = product[41]; tmp[26] = product[42]; tmp[27] = product[43];
+    carry = vli_add(result, result, tmp);
+
+    /* s2 */
+    tmp[12] = product[44]; tmp[13] = product[45]; tmp[14] = product[46]; tmp[15] = product[47];
+    tmp[16] = product[48]; tmp[17] = product[49]; tmp[18] = product[50]; tmp[19] = product[51];
+    tmp[20] = product[52]; tmp[21] = product[53]; tmp[22] = product[54]; tmp[23] = product[55];
+    tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
+    carry += vli_add(result, result, tmp);
+
+    /* d1 */
+    tmp[0]  = product[28]; tmp[1]  = product[29]; tmp[2]  = product[30]; tmp[3]  = product[31];
+    tmp[4]  = product[32]; tmp[5]  = product[33]; tmp[6]  = product[34]; tmp[7]  = product[35];
+    tmp[8]  = product[36]; tmp[9]  = product[37]; tmp[10] = product[38]; tmp[11] = product[39];
+    tmp[12] = product[40]; tmp[13] = product[41]; tmp[14] = product[42]; tmp[15] = product[43];
+    tmp[16] = product[44]; tmp[17] = product[45]; tmp[18] = product[46]; tmp[19] = product[47];
+    tmp[20] = product[48]; tmp[21] = product[49]; tmp[22] = product[50]; tmp[23] = product[51];
+    tmp[24] = product[52]; tmp[25] = product[53]; tmp[26] = product[54]; tmp[27] = product[55];
+    carry -= vli_sub(result, result, tmp);
+
+    /* d2 */
+    tmp[0]  = product[44]; tmp[1]  = product[45]; tmp[2]  = product[46]; tmp[3]  = product[47];
+    tmp[4]  = product[48]; tmp[5]  = product[49]; tmp[6]  = product[50]; tmp[7]  = product[51];
+    tmp[8]  = product[52]; tmp[9]  = product[53]; tmp[10] = product[54]; tmp[11] = product[55];
+    tmp[12] = tmp[13] = tmp[14] = tmp[15] = 0;
+    tmp[16] = tmp[17] = tmp[18] = tmp[19] = 0;
+    tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
+    tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
+    carry -= vli_sub(result, result, tmp);
+
+    if (carry < 0) {
+        do {
+            carry += vli_add(result, result, curve_p);
+        } while (carry < 0);
+    } else {
+        while (carry || vli_cmp(curve_p, result) != 1) {
+            carry -= vli_sub(result, result, curve_p);
+        }
+    }
+}
+#elif uECC_WORD_SIZE == 4
+void vli_mmod_fast(uint32_t *RESTRICT result, uint32_t *RESTRICT product)
+{
+    uint32_t tmp[uECC_WORDS];
+    int carry;
+
+    /* t */
+    vli_set(result, product);
+
+    /* s1 */
+    tmp[0] = tmp[1] = tmp[2] = 0;
+    tmp[3] = product[7];
+    tmp[4] = product[8];
+    tmp[5] = product[9];
+    tmp[6] = product[10];
+    carry = vli_add(result, result, tmp);
+
+    /* s2 */
+    tmp[3] = product[11];
+    tmp[4] = product[12];
+    tmp[5] = product[13];
+    tmp[6] = 0;
+    carry += vli_add(result, result, tmp);
+
+    /* d1 */
+    tmp[0] = product[7];
+    tmp[1] = product[8];
+    tmp[2] = product[9];
+    tmp[3] = product[10];
+    tmp[4] = product[11];
+    tmp[5] = product[12];
+    tmp[6] = product[13];
+    carry -= vli_sub(result, result, tmp);
+
+    /* d2 */
+    tmp[0] = product[11];
+    tmp[1] = product[12];
+    tmp[2] = product[13];
+    tmp[3] = tmp[4] = tmp[5] = tmp[6] = 0;
+    carry -= vli_sub(result, result, tmp);
+
+    if (carry < 0) {
+        do {
+            carry += vli_add(result, result, curve_p);
+        } while (carry < 0);
+    } else {
+        while (carry || vli_cmp(curve_p, result) != 1) {
+            carry -= vli_sub(result, result, curve_p);
+        }
+    }
+}
+#endif /* uECC_WORD_SIZE */
+
 #endif /* uECC_CURVE */
 #endif /* !asm_mmod_fast */
 
@@ -1650,6 +1812,123 @@ static int EccPoint_compute_public_key(EccPoint *result, uECC_word_t *private) {
     return 1;
 }
 
+#if uECC_CURVE == uECC_secp224r1
+
+/* Routine 3.2.4 RS;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+static void mod_sqrt_secp224r1_rs(uECC_word_t *d1,
+                                  uECC_word_t *e1,
+                                  uECC_word_t *f1,
+                                  const uECC_word_t *d0,
+                                  const uECC_word_t *e0,
+                                  const uECC_word_t *f0) {
+    uECC_word_t t[uECC_WORDS];
+
+    vli_modSquare_fast(t, d0);                 /* t <-- d0 ^ 2 */
+    vli_modMult_fast(e1, d0, e0);              /* e1 <-- d0 * e0 */
+    vli_modAdd(d1, t, f0, curve_p);            /* d1 <-- t  + f0 */
+    vli_modAdd(e1, e1, e1, curve_p);           /* e1 <-- e1 + e1 */
+    vli_modMult_fast(f1, t, f0);               /* f1 <-- t  * f0 */
+    vli_modAdd(f1, f1, f1, curve_p);           /* f1 <-- f1 + f1 */
+    vli_modAdd(f1, f1, f1, curve_p);           /* f1 <-- f1 + f1 */
+}
+
+/* Routine 3.2.5 RSS;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+static void mod_sqrt_secp224r1_rss(uECC_word_t *d1,
+                                   uECC_word_t *e1,
+                                   uECC_word_t *f1,
+                                   const uECC_word_t *d0,
+                                   const uECC_word_t *e0,
+                                   const uECC_word_t *f0,
+                                   const bitcount_t j) {
+    bitcount_t i;
+
+    vli_set(d1, d0);                           /* d1 <-- d0 */
+    vli_set(e1, e0);                           /* e1 <-- e0 */
+    vli_set(f1, f0);                           /* f1 <-- f0 */
+    for (i = 1; i <= j; i++) {
+        mod_sqrt_secp224r1_rs(d1, e1, f1, d1, e1, f1); /* RS (d1,e1,f1,d1,e1,f1) */
+    }
+}
+
+/* Routine 3.2.6 RM;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+static void mod_sqrt_secp224r1_rm(uECC_word_t *d2,
+                                  uECC_word_t *e2,
+                                  uECC_word_t *f2,
+                                  const uECC_word_t *c,
+                                  const uECC_word_t *d0,
+                                  const uECC_word_t *e0,
+                                  const uECC_word_t *d1,
+                                  const uECC_word_t *e1) {
+    uECC_word_t t1[uECC_WORDS];
+    uECC_word_t t2[uECC_WORDS];
+
+    vli_modMult_fast(t1, e0, e1);              /* t1 <-- e0 * e1 */
+    vli_modMult_fast(t1, t1, c);               /* t1 <-- t1 * c */
+    vli_modSub_fast(t1, curve_p, t1);          /* t1 <-- p  - t1 */
+    vli_modMult_fast(t2, d0, d1);              /* t2 <-- d0 * d1 */
+    vli_modAdd(t2, t2, t1, curve_p);           /* t2 <-- t2 + t1 */
+    vli_modMult_fast(t1, d0, e1);              /* t1 <-- d0 * e1 */
+    vli_modMult_fast(e2, d1, e0);              /* e2 <-- d1 * e0 */
+    vli_modAdd(e2, e2, t1, curve_p);           /* e2 <-- e2 + t1 */
+    vli_modSquare_fast(f2, e2);                /* f2 <-- e2^2 */
+    vli_modMult_fast(f2, f2, c);               /* f2 <-- f2 * c */
+    vli_modSub_fast(f2, curve_p, f2);          /* f2 <-- p  - f2 */
+    vli_set(d2, t2);                           /* d2 <-- t2 */
+}
+
+/* Routine 3.2.7 RP;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+static void mod_sqrt_secp224r1_rp(uECC_word_t *d1,
+                                  uECC_word_t *e1,
+                                  uECC_word_t *f1,
+                                  const uECC_word_t *c,
+                                  const uECC_word_t *r) {
+    wordcount_t i;
+    wordcount_t pow2i = 1;
+    uECC_word_t d0[uECC_WORDS];
+    uECC_word_t e0[uECC_WORDS] = {1};          /* e0 <-- 1 */
+    uECC_word_t f0[uECC_WORDS];
+
+    vli_set(d0, r);                            /* d0 <-- r */
+    vli_modSub_fast(f0, curve_p, c);           /* f0 <-- p  - c */
+    for (i = 0; i <= 6; i++) {
+        mod_sqrt_secp224r1_rss(d1, e1, f1, d0, e0, f0, pow2i); /* RSS (d1,e1,f1,d0,e0,f0,2^i) */
+        mod_sqrt_secp224r1_rm(d1, e1, f1, c, d1, e1, d0, e0);  /* RM (d1,e1,f1,c,d1,e1,d0,e0) */
+        vli_set(d0, d1);                       /* d0 <-- d1 */
+        vli_set(e0, e1);                       /* e0 <-- e1 */
+        vli_set(f0, f1);                       /* f0 <-- f1 */
+        pow2i *= 2;
+    }
+}
+
+/* Compute a = sqrt(a) (mod curve_p). */
+/* Routine 3.2.8 mp_mod_sqrt_224; from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+static void mod_sqrt(uECC_word_t *a) {
+    bitcount_t i;
+    uECC_word_t e1[uECC_WORDS];
+    uECC_word_t f1[uECC_WORDS];
+    uECC_word_t d0[uECC_WORDS];
+    uECC_word_t e0[uECC_WORDS];
+    uECC_word_t f0[uECC_WORDS];
+    uECC_word_t d1[uECC_WORDS];
+
+    // s = a; using constant instead of random value
+    mod_sqrt_secp224r1_rp(d0, e0, f0, a, a);           /* RP (d0, e0, f0, c, s) */
+    mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0);     /* RS (d1, e1, f1, d0, e0, f0) */
+    for (i = 1; i <= 95; i++) {
+        vli_set(d0, d1);                               /* d0 <-- d1 */
+        vli_set(e0, e1);                               /* e0 <-- e1 */
+        vli_set(f0, f1);                               /* f0 <-- f1 */
+        mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0); /* RS (d1, e1, f1, d0, e0, f0) */
+        if (vli_isZero(d1)) {                          /* if d1 == 0 */
+	    break;
+        }
+    }
+    vli_modInv(f1, e0, curve_p);                       /* f1 <-- 1 / e0 */
+    vli_modMult_fast(a, d0, f1);                       /* a  <-- d0 / e0 */
+}
+
+#else /* uECC_CURVE */
+
 /* Compute a = sqrt(a) (mod curve_p). */
 static void mod_sqrt(uECC_word_t *a) {
     bitcount_t i;
@@ -1667,6 +1946,7 @@ static void mod_sqrt(uECC_word_t *a) {
     }
     vli_set(a, l_result);
 }
+#endif /* uECC_CURVE */
 
 #if uECC_WORD_SIZE == 1
 

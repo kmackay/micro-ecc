@@ -37,6 +37,7 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_secp192r1 2
 #define uECC_secp256r1 3
 #define uECC_secp256k1 4
+#define uECC_secp224r1 5
 #ifndef uECC_CURVE
     #define uECC_CURVE uECC_secp160r1
 #endif
@@ -55,6 +56,7 @@ faster by about 8% but increases the code size. */
 #define uECC_size_2 24 /* secp192r1 */
 #define uECC_size_3 32 /* secp256r1 */
 #define uECC_size_4 32 /* secp256k1 */
+#define uECC_size_5 28 /* secp224r1 */
 
 #define uECC_BYTES uECC_CONCAT(uECC_size_, uECC_CURVE)
 

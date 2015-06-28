@@ -1,5 +1,6 @@
 #define DEC_5 4
 #define DEC_6 5
+#define DEC_7 6
 #define DEC_8 7
 
 #define DEC(N) uECC_CONCAT(DEC_, N)
