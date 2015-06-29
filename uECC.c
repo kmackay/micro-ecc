@@ -1328,6 +1328,7 @@ static void omega_mult(uint64_t * RESTRICT result, const uint64_t * RESTRICT rig
 /* Computes result = product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
 #if uECC_WORD_SIZE == 1
+// TODO it may be faster to use the omega_mult method when fully asm optimized.
 void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
     uint8_t tmp[uECC_WORDS];
     int8_t carry;
