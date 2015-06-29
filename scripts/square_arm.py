@@ -8,7 +8,7 @@ if len(sys.argv) < 2:
 
 size = int(sys.argv[1])
 
-if size > 6 and size != 8:
+if size > 8:
     print "This script doesn't work with integer size %s due to laziness" % (size)
     sys.exit(1)
 
@@ -37,8 +37,19 @@ r = [2, 3, 4, 5, 6, 7]
 
 s = size - init_size
 
-# Note that I just implemented the init_size = 2 case directly
-if init_size > 0:
+if init_size == 1:
+    emit("ldmia r1!, {r2}")
+    emit("add r1, %s", (size - init_size * 2) * 4)
+    emit("ldmia r1!, {r5}")
+    
+    emit("add r0, %s", (size - init_size) * 4)
+    emit("umull r8, r9, r2, r5")
+    emit("stmia r0!, {r8, r9}")
+    
+    emit("sub r0, %s", (size + init_size) * 4)
+    emit("sub r1, %s", (size) * 4)
+    print ""
+elif init_size == 2:
     emit("ldmia r1!, {r2, r3}")
     emit("add r1, %s", (size - init_size * 2) * 4)
     emit("ldmia r1!, {r5, r6}")
@@ -66,7 +77,7 @@ if init_size > 0:
     emit("sub r1, %s", (size) * 4)
 
 # load input words
-emit("ldmia r1!, {%s}", ",".join(["r%s" % (r[i]) for i in xrange(s)]))
+emit("ldmia r1!, {%s}", ", ".join(["r%s" % (r[i]) for i in xrange(s)]))
 print ""
 
 emit("umull r11, r12, r2, r2")

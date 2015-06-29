@@ -26,8 +26,8 @@ ry = [6, 7, 8]
 emit("add r0, %s", (size - init_size) * 4) # move z
 emit("add r2, %s", (size - init_size) * 4) # move y
 
-emit("ldmia r1!, {%s}", ",".join(["r%s" % (rx[i]) for i in xrange(init_size)]))
-emit("ldmia r2!, {%s}", ",".join(["r%s" % (ry[i]) for i in xrange(init_size)]))
+emit("ldmia r1!, {%s}", ", ".join(["r%s" % (rx[i]) for i in xrange(init_size)]))
+emit("ldmia r2!, {%s}", ", ".join(["r%s" % (ry[i]) for i in xrange(init_size)]))
 
 print ""
 if init_size == 1:
@@ -84,11 +84,11 @@ emit("sub r0, %s", (2 * init_size + 3) * 4)
 emit("sub r2, %s", (init_size + 3) * 4)
 
 #### load y registers
-emit("ldmia r2!, {%s}", ",".join(["r%s" % (ry[i]) for i in xrange(3)]))
+emit("ldmia r2!, {%s}", ", ".join(["r%s" % (ry[i]) for i in xrange(3)]))
 
 #### load additional x registers
 if init_size != 3:
-    emit("ldmia r1!, {%s}", ",".join(["r%s" % (rx[i]) for i in xrange(init_size, 3)]))
+    emit("ldmia r1!, {%s}", ", ".join(["r%s" % (rx[i]) for i in xrange(init_size, 3)]))
 print ""
 
 prev_size = init_size
