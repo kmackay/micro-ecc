@@ -1921,7 +1921,7 @@ static void mod_sqrt(uECC_word_t *a) {
         vli_set(f0, f1);                               /* f0 <-- f1 */
         mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0); /* RS (d1, e1, f1, d0, e0, f0) */
         if (vli_isZero(d1)) {                          /* if d1 == 0 */
-	    break;
+	        break;
         }
     }
     vli_modInv(f1, e0, curve_p);                       /* f1 <-- 1 / e0 */
