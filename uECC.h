@@ -49,6 +49,12 @@ platform. */
     #define uECC_SUPPORTS_secp256k1 1
 #endif
 
+/* Specifies whether compressed point format is supported.
+   Set to 0 if compressed point is not supported. That saves code size. */
+#ifndef uECC_SUPPORT_COMPRESSED_POINT
+    #define uECC_SUPPORT_COMPRESSED_POINT 0
+#endif
+
 struct uECC_Curve_t;
 typedef const struct uECC_Curve_t * uECC_Curve;
 
@@ -133,6 +139,7 @@ int uECC_shared_secret(const uint8_t *public_key,
                        uint8_t *secret,
                        uECC_Curve curve);
 
+#if uECC_SUPPORT_COMPRESSED_POINT
 /* uECC_compress() function.
 Compress a public key.
 
@@ -154,6 +161,7 @@ Outputs:
     public_key - Will be filled in with the decompressed public key.
 */
 void uECC_decompress(const uint8_t *compressed, uint8_t *public_key, uECC_Curve curve);
+#endif /* uECC_SUPPORT_COMPRESSED_POINT */
 
 /* uECC_valid_public_key() function.
 Check to see if a public key is valid.
