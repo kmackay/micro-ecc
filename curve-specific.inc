@@ -97,6 +97,7 @@ static void double_jacobian_default(uECC_word_t * X1,
     vli_set(Y1, t4, curve->num_words);
 }
 
+#if uECC_SUPPORT_COMPRESSED_POINT
 /* Compute a = sqrt(a) (mod curve_p). */
 static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
     bitcount_t i;
@@ -114,6 +115,7 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
     }
     vli_set(a, l_result, curve->num_words);
 }
+#endif
 
 /* Computes result = x^3 + ax + b. result must not overlap x. */
 static void x_side_default(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve) {
@@ -152,7 +154,9 @@ static const struct uECC_Curve_t curve_secp160r1 = {
         BYTES_TO_WORDS_8(9F, F8, AC, 65, 8B, 7A, BD, 54),
         BYTES_TO_WORDS_4(FC, BE, 97, 1C) },
     &double_jacobian_default,
+#if uECC_SUPPORT_COMPRESSED_POINT
     &mod_sqrt_default,
+#endif
     &x_side_default,
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     &vli_mmod_fast_secp160r1
@@ -295,7 +299,9 @@ static const struct uECC_Curve_t curve_secp192r1 = {
         BYTES_TO_WORDS_8(49, 30, 24, 72, AB, E9, A7, 0F),
         BYTES_TO_WORDS_8(E7, 80, 9C, E5, 19, 05, 21, 64) },
     &double_jacobian_default,
+#if uECC_SUPPORT_COMPRESSED_POINT
     &mod_sqrt_default,
+#endif
     &x_side_default,
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     &vli_mmod_fast_secp192r1
@@ -395,7 +401,9 @@ static void vli_mmod_fast_secp192r1(uint64_t *result, uint64_t *product) {
 
 #if uECC_SUPPORTS_secp224r1
 
+#if uECC_SUPPORT_COMPRESSED_POINT
 static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve);
+#endif
 #if (uECC_OPTIMIZATION_LEVEL > 0)
 static void vli_mmod_fast_secp224r1(uECC_word_t *result, uECC_word_t *product);
 #endif
@@ -426,7 +434,9 @@ static const struct uECC_Curve_t curve_secp224r1 = {
         BYTES_TO_WORDS_8(56, 32, 41, F5, AB, B3, 04, 0C),
         BYTES_TO_WORDS_4(85, 0A, 05, B4) },
     &double_jacobian_default,
+#if uECC_SUPPORT_COMPRESSED_POINT
     &mod_sqrt_secp224r1,
+#endif
     &x_side_default,
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     &vli_mmod_fast_secp224r1
@@ -436,6 +446,7 @@ static const struct uECC_Curve_t curve_secp224r1 = {
 uECC_Curve uECC_secp224r1(void) { return &curve_secp224r1; }
 
 
+#if uECC_SUPPORT_COMPRESSED_POINT
 /* Routine 3.2.4 RS;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
 static void mod_sqrt_secp224r1_rs(uECC_word_t *d1,
                                   uECC_word_t *e1,
@@ -536,7 +547,7 @@ static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
     uECC_word_t f0[num_words_secp224r1];
     uECC_word_t d1[num_words_secp224r1];
 
-    // s = a; using constant instead of random value
+    /* s = a; using constant instead of random value */
     mod_sqrt_secp224r1_rp(d0, e0, f0, a, a);           /* RP (d0, e0, f0, c, s) */
     mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0);     /* RS (d1, e1, f1, d0, e0, f0) */
     for (i = 1; i <= 95; i++) {
@@ -545,12 +556,13 @@ static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
         vli_set(f0, f1, num_words_secp224r1);          /* f0 <-- f1 */
         mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0); /* RS (d1, e1, f1, d0, e0, f0) */
         if (vli_isZero(d1, num_words_secp224r1)) {     /* if d1 == 0 */
-	        break;
+                break;
         }
     }
     vli_modInv(f1, e0, curve_secp224r1.p, num_words_secp224r1); /* f1 <-- 1 / e0 */
     vli_modMult_fast(a, d0, f1, &curve_secp224r1);              /* a  <-- d0 / e0 */
 }
+#endif /* uECC_SUPPORT_COMPRESSED_POINT */
 
 #if (uECC_OPTIMIZATION_LEVEL > 0)
 /* Computes result = product % curve_p
@@ -744,7 +756,9 @@ static const struct uECC_Curve_t curve_secp256r1 = {
         BYTES_TO_WORDS_8(BC, 86, 98, 76, 55, BD, EB, B3),
         BYTES_TO_WORDS_8(E7, 93, 3A, AA, D8, 35, C6, 5A) },
     &double_jacobian_default,
+#if uECC_SUPPORT_COMPRESSED_POINT
     &mod_sqrt_default,
+#endif
     &x_side_default,
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     &vli_mmod_fast_secp256r1
@@ -1077,7 +1091,9 @@ static const struct uECC_Curve_t curve_secp256k1 = {
         BYTES_TO_WORDS_8(00, 00, 00, 00, 00, 00, 00, 00),
         BYTES_TO_WORDS_8(00, 00, 00, 00, 00, 00, 00, 00) },
     &double_jacobian_secp256k1,
+#if uECC_SUPPORT_COMPRESSED_POINT
     &mod_sqrt_default,
+#endif
     &x_side_secp256k1,
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     &vli_mmod_fast_secp256k1
