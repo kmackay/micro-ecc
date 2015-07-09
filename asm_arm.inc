@@ -1247,6 +1247,7 @@ static void vli_mult(uint32_t *result, const uint32_t *left, const uint32_t *rig
 #define asm_mult 1
 #endif /* (uECC_WORDS == 8) */
 
+#if uECC_SQUARE_FUNC
 #if (uECC_WORDS == 5)
 static void vli_square(uint32_t *result, const uint32_t *left) {
     register uint32_t *r0 __asm__("r0") = result;
@@ -2030,6 +2031,7 @@ static void vli_square(uint32_t *result, const uint32_t *left) {
 }
 #define asm_square 1
 #endif /* (uECC_WORDS == 8) */
+#endif /* uECC_SQUARE_FUNC */
 
 #endif /* (uECC_PLATFORM != uECC_arm_thumb) */
 #endif /* (uECC_ASM == uECC_asm_fast) */
