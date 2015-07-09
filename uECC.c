@@ -623,7 +623,7 @@ static uECC_word_t vli_sub(uECC_word_t *result, const uECC_word_t *left, const u
 }
 #endif
 
-#if (!asm_mult || !asm_square || uECC_CURVE == uECC_secp256k1)
+#if (!asm_mult || (uECC_SQUARE_FUNC && !asm_square) || uECC_CURVE == uECC_secp256k1)
 static void muladd(uECC_word_t a,
                    uECC_word_t b,
                    uECC_word_t *r0,
