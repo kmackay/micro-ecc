@@ -5,28 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#if LPC11XX
-
-#include "/Projects/lpc11xx/peripherals/uart.h"
-#include "/Projects/lpc11xx/peripherals/time.h"
-
-static uint64_t g_rand = 88172645463325252ull;
-int fake_rng(uint8_t *dest, unsigned size) {
-    while (size) {
-        g_rand ^= (g_rand << 13);
-        g_rand ^= (g_rand >> 7);
-        g_rand ^= (g_rand << 17);
-
-        unsigned amount = (size > 8 ? 8 : size);
-        memcpy(dest, &g_rand, amount);
-        dest += amount;
-        size -= amount;
-    }
-    return 1;
-}
-
-#endif
-
 #define SHA256_BLOCK_LENGTH  64
 #define SHA256_DIGEST_LENGTH 32
 
@@ -63,17 +41,12 @@ static void finish_SHA256(uECC_HashContext *base, uint8_t *hash_result) {
 }
 
 int main() {
-#if LPC11XX
-    uartInit(BAUD_115200);
-	initTime();
-
-    uECC_set_rng(&fake_rng);
-#endif
+    int i, c;
+    uint8_t private[32] = {0};
+    uint8_t public[64] = {0};
+    uint8_t hash[32] = {0};
+    uint8_t sig[64] = {0};
     
-    uint8_t public[uECC_BYTES * 2];
-    uint8_t private[uECC_BYTES];
-    uint8_t hash[uECC_BYTES];
-    uint8_t sig[uECC_BYTES * 2];
     uint8_t tmp[2 * SHA256_DIGEST_LENGTH + SHA256_BLOCK_LENGTH];
     SHA256_HashContext ctx = {{
         &init_SHA256,
@@ -83,31 +56,38 @@ int main() {
         SHA256_DIGEST_LENGTH,
         tmp
     }};
+
+    const struct uECC_Curve_t * curves[5];
+    curves[0] = uECC_secp160r1();
+    curves[1] = uECC_secp192r1();
+    curves[2] = uECC_secp224r1();
+    curves[3] = uECC_secp256r1();
+    curves[4] = uECC_secp256k1();
     
-    int i;
     printf("Testing 256 signatures\n");
-    for (i = 0; i < 256; ++i) {
-        printf(".");
-    #if !LPC11XX
-        fflush(stdout);
-    #endif
-        
-        if (!uECC_make_key(public, private)) {
-            printf("uECC_make_key() failed\n");
-            continue;
+    for (c = 0; c < 5; ++c) {
+        for (i = 0; i < 256; ++i) {
+            printf(".");
+            fflush(stdout);
+
+            if (!uECC_make_key(public, private, curves[c])) {
+                printf("uECC_make_key() failed\n");
+                return 1;
+            }
+            memcpy(hash, public, sizeof(hash));
+            
+            if (!uECC_sign_deterministic(private, hash, &ctx.uECC, sig, curves[c])) {
+                printf("uECC_sign() failed\n");
+                return 1;
+            }
+
+            if (!uECC_verify(public, hash, sig, curves[c])) {
+                printf("uECC_verify() failed\n");
+                return 1;
+            }
         }
-        memcpy(hash, public, uECC_BYTES);
-        
-        if (!uECC_sign_deterministic(private, hash, &ctx.uECC, sig)) {
-            printf("uECC_sign() failed\n");
-            continue;
-        }
-        
-        if (!uECC_verify(public, hash, sig)) {
-            printf("uECC_verify() failed\n");
-        }
+        printf("\n");
     }
-    printf("\n");
     
     return 0;
 }

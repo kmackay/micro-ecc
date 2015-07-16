@@ -32,38 +32,26 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
     #define uECC_ASM uECC_asm_fast
 #endif
 
-/* Curve selection options. */
-#define uECC_secp160r1 1
-#define uECC_secp192r1 2
-#define uECC_secp256r1 3
-#define uECC_secp256k1 4
-#define uECC_secp224r1 5
-#ifndef uECC_CURVE
-    #define uECC_CURVE uECC_secp160r1
-#endif
-
 /* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be
 used for (scalar) squaring instead of the generic multiplication function. This will make things
 faster by about 8% but increases the code size. */
 #ifndef uECC_SQUARE_FUNC
-    #define uECC_SQUARE_FUNC 1
+    #define uECC_SQUARE_FUNC 0
 #endif
 
-#define uECC_CONCAT1(a, b) a##b
-#define uECC_CONCAT(a, b) uECC_CONCAT1(a, b)
-
-#define uECC_size_1 20 /* secp160r1 */
-#define uECC_size_2 24 /* secp192r1 */
-#define uECC_size_3 32 /* secp256r1 */
-#define uECC_size_4 32 /* secp256k1 */
-#define uECC_size_5 28 /* secp224r1 */
-
-#define uECC_BYTES uECC_CONCAT(uECC_size_, uECC_CURVE)
+struct uECC_Curve_t;
+typedef const struct uECC_Curve_t * const uECC_Curve;
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
+uECC_Curve uECC_secp160r1(void);
+uECC_Curve uECC_secp192r1(void);
+uECC_Curve uECC_secp224r1(void);
+uECC_Curve uECC_secp256r1(void);
+uECC_Curve uECC_secp256k1(void);
 
 /* uECC_RNG_Function type
 The RNG function should fill 'size' random bytes into 'dest'. It should return 1 if
@@ -104,7 +92,7 @@ Outputs:
 
 Returns 1 if the key pair was generated successfully, 0 if an error occurred.
 */
-int uECC_make_key(uint8_t public_key[uECC_BYTES*2], uint8_t private_key[uECC_BYTES]);
+int uECC_make_key(uint8_t *public_key, uint8_t *private_key, uECC_Curve curve);
 
 /* uECC_shared_secret() function.
 Compute a shared secret given your secret key and someone else's public key.
@@ -120,9 +108,59 @@ Outputs:
 
 Returns 1 if the shared secret was generated successfully, 0 if an error occurred.
 */
-int uECC_shared_secret(const uint8_t public_key[uECC_BYTES*2],
-                       const uint8_t private_key[uECC_BYTES],
-                       uint8_t secret[uECC_BYTES]);
+int uECC_shared_secret(const uint8_t *public_key,
+                       const uint8_t *private_key,
+                       uint8_t *secret,
+                       uECC_Curve curve);
+
+/* uECC_compress() function.
+Compress a public key.
+
+Inputs:
+    public_key - The public key to compress.
+
+Outputs:
+    compressed - Will be filled in with the compressed public key.
+*/
+void uECC_compress(const uint8_t *public_key, uint8_t *compressed, uECC_Curve curve);
+
+/* uECC_decompress() function.
+Decompress a compressed public key.
+
+Inputs:
+    compressed - The compressed public key.
+
+Outputs:
+    public_key - Will be filled in with the decompressed public key.
+*/
+void uECC_decompress(const uint8_t *compressed, uint8_t *public_key, uECC_Curve curve);
+
+/* uECC_valid_public_key() function.
+Check to see if a public key is valid.
+
+Note that you are not required to check for a valid public key before using any other uECC
+functions. However, you may wish to avoid spending CPU time computing a shared secret or
+verifying a signature using an invalid public key.
+
+Inputs:
+    public_key - The public key to check.
+
+Returns 1 if the public key is valid, 0 if it is invalid.
+*/
+int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve);
+
+/* uECC_compute_public_key() function.
+Compute the corresponding public key for a private key.
+
+Inputs:
+    private_key - The private key to compute the public key for
+
+Outputs:
+    public_key - Will be filled in with the corresponding public key
+
+Returns 1 if the key was computed successfully, 0 if an error occurred.
+*/
+int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uECC_Curve curve);
 
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
@@ -139,9 +177,10 @@ Outputs:
 
 Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
-int uECC_sign(const uint8_t private_key[uECC_BYTES],
-              const uint8_t message_hash[uECC_BYTES],
-              uint8_t signature[uECC_BYTES*2]);
+int uECC_sign(const uint8_t *private_key,
+              const uint8_t *message_hash,
+              uint8_t *signature,
+              uECC_Curve curve);
 
 /* uECC_HashContext structure.
 This is used to pass in an arbitrary hash function to uECC_sign_deterministic().
@@ -211,10 +250,11 @@ Outputs:
 
 Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
-int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
-                            const uint8_t message_hash[uECC_BYTES],
+int uECC_sign_deterministic(const uint8_t *private_key,
+                            const uint8_t *message_hash,
                             uECC_HashContext *hash_context,
-                            uint8_t signature[uECC_BYTES*2]);
+                            uint8_t *signature,
+                            uECC_Curve curve);
 
 /* uECC_verify() function.
 Verify an ECDSA signature.
@@ -229,70 +269,10 @@ Inputs:
 
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
-int uECC_verify(const uint8_t private_key[uECC_BYTES*2],
-                const uint8_t hash[uECC_BYTES],
-                const uint8_t signature[uECC_BYTES*2]);
-
-/* uECC_compress() function.
-Compress a public key.
-
-Inputs:
-    public_key - The public key to compress.
-
-Outputs:
-    compressed - Will be filled in with the compressed public key.
-*/
-void uECC_compress(const uint8_t public_key[uECC_BYTES*2], uint8_t compressed[uECC_BYTES+1]);
-
-/* uECC_decompress() function.
-Decompress a compressed public key.
-
-Inputs:
-    compressed - The compressed public key.
-
-Outputs:
-    public_key - Will be filled in with the decompressed public key.
-*/
-void uECC_decompress(const uint8_t compressed[uECC_BYTES+1], uint8_t public_key[uECC_BYTES*2]);
-
-/* uECC_valid_public_key() function.
-Check to see if a public key is valid.
-
-Note that you are not required to check for a valid public key before using any other uECC
-functions. However, you may wish to avoid spending CPU time computing a shared secret or
-verifying a signature using an invalid public key.
-
-Inputs:
-    public_key - The public key to check.
-
-Returns 1 if the public key is valid, 0 if it is invalid.
-*/
-int uECC_valid_public_key(const uint8_t public_key[uECC_BYTES*2]);
-
-/* uECC_compute_public_key() function.
-Compute the corresponding public key for a private key.
-
-Inputs:
-    private_key - The private key to compute the public key for
-
-Outputs:
-    public_key - Will be filled in with the corresponding public key
-
-Returns 1 if the key was computed successfully, 0 if an error occurred.
-*/
-int uECC_compute_public_key(const uint8_t private_key[uECC_BYTES],
-                            uint8_t public_key[uECC_BYTES * 2]);
-
-
-/* uECC_bytes() function.
-Returns the value of uECC_BYTES. Helpful for foreign-interfaces to higher-level languages.
-*/
-int uECC_bytes(void);
-
-/* uECC_curve() function.
-Returns the value of uECC_CURVE. Helpful for foreign-interfaces to higher-level languages.
-*/
-int uECC_curve(void);
+int uECC_verify(const uint8_t *private_key,
+                const uint8_t *hash,
+                const uint8_t *signature,
+                uECC_Curve curve);
 
 #ifdef __cplusplus
 } /* end of extern "C" */
