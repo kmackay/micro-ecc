@@ -5,60 +5,66 @@
 #include <stdio.h>
 #include <string.h>
 
-void vli_print(uint8_t *vli, unsigned int size) {
-    while (size) {
-        printf("%02X ", (unsigned)vli[size - 1]);
-        --size;
+void vli_print(char *str, uint8_t *vli, unsigned int size) {
+    printf("%s ", str);
+    for(unsigned i=0; i<size; ++i) {
+        printf("%02X ", (unsigned)vli[i]);
     }
+    printf("\n");
 }
 
 int main() {
     int i;
     int success;
-    uint8_t private[uECC_BYTES];
-    uint8_t public[uECC_BYTES * 2];
-    uint8_t public_computed[uECC_BYTES * 2];
+    uint8_t private[32];
+    uint8_t public[64];
+    uint8_t public_computed[64];
+    
+    int c;
+    
+    const struct uECC_Curve_t * curves[5];
+    curves[0] = uECC_secp160r1();
+    curves[1] = uECC_secp192r1();
+    curves[2] = uECC_secp224r1();
+    curves[3] = uECC_secp256r1();
+    curves[4] = uECC_secp256k1();
 
     printf("Testing 256 random private key pairs\n");
-    for (i = 0; i < 256; ++i) {
-        printf(".");
-    #if !LPC11XX
-        fflush(stdout);
-    #endif
+    for (c = 0; c < 5; ++c) {
+        for (i = 0; i < 256; ++i) {
+            printf(".");
+            fflush(stdout);
+            
+            memset(public, 0, sizeof(public));
+            memset(public_computed, 0, sizeof(public_computed));
+            
+            if (!uECC_make_key(public, private, curves[c])) {
+                printf("uECC_make_key() failed\n");
+                continue;
+            }
 
-        success = uECC_make_key(public, private);
-        if (!success) {
-            printf("uECC_make_key() failed\n");
-            return 1;
-        }
+            if (!uECC_compute_public_key(private, public_computed, curves[c])) {
+                printf("uECC_compute_public_key() failed\n");
+            }
 
-        success = uECC_compute_public_key(private, public_computed);
-        if (!success) {
-            printf("uECC_compute_public_key() failed\n");
+            if (memcmp(public, public_computed, sizeof(public)) != 0) {
+                printf("Computed and provided public keys are not identical!\n");
+                vli_print("Computed public key = ", public_computed, sizeof(public_computed));
+                vli_print("Provided public key = ", public, sizeof(public));
+                vli_print("Private key = ", private, sizeof(private));
+            }
         }
+        
+        printf("\n");
+        printf("Testing private key = 0\n");
 
-        if (memcmp(public, public_computed, sizeof(public)) != 0) {
-            printf("Computed and provided public keys are not identical!\n");
-            printf("Computed public key = ");
-            vli_print(public_computed, uECC_BYTES);
-            printf("\n");
-            printf("Provided public key = ");
-            vli_print(public, uECC_BYTES);
-            printf("\n");
-            printf("Private key = ");
-            vli_print(private, uECC_BYTES);
-            printf("\n");
+        memset(private, 0, sizeof(private));
+        success = uECC_compute_public_key(private, public_computed, curves[c]);
+        if (success) {
+            printf("uECC_compute_public_key() should have failed\n");
         }
+        printf("\n");
     }
-
-    printf("\n");
-    printf("Testing private key = 0\n");
-
-    memset(private, 0, uECC_BYTES);
-    success = uECC_compute_public_key(private, public_computed);
-    if (success) {
-        printf("uECC_compute_public_key() should have failed\n");
-    }
-
+    
     return 0;
 }
