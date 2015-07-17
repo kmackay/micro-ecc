@@ -2446,7 +2446,7 @@ static void vli_square(uint32_t *result, const uint32_t *left) {
         : [r0] "+l" (r0), [r1] "+l" (r1)
         : [eccd] "I" (uECC_WORDS * 4), [eccdm1] "I" ((uECC_WORDS-1) * 4),
           [eccd2m1] "I" ((uECC_WORDS * 2 - 1) * 4)
-        : "r2", "r3", "r4", "r5", "r6", "cc", "memory"
+        : "r2", "r3", "r4", "r5", "r6", "r7", "cc", "memory"
     );
 #endif
 }
