@@ -28,24 +28,8 @@ struct uECC_Curve_t {
                             uECC_Curve curve);
     void (*mod_sqrt)(uECC_word_t *a, uECC_Curve curve);
     void (*x_side)(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve);
+    void (*mmod_fast)(uECC_word_t *result, uECC_word_t *product);
 };
-
-static void double_jacobian_secp256k1(uECC_word_t * X1,
-                                      uECC_word_t * Y1,
-                                      uECC_word_t * Z1,
-                                      uECC_Curve curve);
-static void double_jacobian_default(uECC_word_t * X1,
-                                    uECC_word_t * Y1,
-                                    uECC_word_t * Z1,
-                                    uECC_Curve curve);
-
-static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve);
-static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve);
-
-static void x_side_default(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve);
-static void x_side_secp256k1(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve);
-
-#include "curve-specific.inc"
 
 static uECC_RNG_Function g_rng_function = &default_RNG;
 
@@ -400,9 +384,18 @@ static void vli_modMult(uECC_word_t *result,
     vli_mmod(result, product, mod, num_words);
 }
 
+static void vli_modMult_fast(uECC_word_t *result,
+                             const uECC_word_t *left,
+                             const uECC_word_t *right,
+                             uECC_Curve curve) {
+    uECC_word_t product[2 * uECC_MAX_WORDS];
+    vli_mult(product, left, right, curve->num_words);
+    curve->mmod_fast(result, product);
+}
+
 #if uECC_SQUARE_FUNC
 
-/* Computes result = left^2 % curve_p. */
+/* Computes result = left^2 % mod. */
 static void vli_modSquare(uECC_word_t *result,
                           const uECC_word_t *left,
                           const uECC_word_t *mod,
@@ -412,10 +405,21 @@ static void vli_modSquare(uECC_word_t *result,
     vli_mmod(result, product, mod, num_words);
 }
 
+static void vli_modSquare_fast(uECC_word_t *result,
+                               const uECC_word_t *left,
+                               uECC_Curve curve) {
+    uECC_word_t product[2 * uECC_MAX_WORDS];
+    vli_square(product, left, curve->num_words);
+    curve->mmod_fast(result, product);
+}
+
 #else /* uECC_SQUARE_FUNC */
 
 #define vli_modSquare(result, left, mod, num_words) \
     vli_modMult((result), (left), (left), (mod), (num_words))
+
+#define vli_modSquare_fast(result, left, curve) \
+    vli_modMult_fast((result), (left), (left), (curve))
     
 #endif /* uECC_SQUARE_FUNC */
 
@@ -485,6 +489,8 @@ static void vli_modInv(uECC_word_t *result,
 
 /* ------ Point operations ------ */
 
+#include "curve-specific.inc"
+
 /* Returns 1 if 'point' is the point at infinity, 0 otherwise. */
 static cmpresult_t EccPoint_isZero(const uECC_word_t *point, uECC_Curve curve) {
     return vli_isZero(point, curve->num_words * 2);
@@ -494,91 +500,6 @@ static cmpresult_t EccPoint_isZero(const uECC_word_t *point, uECC_Curve curve) {
 From http://eprint.iacr.org/2011/338.pdf
 */
 
-/* Double in place */
-static void double_jacobian_secp256k1(uECC_word_t * X1,
-                                      uECC_word_t * Y1,
-                                      uECC_word_t * Z1,
-                                      uECC_Curve curve) {
-    /* t1 = X, t2 = Y, t3 = Z */
-    uECC_word_t t4[uECC_MAX_WORDS];
-    uECC_word_t t5[uECC_MAX_WORDS];
-    
-    if (vli_isZero(Z1, curve->num_words)) {
-        return;
-    }
-    
-    vli_modSquare(t5, Y1, curve->p, curve->num_words);   /* t5 = y1^2 */
-    vli_modMult(t4, X1, t5, curve->p, curve->num_words); /* t4 = x1*y1^2 = A */
-    vli_modSquare(X1, X1, curve->p, curve->num_words);   /* t1 = x1^2 */
-    vli_modSquare(t5, t5, curve->p, curve->num_words);   /* t5 = y1^4 */
-    vli_modMult(Z1, Y1, Z1, curve->p, curve->num_words); /* t3 = y1*z1 = z3 */
-    
-    vli_modAdd(Y1, X1, X1, curve->p, curve->num_words); /* t2 = 2*x1^2 */
-    vli_modAdd(Y1, Y1, X1, curve->p, curve->num_words); /* t2 = 3*x1^2 */
-    if (vli_testBit(Y1, 0)) {
-        uECC_word_t carry = vli_add(Y1, Y1, curve->p, curve->num_words);
-        vli_rshift1(Y1, curve->num_words);
-        Y1[curve->num_words - 1] |= carry << (uECC_WORD_BITS - 1);
-    } else {
-        vli_rshift1(Y1, curve->num_words);
-    }
-    /* t2 = 3/2*(x1^2) = B */
-    
-    vli_modSquare(X1, Y1, curve->p, curve->num_words);  /* t1 = B^2 */
-    vli_modSub(X1, X1, t4, curve->p, curve->num_words); /* t1 = B^2 - A */
-    vli_modSub(X1, X1, t4, curve->p, curve->num_words); /* t1 = B^2 - 2A = x3 */
-    
-    vli_modSub(t4, t4, X1, curve->p, curve->num_words);  /* t4 = A - x3 */
-    vli_modMult(Y1, Y1, t4, curve->p, curve->num_words); /* t2 = B * (A - x3) */
-    vli_modSub(Y1, Y1, t5, curve->p, curve->num_words);  /* t2 = B * (A - x3) - y1^4 = y3 */
-}
-
-static void double_jacobian_default(uECC_word_t * X1,
-                                    uECC_word_t * Y1,
-                                    uECC_word_t * Z1,
-                                    uECC_Curve curve) {
-    /* t1 = X, t2 = Y, t3 = Z */
-    uECC_word_t t4[uECC_MAX_WORDS];
-    uECC_word_t t5[uECC_MAX_WORDS];
-    
-    if (vli_isZero(Z1, curve->num_words)) {
-        return;
-    }
-    
-    vli_modSquare(t4, Y1, curve->p, curve->num_words);   /* t4 = y1^2 */
-    vli_modMult(t5, X1, t4, curve->p, curve->num_words); /* t5 = x1*y1^2 = A */
-    vli_modSquare(t4, t4, curve->p, curve->num_words);   /* t4 = y1^4 */
-    vli_modMult(Y1, Y1, Z1, curve->p, curve->num_words); /* t2 = y1*z1 = z3 */
-    vli_modSquare(Z1, Z1, curve->p, curve->num_words);   /* t3 = z1^2 */
-    
-    vli_modAdd(X1, X1, Z1, curve->p, curve->num_words);  /* t1 = x1 + z1^2 */
-    vli_modAdd(Z1, Z1, Z1, curve->p, curve->num_words);  /* t3 = 2*z1^2 */
-    vli_modSub(Z1, X1, Z1, curve->p, curve->num_words);  /* t3 = x1 - z1^2 */
-    vli_modMult(X1, X1, Z1, curve->p, curve->num_words); /* t1 = x1^2 - z1^4 */
-    
-    vli_modAdd(Z1, X1, X1, curve->p, curve->num_words); /* t3 = 2*(x1^2 - z1^4) */
-    vli_modAdd(X1, X1, Z1, curve->p, curve->num_words); /* t1 = 3*(x1^2 - z1^4) */
-    if (vli_testBit(X1, 0)) {
-        uECC_word_t l_carry = vli_add(X1, X1, curve->p, curve->num_words);
-        vli_rshift1(X1, curve->num_words);
-        X1[curve->num_words - 1] |= l_carry << (uECC_WORD_BITS - 1);
-    } else {
-        vli_rshift1(X1, curve->num_words);
-    }
-    /* t1 = 3/2*(x1^2 - z1^4) = B */
-    
-    vli_modSquare(Z1, X1, curve->p, curve->num_words);   /* t3 = B^2 */
-    vli_modSub(Z1, Z1, t5, curve->p, curve->num_words);  /* t3 = B^2 - A */
-    vli_modSub(Z1, Z1, t5, curve->p, curve->num_words);  /* t3 = B^2 - 2A = x3 */
-    vli_modSub(t5, t5, Z1, curve->p, curve->num_words);  /* t5 = A - x3 */
-    vli_modMult(X1, X1, t5, curve->p, curve->num_words); /* t1 = B * (A - x3) */
-    vli_modSub(t4, X1, t4, curve->p, curve->num_words);  /* t4 = B * (A - x3) - y1^4 = y3 */
-    
-    vli_set(X1, Z1, curve->num_words);
-    vli_set(Z1, Y1, curve->num_words);
-    vli_set(Y1, t4, curve->num_words);
-}
-
 /* Modify (x1, y1) => (x1 * z^2, y1 * z^3) */
 static void apply_z(uECC_word_t * X1,
                     uECC_word_t * Y1,
@@ -586,10 +507,10 @@ static void apply_z(uECC_word_t * X1,
                     uECC_Curve curve) {
     uECC_word_t t1[uECC_MAX_WORDS];
 
-    vli_modSquare(t1, Z, curve->p, curve->num_words);    /* z^2 */
-    vli_modMult(X1, X1, t1, curve->p, curve->num_words); /* x1 * z^2 */
-    vli_modMult(t1, t1, Z, curve->p, curve->num_words);  /* z^3 */
-    vli_modMult(Y1, Y1, t1, curve->p, curve->num_words); /* y1 * z^3 */
+    vli_modSquare_fast(t1, Z, curve);    /* z^2 */
+    vli_modMult_fast(X1, X1, t1, curve); /* x1 * z^2 */
+    vli_modMult_fast(t1, t1, Z, curve);  /* z^3 */
+    vli_modMult_fast(Y1, Y1, t1, curve); /* y1 * z^3 */
 }
 
 /* P = (x1, y1) => 2P, (x2, y2) => P' */
@@ -627,20 +548,20 @@ static void XYcZ_add(uECC_word_t * X1,
     /* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
     uECC_word_t t5[uECC_MAX_WORDS];
     
-    vli_modSub(t5, X2, X1, curve->p, curve->num_words);  /* t5 = x2 - x1 */
-    vli_modSquare(t5, t5, curve->p, curve->num_words);   /* t5 = (x2 - x1)^2 = A */
-    vli_modMult(X1, X1, t5, curve->p, curve->num_words); /* t1 = x1*A = B */
-    vli_modMult(X2, X2, t5, curve->p, curve->num_words); /* t3 = x2*A = C */
-    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words);  /* t4 = y2 - y1 */
-    vli_modSquare(t5, Y2, curve->p, curve->num_words);   /* t5 = (y2 - y1)^2 = D */
-    
-    vli_modSub(t5, t5, X1, curve->p, curve->num_words);  /* t5 = D - B */
-    vli_modSub(t5, t5, X2, curve->p, curve->num_words);  /* t5 = D - B - C = x3 */
-    vli_modSub(X2, X2, X1, curve->p, curve->num_words);  /* t3 = C - B */
-    vli_modMult(Y1, Y1, X2, curve->p, curve->num_words); /* t2 = y1*(C - B) */
-    vli_modSub(X2, X1, t5, curve->p, curve->num_words);  /* t3 = B - x3 */
-    vli_modMult(Y2, Y2, X2, curve->p, curve->num_words); /* t4 = (y2 - y1)*(B - x3) */
-    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words);  /* t4 = y3 */
+    vli_modSub(t5, X2, X1, curve->p, curve->num_words); /* t5 = x2 - x1 */
+    vli_modSquare_fast(t5, t5, curve);                  /* t5 = (x2 - x1)^2 = A */
+    vli_modMult_fast(X1, X1, t5, curve);                /* t1 = x1*A = B */
+    vli_modMult_fast(X2, X2, t5, curve);                /* t3 = x2*A = C */
+    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words); /* t4 = y2 - y1 */
+    vli_modSquare_fast(t5, Y2, curve);                  /* t5 = (y2 - y1)^2 = D */
+                                                        
+    vli_modSub(t5, t5, X1, curve->p, curve->num_words); /* t5 = D - B */
+    vli_modSub(t5, t5, X2, curve->p, curve->num_words); /* t5 = D - B - C = x3 */
+    vli_modSub(X2, X2, X1, curve->p, curve->num_words); /* t3 = C - B */
+    vli_modMult_fast(Y1, Y1, X2, curve);                /* t2 = y1*(C - B) */
+    vli_modSub(X2, X1, t5, curve->p, curve->num_words); /* t3 = B - x3 */
+    vli_modMult_fast(Y2, Y2, X2, curve);                /* t4 = (y2 - y1)*(B - x3) */
+    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words); /* t4 = y3 */
     
     vli_set(X2, t5, curve->num_words);
 }
@@ -659,28 +580,28 @@ static void XYcZ_addC(uECC_word_t * X1,
     uECC_word_t t6[uECC_MAX_WORDS];
     uECC_word_t t7[uECC_MAX_WORDS];
     
-    vli_modSub(t5, X2, X1, curve->p, curve->num_words);  /* t5 = x2 - x1 */
-    vli_modSquare(t5, t5, curve->p, curve->num_words);   /* t5 = (x2 - x1)^2 = A */
-    vli_modMult(X1, X1, t5, curve->p, curve->num_words); /* t1 = x1*A = B */
-    vli_modMult(X2, X2, t5, curve->p, curve->num_words); /* t3 = x2*A = C */
-    vli_modAdd(t5, Y2, Y1, curve->p, curve->num_words);  /* t5 = y2 + y1 */
-    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words);  /* t4 = y2 - y1 */
-
-    vli_modSub(t6, X2, X1, curve->p, curve->num_words);  /* t6 = C - B */
-    vli_modMult(Y1, Y1, t6, curve->p, curve->num_words); /* t2 = y1 * (C - B) = E */
-    vli_modAdd(t6, X1, X2, curve->p, curve->num_words);  /* t6 = B + C */
-    vli_modSquare(X2, Y2, curve->p, curve->num_words);   /* t3 = (y2 - y1)^2 = D */
-    vli_modSub(X2, X2, t6, curve->p, curve->num_words);  /* t3 = D - (B + C) = x3 */
-    
-    vli_modSub(t7, X1, X2, curve->p, curve->num_words);  /* t7 = B - x3 */
-    vli_modMult(Y2, Y2, t7, curve->p, curve->num_words); /* t4 = (y2 - y1)*(B - x3) */
-    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words);  /* t4 = (y2 - y1)*(B - x3) - E = y3 */
-    
-    vli_modSquare(t7, t5, curve->p, curve->num_words);   /* t7 = (y2 + y1)^2 = F */
-    vli_modSub(t7, t7, t6, curve->p, curve->num_words);  /* t7 = F - (B + C) = x3' */
-    vli_modSub(t6, t7, X1, curve->p, curve->num_words);  /* t6 = x3' - B */
-    vli_modMult(t6, t6, t5, curve->p, curve->num_words); /* t6 = (y2 + y1)*(x3' - B) */
-    vli_modSub(Y1, t6, Y1, curve->p, curve->num_words);  /* t2 = (y2 + y1)*(x3' - B) - E = y3' */
+    vli_modSub(t5, X2, X1, curve->p, curve->num_words); /* t5 = x2 - x1 */
+    vli_modSquare_fast(t5, t5, curve);                  /* t5 = (x2 - x1)^2 = A */
+    vli_modMult_fast(X1, X1, t5, curve);                /* t1 = x1*A = B */
+    vli_modMult_fast(X2, X2, t5, curve);                /* t3 = x2*A = C */
+    vli_modAdd(t5, Y2, Y1, curve->p, curve->num_words); /* t5 = y2 + y1 */
+    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words); /* t4 = y2 - y1 */
+                                                        
+    vli_modSub(t6, X2, X1, curve->p, curve->num_words); /* t6 = C - B */
+    vli_modMult_fast(Y1, Y1, t6, curve);                /* t2 = y1 * (C - B) = E */
+    vli_modAdd(t6, X1, X2, curve->p, curve->num_words); /* t6 = B + C */
+    vli_modSquare_fast(X2, Y2, curve);                  /* t3 = (y2 - y1)^2 = D */
+    vli_modSub(X2, X2, t6, curve->p, curve->num_words); /* t3 = D - (B + C) = x3 */
+                                                        
+    vli_modSub(t7, X1, X2, curve->p, curve->num_words); /* t7 = B - x3 */
+    vli_modMult_fast(Y2, Y2, t7, curve);                /* t4 = (y2 - y1)*(B - x3) */
+    vli_modSub(Y2, Y2, Y1, curve->p, curve->num_words); /* t4 = (y2 - y1)*(B - x3) - E = y3 */
+                                                        
+    vli_modSquare_fast(t7, t5, curve);                  /* t7 = (y2 + y1)^2 = F */
+    vli_modSub(t7, t7, t6, curve->p, curve->num_words); /* t7 = F - (B + C) = x3' */
+    vli_modSub(t6, t7, X1, curve->p, curve->num_words); /* t6 = x3' - B */
+    vli_modMult_fast(t6, t6, t5, curve);                /* t6 = (y2 + y1)*(x3' - B) */
+    vli_modSub(Y1, t6, Y1, curve->p, curve->num_words); /* t2 = (y2 + y1)*(x3' - B) - E = y3' */
     
     vli_set(X1, t7, curve->num_words);
 }
@@ -714,13 +635,13 @@ static void EccPoint_mult(uECC_word_t * result,
     XYcZ_addC(Rx[1 - nb], Ry[1 - nb], Rx[nb], Ry[nb], curve);
     
     /* Find final 1/Z value. */
-    vli_modSub(z, Rx[1], Rx[0], curve->p, curve->num_words);   /* X1 - X0 */
-    vli_modMult(z, z, Ry[1 - nb], curve->p, curve->num_words); /* Yb * (X1 - X0) */
-    vli_modMult(z, z, point, curve->p, curve->num_words); /* xP * Yb * (X1 - X0) */
-    vli_modInv(z, z, curve->p, curve->num_words);          /* 1 / (xP * Yb * (X1 - X0)) */
+    vli_modSub(z, Rx[1], Rx[0], curve->p, curve->num_words); /* X1 - X0 */
+    vli_modMult_fast(z, z, Ry[1 - nb], curve);               /* Yb * (X1 - X0) */
+    vli_modMult_fast(z, z, point, curve);                    /* xP * Yb * (X1 - X0) */
+    vli_modInv(z, z, curve->p, curve->num_words);            /* 1 / (xP * Yb * (X1 - X0)) */
     /* yP / (xP * Yb * (X1 - X0)) */
-    vli_modMult(z, z, point + curve->num_words, curve->p, curve->num_words); 
-    vli_modMult(z, z, Rx[1 - nb], curve->p, curve->num_words); /* Xb * yP / (xP * Yb * (X1 - X0)) */
+    vli_modMult_fast(z, z, point + curve->num_words, curve); 
+    vli_modMult_fast(z, z, Rx[1 - nb], curve); /* Xb * yP / (xP * Yb * (X1 - X0)) */
     /* End 1/Z calculation */
 
     XYcZ_add(Rx[nb], Ry[nb], Rx[1 - nb], Ry[1 - nb], curve);
@@ -771,140 +692,6 @@ static uECC_word_t EccPoint_compute_public_key(uECC_word_t *result,
         return 0;
     }
     return 1;
-}
-
-/* Compute a = sqrt(a) (mod curve_p). */
-static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
-    bitcount_t i;
-    uECC_word_t p1[uECC_MAX_WORDS] = {1};
-    uECC_word_t l_result[uECC_MAX_WORDS] = {1};
-    
-    /* When curve->p == 3 (mod 4), we can compute
-       sqrt(a) = a^((curve->p + 1) / 4) (mod curve->p). */
-    vli_add(p1, curve->p, p1, curve->num_words); /* p1 = curve_p + 1 */
-    for (i = vli_numBits(p1, curve->num_words) - 1; i > 1; --i) {
-        vli_modSquare(l_result, l_result, curve->p, curve->num_words);
-        if (vli_testBit(p1, i)) {
-            vli_modMult(l_result, l_result, a, curve->p, curve->num_words);
-        }
-    }
-    vli_set(a, l_result, curve->num_words);
-}
-
-/* Routine 3.2.4 RS;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void mod_sqrt_secp224r1_rs(uECC_word_t *d1,
-                                  uECC_word_t *e1,
-                                  uECC_word_t *f1,
-                                  const uECC_word_t *d0,
-                                  const uECC_word_t *e0,
-                                  const uECC_word_t *f0) {
-    uECC_word_t t[uECC_MAX_WORDS];
-
-    vli_modSquare(t, d0, curve_secp224r1.p, num_words_secp224r1);    /* t <-- d0 ^ 2 */
-    vli_modMult(e1, d0, e0, curve_secp224r1.p, num_words_secp224r1); /* e1 <-- d0 * e0 */
-    vli_modAdd(d1, t, f0, curve_secp224r1.p, num_words_secp224r1);   /* d1 <-- t  + f0 */
-    vli_modAdd(e1, e1, e1, curve_secp224r1.p, num_words_secp224r1);  /* e1 <-- e1 + e1 */
-    vli_modMult(f1, t, f0, curve_secp224r1.p, num_words_secp224r1);  /* f1 <-- t  * f0 */
-    vli_modAdd(f1, f1, f1, curve_secp224r1.p, num_words_secp224r1);  /* f1 <-- f1 + f1 */
-    vli_modAdd(f1, f1, f1, curve_secp224r1.p, num_words_secp224r1);  /* f1 <-- f1 + f1 */
-}
-
-/* Routine 3.2.5 RSS;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void mod_sqrt_secp224r1_rss(uECC_word_t *d1,
-                                   uECC_word_t *e1,
-                                   uECC_word_t *f1,
-                                   const uECC_word_t *d0,
-                                   const uECC_word_t *e0,
-                                   const uECC_word_t *f0,
-                                   const bitcount_t j) {
-    bitcount_t i;
-
-    vli_set(d1, d0, num_words_secp224r1); /* d1 <-- d0 */
-    vli_set(e1, e0, num_words_secp224r1); /* e1 <-- e0 */
-    vli_set(f1, f0, num_words_secp224r1); /* f1 <-- f0 */
-    for (i = 1; i <= j; i++) {
-        mod_sqrt_secp224r1_rs(d1, e1, f1, d1, e1, f1); /* RS (d1,e1,f1,d1,e1,f1) */
-    }
-}
-
-/* Routine 3.2.6 RM;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void mod_sqrt_secp224r1_rm(uECC_word_t *d2,
-                                  uECC_word_t *e2,
-                                  uECC_word_t *f2,
-                                  const uECC_word_t *c,
-                                  const uECC_word_t *d0,
-                                  const uECC_word_t *e0,
-                                  const uECC_word_t *d1,
-                                  const uECC_word_t *e1) {
-    uECC_word_t t1[uECC_MAX_WORDS];
-    uECC_word_t t2[uECC_MAX_WORDS];
-
-    vli_modMult(t1, e0, e1, curve_secp224r1.p, num_words_secp224r1);     /* t1 <-- e0 * e1 */
-    vli_modMult(t1, t1, c, curve_secp224r1.p, num_words_secp224r1);      /* t1 <-- t1 * c */
-    /* t1 <-- p  - t1 */
-    vli_modSub(t1, curve_secp224r1.p, t1, curve_secp224r1.p, num_words_secp224r1);
-    vli_modMult(t2, d0, d1, curve_secp224r1.p, num_words_secp224r1);     /* t2 <-- d0 * d1 */
-    vli_modAdd(t2, t2, t1, curve_secp224r1.p, num_words_secp224r1);      /* t2 <-- t2 + t1 */
-    vli_modMult(t1, d0, e1, curve_secp224r1.p, num_words_secp224r1);     /* t1 <-- d0 * e1 */
-    vli_modMult(e2, d1, e0, curve_secp224r1.p, num_words_secp224r1);     /* e2 <-- d1 * e0 */
-    vli_modAdd(e2, e2, t1, curve_secp224r1.p, num_words_secp224r1);      /* e2 <-- e2 + t1 */
-    vli_modSquare(f2, e2, curve_secp224r1.p, num_words_secp224r1);       /* f2 <-- e2^2 */
-    vli_modMult(f2, f2, c, curve_secp224r1.p, num_words_secp224r1);      /* f2 <-- f2 * c */
-    /* f2 <-- p  - f2 */
-    vli_modSub(f2, curve_secp224r1.p, f2, curve_secp224r1.p, num_words_secp224r1);
-    vli_set(d2, t2, num_words_secp224r1);                                 /* d2 <-- t2 */
-}
-
-/* Routine 3.2.7 RP;  from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void mod_sqrt_secp224r1_rp(uECC_word_t *d1,
-                                  uECC_word_t *e1,
-                                  uECC_word_t *f1,
-                                  const uECC_word_t *c,
-                                  const uECC_word_t *r) {
-    wordcount_t i;
-    wordcount_t pow2i = 1;
-    uECC_word_t d0[uECC_MAX_WORDS];
-    uECC_word_t e0[uECC_MAX_WORDS] = {1};          /* e0 <-- 1 */
-    uECC_word_t f0[uECC_MAX_WORDS];
-
-    vli_set(d0, r, num_words_secp224r1); /* d0 <-- r */
-    /* f0 <-- p  - c */
-    vli_modSub(f0, curve_secp224r1.p, c, curve_secp224r1.p, num_words_secp224r1);
-    for (i = 0; i <= 6; i++) {
-        mod_sqrt_secp224r1_rss(d1, e1, f1, d0, e0, f0, pow2i); /* RSS (d1,e1,f1,d0,e0,f0,2^i) */
-        mod_sqrt_secp224r1_rm(d1, e1, f1, c, d1, e1, d0, e0);  /* RM (d1,e1,f1,c,d1,e1,d0,e0) */
-        vli_set(d0, d1, num_words_secp224r1); /* d0 <-- d1 */
-        vli_set(e0, e1, num_words_secp224r1); /* e0 <-- e1 */
-        vli_set(f0, f1, num_words_secp224r1); /* f0 <-- f1 */
-        pow2i *= 2;
-    }
-}
-
-/* Compute a = sqrt(a) (mod curve_p). */
-/* Routine 3.2.8 mp_mod_sqrt_224; from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
-    bitcount_t i;
-    uECC_word_t e1[uECC_MAX_WORDS];
-    uECC_word_t f1[uECC_MAX_WORDS];
-    uECC_word_t d0[uECC_MAX_WORDS];
-    uECC_word_t e0[uECC_MAX_WORDS];
-    uECC_word_t f0[uECC_MAX_WORDS];
-    uECC_word_t d1[uECC_MAX_WORDS];
-
-    // s = a; using constant instead of random value
-    mod_sqrt_secp224r1_rp(d0, e0, f0, a, a);           /* RP (d0, e0, f0, c, s) */
-    mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0);     /* RS (d1, e1, f1, d0, e0, f0) */
-    for (i = 1; i <= 95; i++) {
-        vli_set(d0, d1, num_words_secp224r1);          /* d0 <-- d1 */
-        vli_set(e0, e1, num_words_secp224r1);          /* e0 <-- e1 */
-        vli_set(f0, f1, num_words_secp224r1);          /* f0 <-- f1 */
-        mod_sqrt_secp224r1_rs(d1, e1, f1, d0, e0, f0); /* RS (d1, e1, f1, d0, e0, f0) */
-        if (vli_isZero(d1, num_words_secp224r1)) {     /* if d1 == 0 */
-	        break;
-        }
-    }
-    vli_modInv(f1, e0, curve_secp224r1.p, num_words_secp224r1);     /* f1 <-- 1 / e0 */
-    vli_modMult(a, d0, f1, curve_secp224r1.p, num_words_secp224r1); /* a  <-- d0 / e0 */
 }
 
 #if uECC_WORD_SIZE == 1
@@ -1055,23 +842,6 @@ void uECC_compress(const uint8_t *public_key, uint8_t *compressed, uECC_Curve cu
     compressed[0] = 2 + (public_key[curve->num_bytes * 2 - 1] & 0x01);
 }
 
-/* Computes result = x^3 + ax + b. result must not overlap x. */
-static void x_side_default(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve) {
-    uECC_word_t _3[uECC_MAX_WORDS] = {3}; /* -a = 3 */
-
-    vli_modSquare(result, x, curve->p, curve->num_words);             /* r = x^2 */
-    vli_modSub(result, result, _3, curve->p, curve->num_words);       /* r = x^2 - 3 */
-    vli_modMult(result, result, x, curve->p, curve->num_words);       /* r = x^3 - 3x */
-    vli_modAdd(result, result, curve->b, curve->p, curve->num_words); /* r = x^3 - 3x + b */
-}
-
-/* Computes result = x^3 + b. result must not overlap x. */
-static void x_side_secp256k1(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve) {
-    vli_modSquare(result, x, curve->p, curve->num_words);             /* r = x^2 */
-    vli_modMult(result, result, x, curve->p, curve->num_words);       /* r = x^3 */
-    vli_modAdd(result, result, curve->b, curve->p, curve->num_words); /* r = x^3 + b */
-}
-
 void uECC_decompress(const uint8_t *compressed, uint8_t *public_key, uECC_Curve curve) {
     uECC_word_t point[uECC_MAX_WORDS * 2];
     uECC_word_t *y = point + curve->num_words;
@@ -1106,7 +876,7 @@ int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve) {
         return 0;
     }
     
-    vli_modSquare(tmp1, public + curve->num_words, curve->p, curve->num_words);
+    vli_modSquare_fast(tmp1, public + curve->num_words, curve);
     curve->x_side(tmp2, public, curve); /* tmp2 = x^3 + ax + b */
     
     /* Make sure that y^2 == x^3 + ax + b */
@@ -1175,7 +945,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
 got_random:
     /* Prevent side channel analysis of vli_modInv() to determine
        bits of k / the private key by premultiplying by a random number */
-    vli_modMult(k, k, tmp, curve->n, curve->num_n_words);   /* k' = rand * k */
+    vli_modMult(k, k, tmp, curve->n, curve->num_n_words); /* k' = rand * k */
     vli_modInv(k, k, curve->n, curve->num_n_words);       /* k = 1 / k' */
     vli_modMult(k, k, tmp, curve->n, curve->num_n_words); /* k = 1 / k */
     
@@ -1418,7 +1188,7 @@ int uECC_verify(const uint8_t *public_key,
             apply_z(tx, ty, z, curve);
             vli_modSub(tz, rx, tx, curve->p, curve->num_words); /* Z = x2 - x1 */
             XYcZ_add(tx, ty, rx, ry, curve);
-            vli_modMult(z, z, tz, curve->p, curve->num_words);
+            vli_modMult_fast(z, z, tz, curve);
         }
     }
 
