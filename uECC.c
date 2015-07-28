@@ -31,13 +31,20 @@ struct uECC_Curve_t {
     void (*mmod_fast)(uECC_word_t *result, uECC_word_t *product);
 };
 
+#if (uECC_ASM == uECC_asm_small)
+    #if (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
+            uECC_PLATFORM == uECC_arm_thumb2)
+        #include "asm_arm_small.inc"
+    #endif
+#endif
+
 static uECC_RNG_Function g_rng_function = &default_RNG;
 
 void uECC_set_rng(uECC_RNG_Function rng_function) {
     g_rng_function = rng_function;
 }
 
-static void vli_clear(uECC_word_t *vli, const wordcount_t num_words) {
+static void vli_clear(uECC_word_t *vli, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         vli[i] = 0;
@@ -45,7 +52,7 @@ static void vli_clear(uECC_word_t *vli, const wordcount_t num_words) {
 }
 
 /* Returns 1 if vli == 0, 0 otherwise. */
-static uECC_word_t vli_isZero(const uECC_word_t *vli, const wordcount_t num_words) {
+static uECC_word_t vli_isZero(const uECC_word_t *vli, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         if (vli[i]) {
@@ -90,7 +97,7 @@ static bitcount_t vli_numBits(const uECC_word_t *vli, const wordcount_t max_word
 }
 
 /* Sets dest = src. */
-static void vli_set(uECC_word_t *dest, const uECC_word_t *src, const wordcount_t num_words) {
+static void vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         dest[i] = src[i];
@@ -100,7 +107,7 @@ static void vli_set(uECC_word_t *dest, const uECC_word_t *src, const wordcount_t
 /* Returns sign of left - right. */
 static cmpresult_t vli_cmp(const uECC_word_t *left,
                            const uECC_word_t *right,
-                           const wordcount_t num_words) {
+                           wordcount_t num_words) {
     swordcount_t i;
     for (i = num_words - 1; i >= 0; --i) {
         if (left[i] > right[i]) {
@@ -113,7 +120,7 @@ static cmpresult_t vli_cmp(const uECC_word_t *left,
 }
 
 /* Computes vli = vli >> 1. */
-static void vli_rshift1(uECC_word_t *vli, const wordcount_t num_words) {
+static void vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     uECC_word_t *end = vli;
     uECC_word_t carry = 0;
     
@@ -126,10 +133,11 @@ static void vli_rshift1(uECC_word_t *vli, const wordcount_t num_words) {
 }
 
 /* Computes result = left + right, returning carry. Can modify in place. */
+#if !asm_add
 static uECC_word_t vli_add(uECC_word_t *result,
                            const uECC_word_t *left,
                            const uECC_word_t *right,
-                           const wordcount_t num_words) {
+                           wordcount_t num_words) {
     uECC_word_t carry = 0;
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
@@ -141,12 +149,14 @@ static uECC_word_t vli_add(uECC_word_t *result,
     }
     return carry;
 }
+#endif /* !asm_add */
 
 /* Computes result = left - right, returning borrow. Can modify in place. */
+#if !asm_sub
 static uECC_word_t vli_sub(uECC_word_t *result,
                            const uECC_word_t *left,
                            const uECC_word_t *right,
-                           const wordcount_t num_words) {
+                           wordcount_t num_words) {
     uECC_word_t borrow = 0;
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
@@ -158,6 +168,7 @@ static uECC_word_t vli_sub(uECC_word_t *result,
     }
     return borrow;
 }
+#endif /* !asm_sub */
 
 static void muladd(uECC_word_t a,
                    uECC_word_t b,
@@ -199,10 +210,11 @@ static void muladd(uECC_word_t a,
 #endif
 }
 
+#if !asm_mult
 static void vli_mult(uECC_word_t *result,
                      const uECC_word_t *left,
                      const uECC_word_t *right,
-                     const wordcount_t num_words) {
+                     wordcount_t num_words) {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
     uECC_word_t r2 = 0;
@@ -229,6 +241,7 @@ static void vli_mult(uECC_word_t *result,
     }
     result[num_words * 2 - 1] = r0;
 }
+#endif /* !asm_mult */
 
 #if uECC_SQUARE_FUNC
 
@@ -279,7 +292,8 @@ static void mul2add(uECC_word_t a,
 #endif
 }
 
-static void vli_square(uECC_word_t *result, const uECC_word_t *left, const wordcount_t num_words) {
+#if !asm_square
+static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t num_words) {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
     uECC_word_t r2 = 0;
@@ -303,6 +317,7 @@ static void vli_square(uECC_word_t *result, const uECC_word_t *left, const wordc
     
     result[num_words * 2 - 1] = r0;
 }
+#endif /* !asm_square */
 
 #else /* uECC_SQUARE_FUNC */
 
@@ -316,7 +331,7 @@ static void vli_modAdd(uECC_word_t *result,
                        const uECC_word_t *left,
                        const uECC_word_t *right,
                        const uECC_word_t *mod,
-                       const wordcount_t num_words) {
+                       wordcount_t num_words) {
     uECC_word_t carry = vli_add(result, left, right, num_words);
     if (carry || vli_cmp(result, mod, num_words) >= 0) {
         /* result > mod (result = mod + remainder), so subtract mod to get remainder. */
@@ -330,7 +345,7 @@ static void vli_modSub(uECC_word_t *result,
                        const uECC_word_t *left,
                        const uECC_word_t *right,
                        const uECC_word_t *mod,
-                       const wordcount_t num_words) {
+                       wordcount_t num_words) {
     uECC_word_t l_borrow = vli_sub(result, left, right, num_words);
     if (l_borrow) {
         /* In this case, result == -diff == (max int) - diff. Since -x % d == d - x,
@@ -344,7 +359,7 @@ static void vli_modSub(uECC_word_t *result,
 static void vli_mmod(uECC_word_t *result,
                      uECC_word_t *product,
                      const uECC_word_t *mod,
-                     const wordcount_t num_words) {
+                     wordcount_t num_words) {
     uECC_word_t mod_multiple[2 * uECC_MAX_WORDS];
     uECC_word_t tmp[2 * uECC_MAX_WORDS];
     uECC_word_t *v[2] = {tmp, product};
@@ -378,7 +393,7 @@ static void vli_modMult(uECC_word_t *result,
                         const uECC_word_t *left,
                         const uECC_word_t *right,
                         const uECC_word_t *mod,
-                        const wordcount_t num_words) {
+                        wordcount_t num_words) {
     uECC_word_t product[2 * uECC_MAX_WORDS];
     vli_mult(product, left, right, num_words);
     vli_mmod(result, product, mod, num_words);
@@ -399,7 +414,7 @@ static void vli_modMult_fast(uECC_word_t *result,
 static void vli_modSquare(uECC_word_t *result,
                           const uECC_word_t *left,
                           const uECC_word_t *mod,
-                          const wordcount_t num_words) {
+                          wordcount_t num_words) {
     uECC_word_t product[2 * uECC_MAX_WORDS];
     vli_square(product, left, num_words);
     vli_mmod(result, product, mod, num_words);
@@ -430,7 +445,7 @@ static void vli_modSquare_fast(uECC_word_t *result,
 
 static void vli_modInv_update(uECC_word_t *uv,
                               const uECC_word_t *mod,
-                              const wordcount_t num_words) {
+                              wordcount_t num_words) {
     uECC_word_t carry = 0;
     if (!EVEN(uv)) {
         carry = vli_add(uv, uv, mod, num_words);
@@ -444,7 +459,7 @@ static void vli_modInv_update(uECC_word_t *uv,
 static void vli_modInv(uECC_word_t *result,
                        const uECC_word_t *input,
                        const uECC_word_t *mod,
-                       const wordcount_t num_words) {
+                       wordcount_t num_words) {
     uECC_word_t a[uECC_MAX_WORDS], b[uECC_MAX_WORDS], u[uECC_MAX_WORDS], v[uECC_MAX_WORDS];
     cmpresult_t cmpResult;
     
@@ -751,7 +766,7 @@ static void vli_bytesToNative(uint64_t *native, const uint8_t *bytes, uECC_Curve
 /* Generate a random integer with num_bits bits. The remaining high bits
    in the buffer (if any) are zeroed. */
 static cmpresult_t generate_random_int(uECC_word_t *random,
-                                       const wordcount_t num_words,
+                                       wordcount_t num_words,
                                        const wordcount_t num_bits) {
     if (!g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
         return 0;

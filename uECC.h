@@ -13,34 +13,17 @@ Possible values for uECC_PLATFORM are defined below: */
 #define uECC_x86_64     2
 #define uECC_arm        3
 #define uECC_arm_thumb  4
-#define uECC_avr        5
-#define uECC_arm_thumb2 6
+#define uECC_arm_thumb2 5
+#define uECC_arm64      6
+#define uECC_avr        7
+
 
 /* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 4, or 8 bytes).
 If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your
 platform. */
 
-/* Inline assembly options.
-uECC_asm_none  - Use standard C99 only.
-uECC_asm_small - Use GCC inline assembly for the target platform (if available), optimized for
-                 minimum size.
-uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
-#define uECC_asm_none  0
-#define uECC_asm_small 1
-#define uECC_asm_fast  2
-#ifndef uECC_ASM
-    #define uECC_ASM uECC_asm_fast
-#endif
-
-/* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be
-used for (scalar) squaring instead of the generic multiplication function. This will make things
-faster by about 8% but increases the code size. */
-#ifndef uECC_SQUARE_FUNC
-    #define uECC_SQUARE_FUNC 0
-#endif
-
 struct uECC_Curve_t;
-typedef const struct uECC_Curve_t * const uECC_Curve;
+typedef const struct uECC_Curve_t * uECC_Curve;
 
 #ifdef __cplusplus
 extern "C"
