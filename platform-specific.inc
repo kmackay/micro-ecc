@@ -7,6 +7,8 @@
         #define uECC_PLATFORM uECC_arm_thumb
     #elif defined(__arm__) || defined(_M_ARM)
         #define uECC_PLATFORM uECC_arm
+    #elif defined(__aarch64__)
+        #define uECC_PLATFORM uECC_arm64
     #elif defined(__i386__) || defined(_M_IX86) || defined(_X86_) || defined(__I86__)
         #define uECC_PLATFORM uECC_x86
     #elif defined(__amd64__) || defined(_M_X64)
@@ -19,7 +21,7 @@
 #ifndef uECC_WORD_SIZE
     #if uECC_PLATFORM == uECC_avr
         #define uECC_WORD_SIZE 1
-    #elif (uECC_PLATFORM == uECC_x86_64)
+    #elif (uECC_PLATFORM == uECC_x86_64 || uECC_PLATFORM == uECC_arm64)
         #define uECC_WORD_SIZE 8
     #else
         #define uECC_WORD_SIZE 4
@@ -29,6 +31,19 @@
 #if (uECC_WORD_SIZE != 1) && (uECC_WORD_SIZE != 4) && (uECC_WORD_SIZE != 8)
     #error "Unsupported value for uECC_WORD_SIZE"
 #endif
+
+/* Optimization options... */
+#define uECC_asm_none  0
+#define uECC_asm_small 1
+#define uECC_asm_fast  2
+#ifndef uECC_ASM
+    #define uECC_ASM uECC_asm_small
+#endif
+
+#ifndef uECC_SQUARE_FUNC
+    #define uECC_SQUARE_FUNC 0
+#endif
+/* --- end --- */
 
 #if (uECC_ASM && (uECC_PLATFORM == uECC_avr) && (uECC_WORD_SIZE != 1))
     #pragma message ("uECC_WORD_SIZE must be 1 when using AVR asm")
