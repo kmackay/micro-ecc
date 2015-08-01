@@ -1,7 +1,7 @@
 /* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
-#ifndef _MICRO_ECC_H_
-#define _MICRO_ECC_H_
+#ifndef _UECC_H_
+#define _UECC_H_
 
 #include <stdint.h>
 
@@ -17,10 +17,33 @@ Possible values for uECC_PLATFORM are defined below: */
 #define uECC_arm64      6
 #define uECC_avr        7
 
-
 /* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 4, or 8 bytes).
 If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your
 platform. */
+
+/* Optimization level; trade speed for code size.
+   Larger values produce code that is faster but larger.
+   Currently supported values are 0 - 4; 0 is unusably slow for most applications. */
+#ifndef uECC_OPTIMIZATION_LEVEL
+    #define uECC_OPTIMIZATION_LEVEL 1
+#endif
+
+/* Curve support selection. Set to 0 to remove that curve. */
+#ifndef uECC_SUPPORTS_secp160r1
+    #define uECC_SUPPORTS_secp160r1 1
+#endif
+#ifndef uECC_SUPPORTS_secp192r1
+    #define uECC_SUPPORTS_secp192r1 1
+#endif
+#ifndef uECC_SUPPORTS_secp224r1
+    #define uECC_SUPPORTS_secp224r1 1
+#endif
+#ifndef uECC_SUPPORTS_secp256r1
+    #define uECC_SUPPORTS_secp256r1 1
+#endif
+#ifndef uECC_SUPPORTS_secp256k1
+    #define uECC_SUPPORTS_secp256k1 1
+#endif
 
 struct uECC_Curve_t;
 typedef const struct uECC_Curve_t * uECC_Curve;
@@ -30,11 +53,21 @@ extern "C"
 {
 #endif
 
+#if uECC_SUPPORTS_secp160r1
 uECC_Curve uECC_secp160r1(void);
+#endif
+#if uECC_SUPPORTS_secp192r1
 uECC_Curve uECC_secp192r1(void);
+#endif
+#if uECC_SUPPORTS_secp224r1
 uECC_Curve uECC_secp224r1(void);
+#endif
+#if uECC_SUPPORTS_secp256r1
 uECC_Curve uECC_secp256r1(void);
+#endif
+#if uECC_SUPPORTS_secp256k1
 uECC_Curve uECC_secp256k1(void);
+#endif
 
 /* uECC_RNG_Function type
 The RNG function should fill 'size' random bytes into 'dest'. It should return 1 if
@@ -261,4 +294,4 @@ int uECC_verify(const uint8_t *private_key,
 } /* end of extern "C" */
 #endif
 
-#endif /* _MICRO_ECC_H_ */
+#endif /* _UECC_H_ */
