@@ -1,3 +1,8 @@
+/* Copyright 2015, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
+#ifndef _UECC_ASM_ARM_SMALL_H_
+#define _UECC_ASM_ARM_SMALL_H_
+
 #if (uECC_PLATFORM == uECC_arm_thumb)
     #define REG_RW "+l"
     #define REG_WRITE "=l"
@@ -12,6 +17,7 @@
     #define RESUME_SYNTAX ".syntax divided \n\t"
 #endif
 
+#if !asm_add
 static uECC_word_t vli_add(uECC_word_t *result,
                            const uECC_word_t *left,
                            const uECC_word_t *right,
@@ -41,11 +47,13 @@ static uECC_word_t vli_add(uECC_word_t *result,
     return carry;
 }
 #define asm_add 1
+#endif
 
-static uint32_t vli_sub(uECC_word_t *result,
-                        const uECC_word_t *left,
-                        const uECC_word_t *right,
-                        wordcount_t num_words) {
+#if !asm_sub
+static uECC_word_t vli_sub(uECC_word_t *result,
+                           const uECC_word_t *left,
+                           const uECC_word_t *right,
+                           wordcount_t num_words) {
     uint32_t carry = 1; /* carry = 1 initially (means don't borrow) */
     uint32_t left_word;
     uint32_t right_word;
@@ -71,7 +79,9 @@ static uint32_t vli_sub(uECC_word_t *result,
     return !carry;
 }
 #define asm_sub 1
+#endif
 
+#if !asm_mult
 static void vli_mult(uECC_word_t *result,
                      const uECC_word_t *left,
                      const uECC_word_t *right,
@@ -229,8 +239,10 @@ static void vli_mult(uECC_word_t *result,
 #endif
 }
 #define asm_mult 1
+#endif
 
 #if uECC_SQUARE_FUNC
+#if !asm_square
 static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t num_words) {
 #if (uECC_PLATFORM != uECC_arm_thumb)
     uint32_t c0 = 0;
@@ -404,4 +416,7 @@ static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t
 #endif
 }
 #define asm_square 1
+#endif
 #endif /* uECC_SQUARE_FUNC */
+
+#endif /* _UECC_ASM_ARM_SMALL_H_ */

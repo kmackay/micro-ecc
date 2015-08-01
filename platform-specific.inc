@@ -1,3 +1,8 @@
+/* Copyright 2015, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
+#ifndef _UECC_PLATFORM_SPECIFIC_H_
+#define _UECC_PLATFORM_SPECIFIC_H_
+
 #ifndef uECC_PLATFORM
     #if __AVR__
         #define uECC_PLATFORM uECC_avr
@@ -32,29 +37,16 @@
     #error "Unsupported value for uECC_WORD_SIZE"
 #endif
 
-/* Optimization options... */
-#define uECC_asm_none  0
-#define uECC_asm_small 1
-#define uECC_asm_fast  2
-#ifndef uECC_ASM
-    #define uECC_ASM uECC_asm_small
-#endif
-
-#ifndef uECC_SQUARE_FUNC
-    #define uECC_SQUARE_FUNC 0
-#endif
-/* --- end --- */
-
-#if (uECC_ASM && (uECC_PLATFORM == uECC_avr) && (uECC_WORD_SIZE != 1))
-    #pragma message ("uECC_WORD_SIZE must be 1 when using AVR asm")
+#if ((uECC_PLATFORM == uECC_avr) && (uECC_WORD_SIZE != 1))
+    #pragma message ("uECC_WORD_SIZE must be 1 for AVR")
     #undef uECC_WORD_SIZE
     #define uECC_WORD_SIZE 1
 #endif
 
-#if (uECC_ASM && \
-     (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb) && \
+#if ((uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
+        uECC_PLATFORM ==  uECC_arm_thumb2) && \
      (uECC_WORD_SIZE != 4))
-    #pragma message ("uECC_WORD_SIZE must be 4 when using ARM asm")
+    #pragma message ("uECC_WORD_SIZE must be 4 for ARM")
     #undef uECC_WORD_SIZE
     #define uECC_WORD_SIZE 4
 #endif
@@ -172,15 +164,6 @@ static int default_RNG(uint8_t *dest, unsigned size) {
     return 0;
 }
 
-#endif
+#endif /* platform */
 
-// #ifdef __GNUC__ /* Only support GCC inline asm for now */
-//     #if (uECC_ASM && (uECC_PLATFORM == uECC_avr))
-//         #include "asm_avr.inc"
-//     #endif
-// 
-//     #if (uECC_ASM && (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
-//                       uECC_PLATFORM == uECC_arm_thumb2))
-//         #include "asm_arm.inc"
-//     #endif
-// #endif
+#endif /* _UECC_PLATFORM_SPECIFIC_H_ */
