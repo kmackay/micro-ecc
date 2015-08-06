@@ -196,6 +196,9 @@ static uECC_word_t vli_sub(uECC_word_t *result,
 }
 #endif /* !asm_sub */
 
+#if !asm_mult || !asm_square || \
+    (uECC_SUPPORTS_secp256k1 && (uECC_OPTIMIZATION_LEVEL > 0) && \
+        ((uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 8)))
 static void muladd(uECC_word_t a,
                    uECC_word_t b,
                    uECC_word_t *r0,
@@ -235,6 +238,7 @@ static void muladd(uECC_word_t a,
     *r0 = (uECC_word_t)r01;
 #endif
 }
+#endif /* muladd needed */
 
 #if !asm_mult
 static void vli_mult(uECC_word_t *result,
@@ -271,6 +275,7 @@ static void vli_mult(uECC_word_t *result,
 
 #if uECC_SQUARE_FUNC
 
+#if !asm_square
 static void mul2add(uECC_word_t a,
                     uECC_word_t b,
                     uECC_word_t *r0,
@@ -318,7 +323,6 @@ static void mul2add(uECC_word_t a,
 #endif
 }
 
-#if !asm_square
 static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t num_words) {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
