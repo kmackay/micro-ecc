@@ -2594,17 +2594,38 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
     uint8_t *V = K + hash_context->result_size;
     uECC_word_t tries;
     unsigned i;
+    uECC_word_t tmp[uECC_N_WORDS]; // an integer converted from message_hash
+    uint8_t reduced_msg_hash[uECC_N_BYTES] = { 0 };
+
     for (i = 0; i < hash_context->result_size; ++i) {
         V[i] = 0x01;
         K[i] = 0;
     }
     
+    // Convert the octet string of length `uECC_BYTES` into an integer tmp.
+    // Since this must be done when generating an ECDSA signature, we may
+    // choose to refactor the codebase so that this operation is done only
+    // once.
+    vli_bytesToNative(tmp, message_hash);
+
+    // Modular reduction: tmp <- tmp mod n (ONLY FOR RFC6979)
+    while (vli_cmp_n(tmp, curve_n) >= 0) {
+        vli_sub(tmp, tmp, curve_n);
+    }
+
+    // Convert the integer tmp back to an octet string (ONLY FOR RFC6979)
+#if (uECC_CURVE == uECC_secp160r1)
+    vli_nativeToBytes(reduced_msg_hash + 1, tmp);
+#else
+    vli_nativeToBytes(reduced_msg_hash, tmp);
+#endif
+
     // K = HMAC_K(V || 0x00 || int2octets(x) || h(m))
     HMAC_init(hash_context, K);
     V[hash_context->result_size] = 0x00;
     HMAC_update(hash_context, V, hash_context->result_size + 1);
     HMAC_update(hash_context, private_key, uECC_BYTES);
-    HMAC_update(hash_context, message_hash, uECC_BYTES);
+    HMAC_update(hash_context, reduced_msg_hash, uECC_N_BYTES);
     HMAC_finish(hash_context, K, K);
     
     update_V(hash_context, K, V);
@@ -2614,13 +2635,14 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
     V[hash_context->result_size] = 0x01;
     HMAC_update(hash_context, V, hash_context->result_size + 1);
     HMAC_update(hash_context, private_key, uECC_BYTES);
-    HMAC_update(hash_context, message_hash, uECC_BYTES);
+    HMAC_update(hash_context, reduced_msg_hash, uECC_N_BYTES);
     HMAC_finish(hash_context, K, K);
     
     update_V(hash_context, K, V);
 
     for (tries = 0; tries < MAX_TRIES; ++tries) {
-        uECC_word_t T[uECC_N_WORDS];
+        uECC_word_t k[uECC_N_WORDS] = { 0 }; // the RFC6979 ephemeral key in each round
+        uint8_t T[uECC_N_BYTES];
         uint8_t *T_ptr = (uint8_t *)T;
         unsigned T_bytes = 0;
         while (T_bytes < sizeof(T)) {
@@ -2629,11 +2651,32 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
                 T_ptr[T_bytes] = V[i];
             }
         }
+
     #if (uECC_CURVE == uECC_secp160r1)
-        T[uECC_WORDS] &= 0x01;
+
+        // Now T is an array containing uECC_N_BYTES=21 random bytes.
+
+        // TODO: In order to comform to RFC6979 for secp160r1, we should right-shift all bits in T by 7 here.
+
+        // Convert the 20 rightmost bytes into an integer k.
+        vli_bytesToNative(k, T + 1);
+
+        // If the lowest bit in the leftmost byte is 1, add 2^160 to k.
+        if (T[0] & 1) {
+        #if (uECC_WORD_SIZE == 1)
+            k[uECC_N_WORDS - 1]  = 0x01;
+        #elif (uECC_WORD_SIZE == 4)
+            k[uECC_N_WORDS - 1]  = 0x00000001;
+        #elif (uECC_WORD_SIZE == 8)
+            k[uECC_N_WORDS - 1] ^= 0x0000000100000000;
+        #endif
+        }
+
+    #else
+        vli_bytesToNative(k, T);
     #endif
     
-        if (uECC_sign_with_k(private_key, message_hash, T, signature)) {
+        if (uECC_sign_with_k(private_key, message_hash, k, signature)) {
             return 1;
         }
 

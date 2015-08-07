@@ -60,6 +60,14 @@ faster by about 8% but increases the code size. */
 
 #define uECC_BYTES uECC_CONCAT(uECC_size_, uECC_CURVE)
 
+#define uECC_n_size_1 21 /* secp160r1 */
+#define uECC_n_size_2 24 /* secp192r1 */
+#define uECC_n_size_3 32 /* secp256r1 */
+#define uECC_n_size_4 32 /* secp256k1 */
+#define uECC_n_size_5 28 /* secp224r1 */
+
+#define uECC_N_BYTES uECC_CONCAT(uECC_n_size_, uECC_CURVE)
+
 #ifdef __cplusplus
 extern "C"
 {
