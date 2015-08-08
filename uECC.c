@@ -1149,16 +1149,20 @@ int uECC_sign_deterministic(const uint8_t *private_key,
         uECC_word_t T[uECC_MAX_WORDS];
         uint8_t *T_ptr = (uint8_t *)T;
         unsigned T_bytes = 0;
-        while (T_bytes < curve->num_words * uECC_WORD_SIZE) {
+        for (;;) {
             update_V(hash_context, K, V);
-            for (i = 0; i < hash_context->result_size && T_bytes < sizeof(T); ++i, ++T_bytes) {
-                T_ptr[T_bytes] = V[i];
+            for (i = 0; i < hash_context->result_size; ++i) {
+                T_ptr[T_bytes++] = V[i];
+                if (T_bytes >= curve->num_n_words * uECC_WORD_SIZE) {
+                    goto filled;
+                }
             }
         }
-        if ((bitcount_t)curve->num_words * uECC_WORD_SIZE * 8 > num_n_bits) {
+    filled:
+        if ((bitcount_t)curve->num_n_words * uECC_WORD_SIZE * 8 > num_n_bits) {
             wordcount_t mask = (wordcount_t)-1;
-            T[curve->num_words - 1] &=
-                mask >> ((bitcount_t)(curve->num_words * uECC_WORD_SIZE * 8 - num_n_bits));
+            T[curve->num_n_words - 1] &=
+                mask >> ((bitcount_t)(curve->num_n_words * uECC_WORD_SIZE * 8 - num_n_bits));
         }
     
         if (uECC_sign_with_k(private_key, message_hash, T, signature, curve)) {
