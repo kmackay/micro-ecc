@@ -2629,9 +2629,15 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
                 T_ptr[T_bytes] = V[i];
             }
         }
-    #if (uECC_CURVE == uECC_secp160r1)
-        T[uECC_WORDS] &= 0x01;
+#if (uECC_CURVE == uECC_secp160r1)
+    #if (uECC_WORD_SIZE == 1)
+        T[uECC_N_WORDS - 1] &= 0x01;
+    #elif (uECC_WORD_SIZE == 4)
+        T[uECC_N_WORDS - 1] &= 0x00000001;
+    #elif (uECC_WORD_SIZE == 8)
+        T[uECC_N_WORDS - 1] &= 0x00000001ffffffff; // keep the lower 33 bits
     #endif
+#endif
     
         if (uECC_sign_with_k(private_key, message_hash, T, signature)) {
             return 1;
