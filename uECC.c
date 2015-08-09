@@ -2608,15 +2608,14 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
     // once.
     vli_bytesToNative(tmp, message_hash);
 
-    // Modular reduction: tmp <- tmp mod n (ONLY FOR RFC6979)
-    while (vli_cmp_n(tmp, curve_n) >= 0) {
-        vli_sub(tmp, tmp, curve_n);
-    }
-
-    // Convert the integer tmp back to an octet string (ONLY FOR RFC6979)
+    // Perform modular reduction tmp <- tmp mod n, and then
+    // convert tmp back to an octet string (ONLY FOR RFC6979)
 #if (uECC_CURVE == uECC_secp160r1)
     vli_nativeToBytes(reduced_msg_hash + 1, tmp);
 #else
+    if (vli_cmp_n(tmp, curve_n) >= 0) {
+        vli_sub(tmp, tmp, curve_n);
+    }
     vli_nativeToBytes(reduced_msg_hash, tmp);
 #endif
 
