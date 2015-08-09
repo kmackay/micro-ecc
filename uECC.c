@@ -2594,7 +2594,7 @@ int uECC_sign_deterministic(const uint8_t private_key[uECC_BYTES],
     uint8_t *V = K + hash_context->result_size;
     uECC_word_t tries;
     unsigned i;
-    uECC_word_t tmp[uECC_N_WORDS]; // an integer converted from message_hash
+    uECC_word_t tmp[uECC_N_WORDS] = { 0 }; // an integer converted from message_hash
     uint8_t reduced_msg_hash[uECC_N_BYTES] = { 0 };
 
     for (i = 0; i < hash_context->result_size; ++i) {
