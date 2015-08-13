@@ -1281,3 +1281,157 @@ int uECC_verify(const uint8_t *public_key,
     /* Accept only if v == r. */
     return (vli_cmp(rx, r, curve->num_words) == 0);
 }
+
+
+/* -------- "Internal" API -------- */
+unsigned uECC_curve_num_words(uECC_Curve curve) {
+    return curve->num_words;
+}
+
+unsigned uECC_curve_num_bits(uECC_Curve curve) {
+    return curve->num_bytes * 8;
+}
+
+unsigned uECC_curve_num_n_words(uECC_Curve curve) {
+    return curve->num_n_words;
+}
+
+const uECC_word_t *uECC_curve_p(uECC_Curve curve) {
+    return curve->p;
+}
+
+const uECC_word_t *uECC_curve_n(uECC_Curve curve) {
+    return curve->n;
+}
+
+const uECC_word_t *uECC_curve_G(uECC_Curve curve) {
+    return curve->G;
+}
+
+const uECC_word_t *uECC_curve_b(uECC_Curve curve) {
+    return curve->b;
+}
+
+/* Calculates a = sqrt(a) (mod curve->p) */
+void uECC_mod_sqrt(uECC_word_t *a, uECC_Curve curve) {
+    curve->mod_sqrt(a, curve);
+}
+
+/* Calculates result = product (mod curve->p), where product is up to
+   2 * curve->num_words long. */
+void uECC_mmod_fast(uECC_word_t *result, uECC_word_t *product, uECC_Curve curve) {
+#if (uECC_OPTIMIZATION_LEVEL > 0)
+    curve->mmod_fast(result, product);
+#else
+    vli_mmod(result, product, curve->p, curve->num_words);
+#endif
+}
+
+void uECC_vli_clear(uECC_word_t *vli, unsigned num_words) {
+    vli_clear(vli, num_words);
+}
+
+int uECC_vli_isZero(const uECC_word_t *vli, unsigned num_words) {
+    return vli_isZero(vli, num_words);
+}
+
+int uECC_vli_testBit(const uECC_word_t *vli, unsigned bit) {
+    return vli_testBit(vli, bit);
+}
+
+unsigned uECC_vli_numBits(const uECC_word_t *vli, unsigned max_words) {
+    return uECC_vli_numBits(vli, max_words);
+}
+
+void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, unsigned num_words) {
+    vli_set(dest, src, num_words);
+}
+
+int uECC_vli_cmp(const uECC_word_t *left,
+                 const uECC_word_t *right,
+                 unsigned num_words) {
+    return vli_cmp(left, right, num_words);
+}
+
+void uECC_vli_rshift1(uECC_word_t *vli, unsigned num_words) {
+    vli_rshift1(vli, num_words);
+}
+
+uECC_word_t uECC_vli_add(uECC_word_t *result,
+                         const uECC_word_t *left,
+                         const uECC_word_t *right,
+                         unsigned num_words) {
+    return vli_add(result, left, right, num_words);
+}
+
+uECC_word_t uECC_vli_sub(uECC_word_t *result,
+                         const uECC_word_t *left,
+                         const uECC_word_t *right,
+                         unsigned num_words) {
+    return vli_sub(result, left, right, num_words);
+}
+
+void uECC_vli_mult(uECC_word_t *result,
+                   const uECC_word_t *left,
+                   const uECC_word_t *right,
+                   unsigned num_words) {
+    vli_mult(result, left, right, num_words);
+}
+
+void uECC_vli_square(uECC_word_t *result, const uECC_word_t *left, unsigned num_words) {
+    vli_square(result, left, num_words);
+}
+
+/* Computes result = (left + right) % mod.
+   Assumes that left < mod and right < mod, and that result does not overlap mod. */
+void uECC_vli_modAdd(uECC_word_t *result,
+                     const uECC_word_t *left,
+                     const uECC_word_t *right,
+                     const uECC_word_t *mod,
+                     unsigned num_words) {
+    vli_modAdd(result, left, right, mod, num_words);
+}
+
+/* Computes result = (left - right) % mod.
+   Assumes that left < mod and right < mod, and that result does not overlap mod. */
+void uECC_vli_modSub(uECC_word_t *result,
+                     const uECC_word_t *left,
+                     const uECC_word_t *right,
+                     const uECC_word_t *mod,
+                     unsigned num_words) {
+    vli_modSub(result, left, right, mod, num_words);
+}
+
+/* Computes result = product % mod, where product is 2 * num_words long. */
+/* Currently only designed to work for curve_p or curve_n. */
+void uECC_vli_mmod(uECC_word_t *result,
+                   uECC_word_t *product,
+                   const uECC_word_t *mod,
+                   unsigned num_words) {
+    vli_mmod(result, product, mod, num_words);
+}
+
+/* Computes result = 1 / input (mod m) */
+void uECC_vli_modInv(uECC_word_t *result,
+                     const uECC_word_t *input,
+                     const uECC_word_t *m,
+                     unsigned num_words) {
+    vli_modInv(result, input, m, num_words);
+}
+
+/* Multiply a point by a scalar. Points are represented by the X coordinate followed by
+   the Y coordinate in the same array, both coordinates are curve->num_words long. Note
+   that scalar must be curve->num_n_words long (NOT curve->num_words). */
+void uECC_point_mult(uECC_word_t *result,
+                     uECC_word_t *point,
+                     uECC_word_t *scalar,
+                     uECC_Curve curve) {
+    uECC_word_t tmp1[uECC_MAX_WORDS];
+    uECC_word_t tmp2[uECC_MAX_WORDS];
+    uECC_word_t *p2[2] = {tmp1, tmp2};
+    uECC_word_t carry = regularize_k(scalar, tmp1, tmp2, curve);
+
+    EccPoint_mult(result, point, p2[!carry], 0,
+                  vli_numBits(curve->n, curve->num_n_words) + 1,
+                  curve);
+}
