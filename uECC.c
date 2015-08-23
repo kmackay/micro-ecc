@@ -64,7 +64,11 @@ struct uECC_Curve_t {
     #include "asm_arm_small.inc"
 #endif
 
+#if default_RNG_defined
 static uECC_RNG_Function g_rng_function = &default_RNG;
+#else 
+static uECC_RNG_Function g_rng_function = 0;
+#endif
 
 void uECC_set_rng(uECC_RNG_Function rng_function) {
     g_rng_function = rng_function;
@@ -827,7 +831,7 @@ static void vli_bytesToNative(uint64_t *native, const uint8_t *bytes, uECC_Curve
 static cmpresult_t generate_random_int(uECC_word_t *random,
                                        wordcount_t num_words,
                                        const wordcount_t num_bits) {
-    if (!g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
+    if (!g_rng_function || !g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
         return 0;
     }
     if (num_words * uECC_WORD_SIZE * 8 > num_bits) {
@@ -887,7 +891,7 @@ int uECC_shared_secret(const uint8_t *public_key,
     
     /* If an RNG function was specified, try to get a random initial Z value to improve
        protection against side-channel attacks. */
-    if (g_rng_function != &default_RNG) {
+    if (g_rng_function) {
         for (tries = 0; tries < MAX_TRIES; ++tries) {
             if (!generate_random_int(p2[carry], curve->num_words, curve->num_bytes * 8)) {
                 return 0;
@@ -999,7 +1003,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     }
     
     /* Attempt to get a random number to prevent side channel analysis of k. */
-    if (g_rng_function == &default_RNG) {
+    if (!g_rng_function) {
         vli_clear(tmp, curve->num_n_words);
         tmp[0] = 1;
     } else {
