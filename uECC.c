@@ -83,13 +83,12 @@ static void vli_clear(uECC_word_t *vli, wordcount_t num_words) {
 
 /* Returns 1 if vli == 0, 0 otherwise. */
 static uECC_word_t vli_isZero(const uECC_word_t *vli, wordcount_t num_words) {
+    uECC_word_t bits = 0;
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
-        if (vli[i]) {
-            return 0;
-        }
+        bits |= vli[i];
     }
-    return 1;
+    return (bits == 0);
 }
 
 /* Returns nonzero if bit 'bit' of vli is set. */
@@ -147,6 +146,17 @@ static cmpresult_t vli_cmp(const uECC_word_t *left,
         }
     }
     return 0;
+}
+
+static uECC_word_t vli_equal(const uECC_word_t *left,
+                             const uECC_word_t *right,
+                             wordcount_t num_words) {
+    uECC_word_t diff = 0;
+    swordcount_t i;
+    for (i = num_words - 1; i >= 0; --i) {
+        diff |= (left[i] ^ right[i]);
+    }
+    return (diff == 0);
 }
 
 /* Computes vli = vli >> 1. */
@@ -570,8 +580,7 @@ static void vli_modInv(uECC_word_t *result,
 
 /* Returns 1 if 'point' is the point at infinity, 0 otherwise. */
 static cmpresult_t EccPoint_isZero(const uECC_word_t *point, uECC_Curve curve) {
-    return vli_isZero(point, curve->num_words) &&
-        vli_isZero(point + curve->num_words, curve->num_words);
+    return vli_isZero(point, curve->num_words * 2);
 }
 
 /* Point multiplication algorithm using Montgomery's ladder with co-Z coordinates.
@@ -958,7 +967,7 @@ int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve) {
     curve->x_side(tmp2, public, curve); /* tmp2 = x^3 + ax + b */
     
     /* Make sure that y^2 == x^3 + ax + b */
-    return (vli_cmp(tmp1, tmp2, curve->num_words) == 0);
+    return (vli_equal(tmp1, tmp2, curve->num_words));
 }
 
 int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uECC_Curve curve) {
@@ -1283,7 +1292,7 @@ int uECC_verify(const uint8_t *public_key,
     }
 
     /* Accept only if v == r. */
-    return (vli_cmp(rx, r, curve->num_words) == 0);
+    return (vli_equal(rx, r, curve->num_words));
 }
 
 
@@ -1355,6 +1364,12 @@ int uECC_vli_cmp(const uECC_word_t *left,
                  const uECC_word_t *right,
                  unsigned num_words) {
     return vli_cmp(left, right, num_words);
+}
+
+int uECC_vli_equal(const uECC_word_t *left,
+                   const uECC_word_t *right,
+                   unsigned num_words) {
+    return vli_equal(left, right, num_words);
 }
 
 void uECC_vli_rshift1(uECC_word_t *vli, unsigned num_words) {
