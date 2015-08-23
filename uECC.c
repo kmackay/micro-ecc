@@ -98,7 +98,7 @@ static uECC_word_t vli_testBit(const uECC_word_t *vli, bitcount_t bit) {
 
 /* Counts the number of words in vli. */
 static wordcount_t vli_numDigits(const uECC_word_t *vli, const wordcount_t max_words) {
-    swordcount_t i;
+    wordcount_t i;
     /* Search from the end until we find a non-zero digit.
        We do it in reverse because we expect that most digits will be nonzero. */
     for (i = max_words - 1; i >= 0 && vli[i] == 0; --i) {
@@ -137,7 +137,7 @@ static void vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_w
 static cmpresult_t vli_cmp(const uECC_word_t *left,
                            const uECC_word_t *right,
                            wordcount_t num_words) {
-    swordcount_t i;
+    wordcount_t i;
     for (i = num_words - 1; i >= 0; --i) {
         if (left[i] > right[i]) {
             return 1;
@@ -152,7 +152,7 @@ static uECC_word_t vli_equal(const uECC_word_t *left,
                              const uECC_word_t *right,
                              wordcount_t num_words) {
     uECC_word_t diff = 0;
-    swordcount_t i;
+    wordcount_t i;
     for (i = num_words - 1; i >= 0; --i) {
         diff |= (left[i] ^ right[i]);
     }
@@ -416,7 +416,7 @@ static void vli_mmod(uECC_word_t *result,
     uECC_word_t carry = 0;
     vli_clear(mod_multiple, word_shift);
     if (bit_shift > 0) {
-        for(index = 0; index < num_words; ++index) {
+        for(index = 0; index < (uECC_word_t)num_words; ++index) {
             mod_multiple[word_shift + index] = (mod[index] << bit_shift) | carry;
             carry = mod[index] >> (uECC_WORD_BITS - bit_shift);
         }
@@ -784,7 +784,7 @@ static uECC_word_t EccPoint_compute_public_key(uECC_word_t *result,
 #if uECC_WORD_SIZE == 1
 
 static void vli_nativeToBytes(uint8_t * dest, const uint8_t * src, uECC_Curve curve) {
-    uint8_t i;
+    wordcount_t i;
     for (i = 0; i < curve->num_words; ++i) {
         dest[i] = src[(curve->num_words - 1) - i];
     }
@@ -795,7 +795,7 @@ static void vli_nativeToBytes(uint8_t * dest, const uint8_t * src, uECC_Curve cu
 #elif uECC_WORD_SIZE == 4
 
 static void vli_nativeToBytes(uint8_t *bytes, const uint32_t *native, uECC_Curve curve) {
-    unsigned i;
+    wordcount_t i;
     for (i = 0; i < curve->num_words; ++i) {
         uint8_t *digit = bytes + 4 * (curve->num_words - 1 - i);
         digit[0] = native[i] >> 24;
@@ -806,7 +806,7 @@ static void vli_nativeToBytes(uint8_t *bytes, const uint32_t *native, uECC_Curve
 }
 
 static void vli_bytesToNative(uint32_t *native, const uint8_t *bytes, uECC_Curve curve) {
-    unsigned i;
+    wordcount_t i;
     for (i = 0; i < curve->num_words; ++i) {
         const uint8_t *digit = bytes + 4 * (curve->num_words - 1 - i);
         native[i] = ((uint32_t)digit[0] << 24) | ((uint32_t)digit[1] << 16) |
@@ -817,7 +817,7 @@ static void vli_bytesToNative(uint32_t *native, const uint8_t *bytes, uECC_Curve
 #else
 
 static void vli_nativeToBytes(uint8_t *bytes, const uint64_t *native, uECC_Curve curve) {
-    unsigned i;
+    wordcount_t i;
     for (i = 0; i < curve->num_bytes; ++i) {
         unsigned b = curve->num_bytes - 1 - i;
         bytes[i] = native[b / 8] >> (8 * (b % 8));
@@ -825,7 +825,7 @@ static void vli_nativeToBytes(uint8_t *bytes, const uint64_t *native, uECC_Curve
 }
 
 static void vli_bytesToNative(uint64_t *native, const uint8_t *bytes, uECC_Curve curve) {
-    unsigned i;
+    wordcount_t i;
     vli_clear(native, curve->num_words);
     for (i = 0; i < curve->num_bytes; ++i) {
         unsigned b = curve->num_bytes - 1 - i;
@@ -1161,7 +1161,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     for (tries = 0; tries < MAX_TRIES; ++tries) {
         uECC_word_t T[uECC_MAX_WORDS];
         uint8_t *T_ptr = (uint8_t *)T;
-        unsigned T_bytes = 0;
+        wordcount_t T_bytes = 0;
         for (;;) {
             update_V(hash_context, K, V);
             for (i = 0; i < hash_context->result_size; ++i) {
