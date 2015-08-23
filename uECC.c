@@ -49,19 +49,9 @@ struct uECC_Curve_t {
 #endif
 };
 
-#if (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_OPTIMIZATION_LEVEL % 2 == 0)
-    #define uECC_SQUARE_FUNC 1
-#else
-    #define uECC_SQUARE_FUNC 0
-#endif
-
 #if (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
         uECC_PLATFORM == uECC_arm_thumb2)
-    #if (uECC_OPTIMIZATION_LEVEL > 2)
-        #include "asm_arm_mult_square.inc"
-        #include "asm_arm_fast.inc"
-    #endif
-    #include "asm_arm_small.inc"
+    #include "asm_arm.inc"
 #endif
 
 #if default_RNG_defined
