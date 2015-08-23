@@ -61,8 +61,7 @@
 
 typedef uint8_t uECC_word_t;
 typedef uint16_t uECC_dword_t;
-typedef uint8_t wordcount_t;
-typedef int8_t swordcount_t;
+typedef int8_t wordcount_t;
 typedef int16_t bitcount_t;
 typedef int8_t cmpresult_t;
 
@@ -75,8 +74,7 @@ typedef int8_t cmpresult_t;
 
 typedef uint32_t uECC_word_t;
 typedef uint64_t uECC_dword_t;
-typedef unsigned wordcount_t;
-typedef int swordcount_t;
+typedef int wordcount_t;
 typedef int bitcount_t;
 typedef int cmpresult_t;
 
@@ -91,8 +89,7 @@ typedef uint64_t uECC_word_t;
 #if SUPPORTS_INT128
 typedef unsigned __int128 uECC_dword_t;
 #endif
-typedef unsigned wordcount_t;
-typedef int swordcount_t;
+typedef int wordcount_t;
 typedef int bitcount_t;
 typedef int cmpresult_t;
 
