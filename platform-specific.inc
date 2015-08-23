@@ -120,6 +120,7 @@ static int default_RNG(uint8_t *dest, unsigned size) {
     CryptReleaseContext(prov, 0);
     return 1;
 }
+#define default_RNG_defined 1
 
 #elif defined(unix) || defined(__linux__) || defined(__unix__) || defined(__unix) || \
     (defined(__APPLE__) && defined(__MACH__)) || defined(uECC_POSIX)
@@ -157,12 +158,7 @@ static int default_RNG(uint8_t *dest, unsigned size) {
     close(fd);
     return 1;
 }
-
-#else /* Some other platform */
-
-static int default_RNG(uint8_t *dest, unsigned size) {
-    return 0;
-}
+#define default_RNG_defined 1
 
 #endif /* platform */
 
