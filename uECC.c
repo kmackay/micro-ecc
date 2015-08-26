@@ -42,7 +42,9 @@ struct uECC_Curve_t {
                             uECC_word_t * Y1,
                             uECC_word_t * Z1,
                             uECC_Curve curve);
+#if uECC_SUPPORT_COMPRESSED_POINT
     void (*mod_sqrt)(uECC_word_t *a, uECC_Curve curve);
+#endif
     void (*x_side)(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve);
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     void (*mmod_fast)(uECC_word_t *result, uECC_word_t *product);
@@ -71,6 +73,7 @@ static void vli_clear(uECC_word_t *vli, wordcount_t num_words) {
     }
 }
 
+/* Constant-time comparison to zero - secure way to compare long integers */
 /* Returns 1 if vli == 0, 0 otherwise. */
 static uECC_word_t vli_isZero(const uECC_word_t *vli, wordcount_t num_words) {
     uECC_word_t bits = 0;
@@ -138,6 +141,8 @@ static cmpresult_t vli_cmp(const uECC_word_t *left,
     return 0;
 }
 
+/* Constant-time comparison function - secure way to compare long integers */
+/* Returns one if left == right, zero otherwise */
 static uECC_word_t vli_equal(const uECC_word_t *left,
                              const uECC_word_t *right,
                              wordcount_t num_words) {
@@ -200,7 +205,7 @@ static uECC_word_t vli_sub(uECC_word_t *result,
 }
 #endif /* !asm_sub */
 
-#if !asm_mult || !asm_square || \
+#if !asm_mult || (uECC_SQUARE_FUNC && !asm_square) || \
     (uECC_SUPPORTS_secp256k1 && (uECC_OPTIMIZATION_LEVEL > 0) && \
         ((uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 8)))
 static void muladd(uECC_word_t a,
@@ -569,9 +574,7 @@ static void vli_modInv(uECC_word_t *result,
 #include "curve-specific.inc"
 
 /* Returns 1 if 'point' is the point at infinity, 0 otherwise. */
-static cmpresult_t EccPoint_isZero(const uECC_word_t *point, uECC_Curve curve) {
-    return vli_isZero(point, curve->num_words * 2);
-}
+#define EccPoint_isZero(point, curve) vli_isZero((point), (curve)->num_words * 2)
 
 /* Point multiplication algorithm using Montgomery's ladder with co-Z coordinates.
 From http://eprint.iacr.org/2011/338.pdf
@@ -854,7 +857,7 @@ int uECC_make_key(uint8_t *public_key,
         if (!generate_random_int(private, curve->num_words, curve->num_bytes * 8)) {
             return 0;
         }
-        
+
         if (EccPoint_compute_public_key(public, private, curve)) {
             vli_nativeToBytes(private_key, private, curve);
             vli_nativeToBytes(public_key, public, curve);
@@ -911,6 +914,7 @@ int uECC_shared_secret(const uint8_t *public_key,
     return !EccPoint_isZero(public, curve);
 }
 
+#if uECC_SUPPORT_COMPRESSED_POINT
 void uECC_compress(const uint8_t *public_key, uint8_t *compressed, uECC_Curve curve) {
     wordcount_t i;
     for (i = 0; i < curve->num_bytes; ++i) {
@@ -933,31 +937,36 @@ void uECC_decompress(const uint8_t *compressed, uint8_t *public_key, uECC_Curve 
     vli_nativeToBytes(public_key, point, curve);
     vli_nativeToBytes(public_key + curve->num_bytes, y, curve);
 }
+#endif /* uECC_SUPPORT_COMPRESSED_POINT */
 
-int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve) {
+int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve) {
     uECC_word_t tmp1[uECC_MAX_WORDS];
     uECC_word_t tmp2[uECC_MAX_WORDS];
-    uECC_word_t public[uECC_MAX_WORDS * 2];
-    
-    vli_bytesToNative(public, public_key, curve);
-    vli_bytesToNative(public + curve->num_words, public_key + curve->num_bytes, curve);
-    
+
     /* The point at infinity is invalid. */
-    if (EccPoint_isZero(public, curve)) {
+    if (EccPoint_isZero(point, curve)) {
         return 0;
     }
     
     /* x and y must be smaller than p. */
-    if (vli_cmp(curve->p, public, curve->num_words) != 1 ||
-            vli_cmp(curve->p, public + curve->num_words, curve->num_words) != 1) {
+    if (vli_cmp(curve->p, point, curve->num_words) != 1 ||
+            vli_cmp(curve->p, point + curve->num_words, curve->num_words) != 1) {
         return 0;
     }
     
-    vli_modSquare_fast(tmp1, public + curve->num_words, curve);
-    curve->x_side(tmp2, public, curve); /* tmp2 = x^3 + ax + b */
+    vli_modSquare_fast(tmp1, point + curve->num_words, curve);
+    curve->x_side(tmp2, point, curve); /* tmp2 = x^3 + ax + b */
     
     /* Make sure that y^2 == x^3 + ax + b */
     return (vli_equal(tmp1, tmp2, curve->num_words));
+}
+
+int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve) {
+    uECC_word_t public[uECC_MAX_WORDS * 2];
+
+    vli_bytesToNative(public, public_key, curve);
+    vli_bytesToNative(public + curve->num_words, public_key + curve->num_bytes, curve);
+    return uECC_valid_point(public, curve);
 }
 
 int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uECC_Curve curve) {
@@ -1315,10 +1324,12 @@ const uECC_word_t *uECC_curve_b(uECC_Curve curve) {
     return curve->b;
 }
 
+#if uECC_SUPPORT_COMPRESSED_POINT
 /* Calculates a = sqrt(a) (mod curve->p) */
 void uECC_mod_sqrt(uECC_word_t *a, uECC_Curve curve) {
     curve->mod_sqrt(a, curve);
 }
+#endif
 
 /* Calculates result = product (mod curve->p), where product is up to
    2 * curve->num_words long. */
@@ -1328,6 +1339,14 @@ void uECC_mmod_fast(uECC_word_t *result, uECC_word_t *product, uECC_Curve curve)
 #else
     vli_mmod(result, product, curve->p, curve->num_words);
 #endif
+}
+
+void uECC_vli_nativeToBytes(uint8_t * dest, const uECC_word_t * src, uECC_Curve curve) {
+    vli_nativeToBytes(dest, src, curve);
+}
+
+void uECC_vli_bytesToNative(uECC_word_t * dest, const uint8_t * src, uECC_Curve curve) {
+    vli_bytesToNative(dest, src, curve);
 }
 
 void uECC_vli_clear(uECC_word_t *vli, unsigned num_words) {
@@ -1432,8 +1451,8 @@ void uECC_vli_modInv(uECC_word_t *result,
    the Y coordinate in the same array, both coordinates are curve->num_words long. Note
    that scalar must be curve->num_n_words long (NOT curve->num_words). */
 void uECC_point_mult(uECC_word_t *result,
-                     uECC_word_t *point,
-                     uECC_word_t *scalar,
+                     const uECC_word_t *point,
+                     const uECC_word_t *scalar,
                      uECC_Curve curve) {
     uECC_word_t tmp1[uECC_MAX_WORDS];
     uECC_word_t tmp2[uECC_MAX_WORDS];
@@ -1443,4 +1462,26 @@ void uECC_point_mult(uECC_word_t *result,
     EccPoint_mult(result, point, p2[!carry], 0,
                   vli_numBits(curve->n, curve->num_n_words) + 1,
                   curve);
+}
+
+/* Calculates result = product (mod curve->n), where product is up to
+   2 * curve->num_n_words long. */
+void uECC_vli_mmod_n(uECC_word_t *result, uECC_word_t *product, uECC_Curve curve) {
+    vli_mmod(result, product, curve->n, curve->num_n_words);
+}
+
+/* Computes result = (left * right) % (curve->n). */
+void uECC_vli_modMult_n(uECC_word_t *result,
+                        const uECC_word_t *left,
+                        const uECC_word_t *right,
+                        uECC_Curve curve) {
+    vli_modMult(result, left, right, curve->n, curve->num_n_words);
+}
+
+/* Computes result = (left * right) % (curve->p). */
+void uECC_vli_modMult_fast(uECC_word_t *result,
+                           const uECC_word_t *left,
+                           const uECC_word_t *right,
+                           uECC_Curve curve) {
+    vli_modMult_fast(result, left, right, curve);
 }
