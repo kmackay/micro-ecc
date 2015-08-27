@@ -37,10 +37,10 @@
 
 #if (uECC_OPTIMIZATION_LEVEL >= 2)
 
-static uECC_word_t vli_add(uECC_word_t *result,
-                           const uECC_word_t *left,
-                           const uECC_word_t *right,
-                           wordcount_t num_words) {
+uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
 #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
     uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 2 + 1;
 #else /* ARM */
@@ -113,10 +113,10 @@ static uECC_word_t vli_add(uECC_word_t *result,
 }
 #define asm_add 1
 
-static uECC_word_t vli_sub(uECC_word_t *result,
-                           const uECC_word_t *left,
-                           const uECC_word_t *right,
-                           wordcount_t num_words) {
+uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
 #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
     uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 2 + 1;
 #else /* ARM */
@@ -528,10 +528,10 @@ static uECC_word_t vli_sub(uECC_word_t *result,
     "stmia r0!, {r11, r12} \n\t"
 
 #if (uECC_PLATFORM != uECC_arm_thumb)
-static void vli_mult(uint32_t *result,
-                     const uint32_t *left,
-                     const uint32_t *right,
-                     wordcount_t num_words) {
+uECC_VLI_API void uECC_vli_mult(uint32_t *result,
+                                const uint32_t *left,
+                                const uint32_t *right,
+                                wordcount_t num_words) {
     register uint32_t *r0 __asm__("r0") = result;
     register const uint32_t *r1 __asm__("r1") = left;
     register const uint32_t *r2 __asm__("r2") = right;
@@ -794,7 +794,9 @@ static void vli_mult(uint32_t *result,
     "adc r5, r12 \n\t"                   \
     "stmia r0!, {r4, r5} \n\t"           
 
-static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t num_words) {
+uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
+                                  const uECC_word_t *left,
+                                  wordcount_t num_words) {
     register uint32_t *r0 __asm__("r0") = result;
     register const uint32_t *r1 __asm__("r1") = left;
     register uint32_t r2 __asm__("r2") = num_words;
@@ -855,10 +857,10 @@ static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t
 /* ---- "Small" implementations ---- */
 
 #if !asm_add
-static uECC_word_t vli_add(uECC_word_t *result,
-                           const uECC_word_t *left,
-                           const uECC_word_t *right,
-                           wordcount_t num_words) {
+uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
     uint32_t carry = 0;
     uint32_t left_word;
     uint32_t right_word;
@@ -887,10 +889,10 @@ static uECC_word_t vli_add(uECC_word_t *result,
 #endif
 
 #if !asm_sub
-static uECC_word_t vli_sub(uECC_word_t *result,
-                           const uECC_word_t *left,
-                           const uECC_word_t *right,
-                           wordcount_t num_words) {
+uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
     uint32_t carry = 1; /* carry = 1 initially (means don't borrow) */
     uint32_t left_word;
     uint32_t right_word;
@@ -919,10 +921,10 @@ static uECC_word_t vli_sub(uECC_word_t *result,
 #endif
 
 #if !asm_mult
-static void vli_mult(uECC_word_t *result,
-                     const uECC_word_t *left,
-                     const uECC_word_t *right,
-                     wordcount_t num_words) {
+uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
+                                const uECC_word_t *left,
+                                const uECC_word_t *right,
+                                wordcount_t num_words) {
 #if (uECC_PLATFORM != uECC_arm_thumb)
     uint32_t c0 = 0;
     uint32_t c1 = 0;
@@ -1080,7 +1082,9 @@ static void vli_mult(uECC_word_t *result,
 
 #if uECC_SQUARE_FUNC
 #if !asm_square
-static void vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t num_words) {
+uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
+                                  const uECC_word_t *left,
+                                  wordcount_t num_words) {
 #if (uECC_PLATFORM != uECC_arm_thumb)
     uint32_t c0 = 0;
     uint32_t c1 = 0;

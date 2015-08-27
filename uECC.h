@@ -50,9 +50,9 @@ platform. */
 #endif
 
 /* Specifies whether compressed point format is supported.
-   Set to 0 if compressed point is not supported. That saves code size. */
+   Set to 0 to disable point compression/decompression functions. */
 #ifndef uECC_SUPPORT_COMPRESSED_POINT
-    #define uECC_SUPPORT_COMPRESSED_POINT 0
+    #define uECC_SUPPORT_COMPRESSED_POINT 1
 #endif
 
 struct uECC_Curve_t;
