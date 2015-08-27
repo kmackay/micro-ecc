@@ -45,7 +45,7 @@
 
 #if (uECC_ASM == uECC_asm_fast)
 
-static void vli_clear(uint8_t *vli) {
+uECC_VLI_API void uECC_vli_clear(uint8_t *vli) {
     __asm__ volatile (
         REPEAT(uECC_BYTES,
             "st %a[ptr]+, r1 \n\t")
@@ -56,7 +56,7 @@ static void vli_clear(uint8_t *vli) {
 }
 #define asm_clear 1
 
-static void vli_set(uint8_t *dest, const uint8_t *src) {
+uECC_VLI_API void uECC_vli_set(uint8_t *dest, const uint8_t *src) {
     __asm__ volatile (
         REPEAT(uECC_BYTES,
             "ld r0, %a[sptr]+ \n\t"
@@ -68,7 +68,7 @@ static void vli_set(uint8_t *dest, const uint8_t *src) {
 }
 #define asm_set 1
 
-static void vli_rshift1(uint8_t *vli) {
+uECC_VLI_API void uECC_vli_rshift1(uint8_t *vli) {
     __asm__ volatile (
         "adiw r30, " STR(uECC_BYTES) " \n\t"
         "ld r0, -z \n\t"  /* Load byte. */
@@ -88,7 +88,7 @@ static void vli_rshift1(uint8_t *vli) {
 #define asm_rshift1 1
 
 /* Computes result = left + right, returning carry. Can modify in place. */
-static uint8_t vli_add(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API uint8_t uECC_vli_add(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t carry = 0;
     uint8_t left_byte;
     uint8_t right_byte;
@@ -119,7 +119,7 @@ static uint8_t vli_add(uint8_t *result, const uint8_t *left, const uint8_t *righ
 #define asm_add 1
 
 /* Computes result = left - right, returning borrow. Can modify in place. */
-static uint8_t vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API uint8_t uECC_vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t borrow = 0;
     uint8_t left_byte;
     uint8_t right_byte;
@@ -151,7 +151,7 @@ static uint8_t vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *righ
 
 #if (uECC_BYTES == 20)
 __attribute((noinline))
-static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API void uECC_vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 10 \n\t"
         "adiw r28, 10 \n\t"
@@ -2066,7 +2066,7 @@ static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right)
 #define asm_mult 1
 #elif (uECC_BYTES == 24)
 __attribute((noinline))
-static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API void uECC_vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 20 \n\t"
         "adiw r28, 20 \n\t"
@@ -4849,7 +4849,7 @@ static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right)
 #define asm_mult 1
 #elif (uECC_BYTES == 28)
 __attribute((noinline))
-static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API void uECC_vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 20 \n\t"
         "adiw r28, 20 \n\t"
@@ -8619,7 +8619,7 @@ static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right)
 #define asm_mult 1
 #elif (uECC_BYTES == 32)
 __attribute((noinline))
-static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API void uECC_vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     __asm__ volatile (
         "adiw r30, 30 \n\t"
         "adiw r28, 30 \n\t"
@@ -13549,7 +13549,7 @@ static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right)
 
 #if (uECC_BYTES == 20)
 // Inlining is allowed because y (r28, r29) is not used.
-static void vli_square(uint8_t *result, const uint8_t *left) {
+uECC_VLI_API void uECC_vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ld r2, x+ \n\t"
         "ld r3, x+ \n\t"
@@ -14716,7 +14716,7 @@ static void vli_square(uint8_t *result, const uint8_t *left) {
 #elif (uECC_BYTES == 24)
 
 __attribute((noinline))
-static void vli_square(uint8_t *result, const uint8_t *left) {
+uECC_VLI_API void uECC_vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
         "movw r28, r26 \n\t"
@@ -16375,7 +16375,7 @@ static void vli_square(uint8_t *result, const uint8_t *left) {
 #elif (uECC_BYTES == 28)
 
 __attribute((noinline))
-static void vli_square(uint8_t *result, const uint8_t *left) {
+uECC_VLI_API void uECC_vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
         "movw r28, r26 \n\t"
@@ -18590,7 +18590,7 @@ static void vli_square(uint8_t *result, const uint8_t *left) {
 #elif (uECC_BYTES == 32)
 
 __attribute((noinline))
-static void vli_square(uint8_t *result, const uint8_t *left) {
+uECC_VLI_API void uECC_vli_square(uint8_t *result, const uint8_t *left) {
     __asm__ volatile (
         "ldi r25, 0 \n\t"
         "movw r28, r26 \n\t"
@@ -21425,7 +21425,7 @@ static void vli_square(uint8_t *result, const uint8_t *left) {
 #endif /* uECC_BYTES == xx */
 #endif /* uECC_SQUARE_FUNC */
 
-static void vli_modSub_fast(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API void uECC_vli_modSub_fast(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t t1, t2;
     __asm__ volatile (
         "push r28 \n\t" /* Save Y */
@@ -21475,7 +21475,7 @@ static void vli_modSub_fast(uint8_t *result, const uint8_t *left, const uint8_t 
 #define asm_modSub_fast 1
 
 #if uECC_CURVE == uECC_secp160r1
-static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
+uECC_VLI_API void uECC_vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
     uint8_t carry = 0;
     __asm__ volatile (
         "in r30, __SP_L__ \n\t"
@@ -21649,19 +21649,19 @@ static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
     
     if (carry > 0) {
         --carry;
-        vli_sub(result, result, curve_p);
+        uECC_vli_sub(result, result, curve_p);
     }
     if (carry > 0) {
-        vli_sub(result, result, curve_p);
+        uECC_vli_sub(result, result, curve_p);
     }
-    if (vli_cmp(result, curve_p) > 0) {
-        vli_sub(result, result, curve_p);
+    if (uECC_vli_cmp(result, curve_p) > 0) {
+        uECC_vli_sub(result, result, curve_p);
     }
 }
 #define asm_mmod_fast 1
 
 #elif (uECC_CURVE == uECC_secp256k1)
-static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
+uECC_VLI_API void uECC_vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
     uint8_t carry = 0;
     __asm__ volatile (
         "in r30, __SP_L__ \n\t"
@@ -21972,13 +21972,13 @@ static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
     
     if (carry > 0) {
         --carry;
-        vli_sub(result, result, curve_p);
+        uECC_vli_sub(result, result, curve_p);
     }
     if (carry > 0) {
-        vli_sub(result, result, curve_p);
+        uECC_vli_sub(result, result, curve_p);
     }
-    if (vli_cmp(result, curve_p) > 0) {
-        vli_sub(result, result, curve_p);
+    if (uECC_vli_cmp(result, curve_p) > 0) {
+        uECC_vli_sub(result, result, curve_p);
     }
 }
 #define asm_mmod_fast 1
@@ -21988,7 +21988,7 @@ static void vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT product) {
 #endif /* (uECC_ASM == uECC_asm_fast) */
 
 #if !asm_rshift1
-static void vli_rshift1(uint8_t *vli) {
+uECC_VLI_API void uECC_vli_rshift1(uint8_t *vli) {
     uint8_t i = uECC_BYTES;
     __asm__ volatile (
         "adiw r30, " STR(uECC_BYTES) " \n\t"
@@ -22010,7 +22010,7 @@ static void vli_rshift1(uint8_t *vli) {
 #endif
 
 #if !asm_add
-static uint8_t vli_add(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API uint8_t uECC_vli_add(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t i = uECC_BYTES;
     uint8_t carry = 0;
     uint8_t left_byte;
@@ -22041,7 +22041,7 @@ static uint8_t vli_add(uint8_t *result, const uint8_t *left, const uint8_t *righ
 #endif
 
 #if !asm_sub
-static uint8_t vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API uint8_t uECC_vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t i = uECC_BYTES;
     uint8_t borrow = 0;
     uint8_t left_byte;
@@ -22073,7 +22073,7 @@ static uint8_t vli_sub(uint8_t *result, const uint8_t *left, const uint8_t *righ
 
 #if !asm_mult
 __attribute((noinline))
-static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
+uECC_VLI_API void uECC_vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right) {
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
@@ -22166,7 +22166,7 @@ static void vli_mult(uint8_t *result, const uint8_t *left, const uint8_t *right)
 
 #if uECC_SQUARE_FUNC
 #if !asm_square
-static void vli_square(uint8_t *result, const uint8_t *left) {
+uECC_VLI_API void uECC_vli_square(uint8_t *result, const uint8_t *left) {
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
