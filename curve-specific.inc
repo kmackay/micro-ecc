@@ -58,8 +58,9 @@ static void double_jacobian_default(uECC_word_t * X1,
     /* t1 = X, t2 = Y, t3 = Z */
     uECC_word_t t4[uECC_MAX_WORDS];
     uECC_word_t t5[uECC_MAX_WORDS];
+    wordcount_t num_words = curve->num_words;
 
-    if (uECC_vli_isZero(Z1, curve->num_words)) {
+    if (uECC_vli_isZero(Z1, num_words)) {
         return;
     }
 
@@ -69,32 +70,32 @@ static void double_jacobian_default(uECC_word_t * X1,
     uECC_vli_modMult_fast(Y1, Y1, Z1, curve); /* t2 = y1*z1 = z3 */
     uECC_vli_modSquare_fast(Z1, Z1, curve);   /* t3 = z1^2 */
 
-    uECC_vli_modAdd(X1, X1, Z1, curve->p, curve->num_words); /* t1 = x1 + z1^2 */
-    uECC_vli_modAdd(Z1, Z1, Z1, curve->p, curve->num_words); /* t3 = 2*z1^2 */
-    uECC_vli_modSub(Z1, X1, Z1, curve->p, curve->num_words); /* t3 = x1 - z1^2 */
+    uECC_vli_modAdd(X1, X1, Z1, curve->p, num_words); /* t1 = x1 + z1^2 */
+    uECC_vli_modAdd(Z1, Z1, Z1, curve->p, num_words); /* t3 = 2*z1^2 */
+    uECC_vli_modSub(Z1, X1, Z1, curve->p, num_words); /* t3 = x1 - z1^2 */
     uECC_vli_modMult_fast(X1, X1, Z1, curve);                /* t1 = x1^2 - z1^4 */
 
-    uECC_vli_modAdd(Z1, X1, X1, curve->p, curve->num_words); /* t3 = 2*(x1^2 - z1^4) */
-    uECC_vli_modAdd(X1, X1, Z1, curve->p, curve->num_words); /* t1 = 3*(x1^2 - z1^4) */
+    uECC_vli_modAdd(Z1, X1, X1, curve->p, num_words); /* t3 = 2*(x1^2 - z1^4) */
+    uECC_vli_modAdd(X1, X1, Z1, curve->p, num_words); /* t1 = 3*(x1^2 - z1^4) */
     if (uECC_vli_testBit(X1, 0)) {
-        uECC_word_t l_carry = uECC_vli_add(X1, X1, curve->p, curve->num_words);
-        uECC_vli_rshift1(X1, curve->num_words);
-        X1[curve->num_words - 1] |= l_carry << (uECC_WORD_BITS - 1);
+        uECC_word_t l_carry = uECC_vli_add(X1, X1, curve->p, num_words);
+        uECC_vli_rshift1(X1, num_words);
+        X1[num_words - 1] |= l_carry << (uECC_WORD_BITS - 1);
     } else {
-        uECC_vli_rshift1(X1, curve->num_words);
+        uECC_vli_rshift1(X1, num_words);
     }
     /* t1 = 3/2*(x1^2 - z1^4) = B */
 
     uECC_vli_modSquare_fast(Z1, X1, curve);                  /* t3 = B^2 */
-    uECC_vli_modSub(Z1, Z1, t5, curve->p, curve->num_words); /* t3 = B^2 - A */
-    uECC_vli_modSub(Z1, Z1, t5, curve->p, curve->num_words); /* t3 = B^2 - 2A = x3 */
-    uECC_vli_modSub(t5, t5, Z1, curve->p, curve->num_words); /* t5 = A - x3 */
+    uECC_vli_modSub(Z1, Z1, t5, curve->p, num_words); /* t3 = B^2 - A */
+    uECC_vli_modSub(Z1, Z1, t5, curve->p, num_words); /* t3 = B^2 - 2A = x3 */
+    uECC_vli_modSub(t5, t5, Z1, curve->p, num_words); /* t5 = A - x3 */
     uECC_vli_modMult_fast(X1, X1, t5, curve);                /* t1 = B * (A - x3) */
-    uECC_vli_modSub(t4, X1, t4, curve->p, curve->num_words); /* t4 = B * (A - x3) - y1^4 = y3 */
+    uECC_vli_modSub(t4, X1, t4, curve->p, num_words); /* t4 = B * (A - x3) - y1^4 = y3 */
 
-    uECC_vli_set(X1, Z1, curve->num_words);
-    uECC_vli_set(Z1, Y1, curve->num_words);
-    uECC_vli_set(Y1, t4, curve->num_words);
+    uECC_vli_set(X1, Z1, num_words);
+    uECC_vli_set(Z1, Y1, num_words);
+    uECC_vli_set(Y1, t4, num_words);
 }
 
 #if uECC_SUPPORT_COMPRESSED_POINT
@@ -103,28 +104,30 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
     bitcount_t i;
     uECC_word_t p1[uECC_MAX_WORDS] = {1};
     uECC_word_t l_result[uECC_MAX_WORDS] = {1};
+    wordcount_t num_words = curve->num_words;
     
     /* When curve->p == 3 (mod 4), we can compute
        sqrt(a) = a^((curve->p + 1) / 4) (mod curve->p). */
-    uECC_vli_add(p1, curve->p, p1, curve->num_words); /* p1 = curve_p + 1 */
-    for (i = uECC_vli_numBits(p1, curve->num_words) - 1; i > 1; --i) {
+    uECC_vli_add(p1, curve->p, p1, num_words); /* p1 = curve_p + 1 */
+    for (i = uECC_vli_numBits(p1, num_words) - 1; i > 1; --i) {
         uECC_vli_modSquare_fast(l_result, l_result, curve);
         if (uECC_vli_testBit(p1, i)) {
             uECC_vli_modMult_fast(l_result, l_result, a, curve);
         }
     }
-    uECC_vli_set(a, l_result, curve->num_words);
+    uECC_vli_set(a, l_result, num_words);
 }
 #endif
 
 /* Computes result = x^3 + ax + b. result must not overlap x. */
 static void x_side_default(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve) {
     uECC_word_t _3[uECC_MAX_WORDS] = {3}; /* -a = 3 */
+    wordcount_t num_words = curve->num_words;
 
     uECC_vli_modSquare_fast(result, x, curve);                             /* r = x^2 */
-    uECC_vli_modSub(result, result, _3, curve->p, curve->num_words);       /* r = x^2 - 3 */
+    uECC_vli_modSub(result, result, _3, curve->p, num_words);       /* r = x^2 - 3 */
     uECC_vli_modMult_fast(result, result, x, curve);                       /* r = x^3 - 3x */
-    uECC_vli_modAdd(result, result, curve->b, curve->p, curve->num_words); /* r = x^3 - 3x + b */
+    uECC_vli_modAdd(result, result, curve->b, curve->p, num_words); /* r = x^3 - 3x + b */
 }
 
 #if uECC_SUPPORTS_secp160r1
