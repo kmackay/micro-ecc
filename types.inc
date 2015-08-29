@@ -57,13 +57,14 @@
     #define SUPPORTS_INT128 0
 #endif
 
+typedef int8_t wordcount_t;
+typedef int16_t bitcount_t;
+typedef int8_t cmpresult_t;
+
 #if (uECC_WORD_SIZE == 1)
 
 typedef uint8_t uECC_word_t;
 typedef uint16_t uECC_dword_t;
-typedef int8_t wordcount_t;
-typedef int16_t bitcount_t;
-typedef int8_t cmpresult_t;
 
 #define HIGH_BIT_SET 0x80
 #define uECC_WORD_BITS 8
@@ -74,9 +75,6 @@ typedef int8_t cmpresult_t;
 
 typedef uint32_t uECC_word_t;
 typedef uint64_t uECC_dword_t;
-typedef int wordcount_t;
-typedef int bitcount_t;
-typedef int cmpresult_t;
 
 #define HIGH_BIT_SET 0x80000000
 #define uECC_WORD_BITS 32
@@ -89,9 +87,6 @@ typedef uint64_t uECC_word_t;
 #if SUPPORTS_INT128
 typedef unsigned __int128 uECC_dword_t;
 #endif
-typedef int wordcount_t;
-typedef int bitcount_t;
-typedef int cmpresult_t;
 
 #define HIGH_BIT_SET 0x8000000000000000ull
 #define uECC_WORD_BITS 64
