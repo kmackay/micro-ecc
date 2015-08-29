@@ -21654,7 +21654,7 @@ uECC_VLI_API void uECC_vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT
     if (carry > 0) {
         uECC_vli_sub(result, result, curve_p);
     }
-    if (uECC_vli_cmp(result, curve_p) > 0) {
+    if (uECC_vli_cmp_unsafe(result, curve_p) > 0) {
         uECC_vli_sub(result, result, curve_p);
     }
 }
@@ -21977,7 +21977,7 @@ uECC_VLI_API void uECC_vli_mmod_fast(uint8_t *RESTRICT result, uint8_t *RESTRICT
     if (carry > 0) {
         uECC_vli_sub(result, result, curve_p);
     }
-    if (uECC_vli_cmp(result, curve_p) > 0) {
+    if (uECC_vli_cmp_unsafe(result, curve_p) > 0) {
         uECC_vli_sub(result, result, curve_p);
     }
 }

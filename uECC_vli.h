@@ -29,14 +29,15 @@ bitcount_t uECC_vli_numBits(const uECC_word_t *vli, const wordcount_t max_words)
 /* Sets dest = src. */
 void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_words);
 
-/* Returns sign of left - right. */
-cmpresult_t uECC_vli_cmp(const uECC_word_t *left, const uECC_word_t *right, wordcount_t num_words);
-
 /* Constant-time comparison function - secure way to compare long integers */
 /* Returns one if left == right, zero otherwise */
 uECC_word_t uECC_vli_equal(const uECC_word_t *left,
                            const uECC_word_t *right,
                            wordcount_t num_words);
+
+/* Constant-time comparison function - secure way to compare long integers */
+/* Returns sign of left - right, in constant time. */
+cmpresult_t uECC_vli_cmp(const uECC_word_t *left, const uECC_word_t *right, wordcount_t num_words);
 
 /* Computes vli = vli >> 1. */
 void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words);
@@ -134,14 +135,17 @@ const uECC_word_t *uECC_curve_n(uECC_Curve curve);
 const uECC_word_t *uECC_curve_G(uECC_Curve curve);
 const uECC_word_t *uECC_curve_b(uECC_Curve curve);
 
-/* Multiply a point by a scalar. Points are represented by the X coordinate followed by
+/* Multiplies a point by a scalar. Points are represented by the X coordinate followed by
    the Y coordinate in the same array, both coordinates are curve->num_words long. Note
    that scalar must be curve->num_n_words long (NOT curve->num_words). */
 void uECC_point_mult(uECC_word_t *result,
                      const uECC_word_t *point,
                      const uECC_word_t *scalar,
                      uECC_Curve curve);
-                     
+
+/* Generates a random integer r in the range 0 < r < curve->n */
+int uECC_generate_random_int(uECC_word_t *random, uECC_Curve curve);
+
 #ifdef __cplusplus
 } /* end of extern "C" */
 #endif

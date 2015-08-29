@@ -139,9 +139,9 @@ uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordco
 }
 
 /* Returns sign of left - right. */
-uECC_VLI_API cmpresult_t uECC_vli_cmp(const uECC_word_t *left,
-                                      const uECC_word_t *right,
-                                      wordcount_t num_words) {
+static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
+                                       const uECC_word_t *right,
+                                       wordcount_t num_words) {
     wordcount_t i;
     for (i = num_words - 1; i >= 0; --i) {
         if (left[i] > right[i]) {
@@ -154,7 +154,7 @@ uECC_VLI_API cmpresult_t uECC_vli_cmp(const uECC_word_t *left,
 }
 
 /* Constant-time comparison function - secure way to compare long integers */
-/* Returns one if left == right, zero otherwise */
+/* Returns one if left == right, zero otherwise. */
 uECC_VLI_API uECC_word_t uECC_vli_equal(const uECC_word_t *left,
                                         const uECC_word_t *right,
                                         wordcount_t num_words) {
@@ -164,6 +164,21 @@ uECC_VLI_API uECC_word_t uECC_vli_equal(const uECC_word_t *left,
         diff |= (left[i] ^ right[i]);
     }
     return (diff == 0);
+}
+
+uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words);
+
+/* Returns sign of left - right, in constant time. */
+uECC_VLI_API cmpresult_t uECC_vli_cmp(const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
+    uECC_word_t tmp[uECC_MAX_WORDS];
+    uECC_word_t neg = !!uECC_vli_sub(tmp, left, right, num_words);
+    uECC_word_t equal = uECC_vli_isZero(tmp, num_words);
+    return (!equal - 2 * neg);
 }
 
 /* Computes vli = vli >> 1. */
@@ -390,7 +405,7 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
                                   const uECC_word_t *mod,
                                   wordcount_t num_words) {
     uECC_word_t carry = uECC_vli_add(result, left, right, num_words);
-    if (carry || uECC_vli_cmp(result, mod, num_words) >= 0) {
+    if (carry || uECC_vli_cmp_unsafe(result, mod, num_words) >= 0) {
         /* result > mod (result = mod + remainder), so subtract mod to get remainder. */
         uECC_vli_sub(result, result, mod, num_words);
     }
@@ -553,7 +568,7 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
     uECC_vli_clear(u, num_words);
     u[0] = 1;
     uECC_vli_clear(v, num_words);
-    while ((cmpResult = uECC_vli_cmp(a, b, num_words)) != 0) {
+    while ((cmpResult = uECC_vli_cmp_unsafe(a, b, num_words)) != 0) {
         if (EVEN(a)) {
             uECC_vli_rshift1(a, num_words);
             vli_modInv_update(u, mod, num_words);
@@ -563,7 +578,7 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
         } else if (cmpResult > 0) {
             uECC_vli_sub(a, a, b, num_words);
             uECC_vli_rshift1(a, num_words);
-            if (uECC_vli_cmp(u, v, num_words) < 0) {
+            if (uECC_vli_cmp_unsafe(u, v, num_words) < 0) {
                 uECC_vli_add(u, u, mod, num_words);
             }
             uECC_vli_sub(u, u, v, num_words);
@@ -571,7 +586,7 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
         } else {
             uECC_vli_sub(b, b, a, num_words);
             uECC_vli_rshift1(b, num_words);
-            if (uECC_vli_cmp(v, u, num_words) < 0) {
+            if (uECC_vli_cmp_unsafe(v, u, num_words) < 0) {
                 uECC_vli_add(v, v, mod, num_words);
             }
             uECC_vli_sub(v, v, u, num_words);
@@ -975,8 +990,8 @@ int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve) {
     }
     
     /* x and y must be smaller than p. */
-    if (uECC_vli_cmp(curve->p, point, num_words) != 1 ||
-            uECC_vli_cmp(curve->p, point + num_words, num_words) != 1) {
+    if (uECC_vli_cmp_unsafe(curve->p, point, num_words) != 1 ||
+            uECC_vli_cmp_unsafe(curve->p, point + num_words, num_words) != 1) {
         return 0;
     }
     
@@ -1262,8 +1277,8 @@ int uECC_verify(const uint8_t *public_key,
     }
 
     /* r, s must be < n. */
-    if (uECC_vli_cmp(curve->n, r, num_n_words) != 1 ||
-            uECC_vli_cmp(curve->n, s, num_n_words) != 1) {
+    if (uECC_vli_cmp_unsafe(curve->n, r, num_n_words) != 1 ||
+            uECC_vli_cmp_unsafe(curve->n, s, num_n_words) != 1) {
         return 0;
     }
 
@@ -1319,7 +1334,7 @@ int uECC_verify(const uint8_t *public_key,
     apply_z(rx, ry, z, curve);
     
     /* v = x1 (mod n) */
-    if (uECC_vli_cmp(curve->n, rx, num_n_words) != 1) {
+    if (uECC_vli_cmp_unsafe(curve->n, rx, num_n_words) != 1) {
         uECC_vli_sub(rx, rx, curve->n, num_n_words);
     }
 
@@ -1358,14 +1373,11 @@ const uECC_word_t *uECC_curve_b(uECC_Curve curve) {
 }
 
 #if uECC_SUPPORT_COMPRESSED_POINT
-/* Calculates a = sqrt(a) (mod curve->p) */
 void uECC_vli_mod_sqrt(uECC_word_t *a, uECC_Curve curve) {
     curve->mod_sqrt(a, curve);
 }
 #endif
 
-/* Calculates result = product (mod curve->p), where product is up to
-   2 * curve->num_words long. */
 void uECC_vli_mmod_fast(uECC_word_t *result, uECC_word_t *product, uECC_Curve curve) {
 #if (uECC_OPTIMIZATION_LEVEL > 0)
     curve->mmod_fast(result, product);
@@ -1374,9 +1386,6 @@ void uECC_vli_mmod_fast(uECC_word_t *result, uECC_word_t *product, uECC_Curve cu
 #endif
 }
 
-/* Multiply a point by a scalar. Points are represented by the X coordinate followed by
-   the Y coordinate in the same array, both coordinates are curve->num_words long. Note
-   that scalar must be curve->num_n_words long (NOT curve->num_words). */
 void uECC_point_mult(uECC_word_t *result,
                      const uECC_word_t *point,
                      const uECC_word_t *scalar,
@@ -1389,6 +1398,24 @@ void uECC_point_mult(uECC_word_t *result,
     EccPoint_mult(result, point, p2[!carry], 0,
                   uECC_vli_numBits(curve->n, curve->num_n_words) + 1,
                   curve);
+}
+
+int uECC_generate_random_int(uECC_word_t *random, uECC_Curve curve) {
+    wordcount_t num_n_words = curve->num_n_words;
+    bitcount_t num_n_bits = uECC_vli_numBits(curve->n, num_n_words);
+    uECC_word_t tries;
+
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
+        if (!generate_random_int(random, num_n_words, num_n_bits)) {
+            return 0;
+        }
+
+        if (!uECC_vli_isZero(random, num_n_words) &&
+                uECC_vli_cmp(curve->n, random, num_n_words) == 1)
+            return 1;
+        }
+    }
+    return 0;
 }
 
 #endif /* uECC_ENABLE_VLI_API */
