@@ -193,7 +193,7 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
     omega_mult_secp160r1(product, tmp + num_words_secp160r1 - 1); /* Rq*c */
     uECC_vli_add(result, result, product, num_words_secp160r1); /* (C1, r) = r + Rq*c */
 
-    while (uECC_vli_cmp(result, curve_secp160r1.p, num_words_secp160r1) > 0) {
+    while (uECC_vli_cmp_unsafe(result, curve_secp160r1.p, num_words_secp160r1) > 0) {
         uECC_vli_sub(result, result, curve_secp160r1.p, num_words_secp160r1);
     }
 }
@@ -230,7 +230,7 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
         --carry;
         uECC_vli_sub(result, result, curve_secp160r1.p, num_words_secp160r1);
     }
-    if (uECC_vli_cmp(result, curve_secp160r1.p, num_words_secp160r1) > 0) {
+    if (uECC_vli_cmp_unsafe(result, curve_secp160r1.p, num_words_secp160r1) > 0) {
         uECC_vli_sub(result, result, curve_secp160r1.p, num_words_secp160r1);
     }
 }
@@ -344,7 +344,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
     tmp[16] = tmp[17] = tmp[18] = tmp[19] = tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
-    while (carry || uECC_vli_cmp(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
+    while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
         carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
 }
@@ -370,7 +370,7 @@ static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
     tmp[4] = tmp[5] = 0;
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
-    while (carry || uECC_vli_cmp(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
+    while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
         carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
 }
@@ -393,7 +393,7 @@ static void vli_mmod_fast_secp192r1(uint64_t *result, uint64_t *product) {
     tmp[2] = 0;
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
-    while (carry || uECC_vli_cmp(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
+    while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
         carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
 }
@@ -620,7 +620,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
             carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
         } while (carry < 0);
     } else {
-        while (carry || uECC_vli_cmp(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
+        while (carry || uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
             carry -= uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
         }
     }
@@ -671,7 +671,7 @@ static void vli_mmod_fast_secp224r1(uint32_t *result, uint32_t *product)
             carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
         } while (carry < 0);
     } else {
-        while (carry || uECC_vli_cmp(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
+        while (carry || uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
             carry -= uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
         }
     }
@@ -717,7 +717,7 @@ static void vli_mmod_fast_secp224r1(uint64_t *result, uint64_t *product)
             carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
         } while (carry < 0);
     } else {
-        while (uECC_vli_cmp(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
+        while (uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
             uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
         }
     }
@@ -874,7 +874,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
             carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
         } while (carry < 0);
     } else {
-        while (carry || uECC_vli_cmp(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
+        while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
             carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
         }
     }
@@ -972,7 +972,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
             carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
         } while (carry < 0);
     } else {
-        while (carry || uECC_vli_cmp(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
+        while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
             carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
         }
     }
@@ -1047,7 +1047,7 @@ static void vli_mmod_fast_secp256r1(uint64_t *result, uint64_t *product) {
             carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
         } while (carry < 0);
     } else {
-        while (carry || uECC_vli_cmp(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
+        while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
             carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
         }
     }
@@ -1172,7 +1172,7 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
         --carry;
         uECC_vli_sub(result, result, curve_secp256k1.p, num_words_secp256k1);
     }
-    if (uECC_vli_cmp(result, curve_secp256k1.p, num_words_secp256k1) > 0) {
+    if (uECC_vli_cmp_unsafe(result, curve_secp256k1.p, num_words_secp256k1) > 0) {
         uECC_vli_sub(result, result, curve_secp256k1.p, num_words_secp256k1);
     }
 }
