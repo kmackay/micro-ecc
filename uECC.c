@@ -2,7 +2,9 @@
 
 #include "uECC.h"
 
-#define MAX_TRIES 64
+#ifndef uECC_RNG_MAX_TRIES
+    #define uECC_RNG_MAX_TRIES 64
+#endif
 
 #if uECC_SUPPORTS_secp160r1
     #define uECC_MAX_BYTES 21 /* Due to the size of curve_n. */
@@ -865,7 +867,7 @@ int uECC_make_key(uint8_t *public_key,
     /* Zero out correctly (to compare to curve->n) for secp160r1. */
     private[curve->num_n_words - 1] = 0; 
     
-    for (tries = 0; tries < MAX_TRIES; ++tries) {
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
         if (!generate_random_int(private, curve->num_words, curve->num_bytes * 8)) {
             return 0;
         }
@@ -906,7 +908,7 @@ int uECC_shared_secret(const uint8_t *public_key,
     /* If an RNG function was specified, try to get a random initial Z value to improve
        protection against side-channel attacks. */
     if (g_rng_function) {
-        for (tries = 0; tries < MAX_TRIES; ++tries) {
+        for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
             if (!generate_random_int(p2[carry], curve->num_words, curve->num_bytes * 8)) {
                 return 0;
             }
@@ -1029,7 +1031,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
         tmp[0] = 1;
     } else {
         uECC_word_t tries;
-        for (tries = 0; tries < MAX_TRIES; ++tries) {
+        for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
             if (!generate_random_int(tmp, curve->num_n_words, num_n_bits)) {
                 return 0;
             }
@@ -1074,7 +1076,7 @@ int uECC_sign(const uint8_t *private_key,
     uECC_word_t tries;
     bitcount_t num_n_bits = uECC_vli_numBits(curve->n, curve->num_n_words);
     
-    for (tries = 0; tries < MAX_TRIES; ++tries) {
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
         if (!generate_random_int(k, curve->num_n_words, num_n_bits)) {
             return 0;
         }
@@ -1170,7 +1172,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
 
     update_V(hash_context, K, V);
 
-    for (tries = 0; tries < MAX_TRIES; ++tries) {
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
         uECC_word_t T[uECC_MAX_WORDS];
         uint8_t *T_ptr = (uint8_t *)T;
         wordcount_t T_bytes = 0;
