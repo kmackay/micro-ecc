@@ -25,7 +25,7 @@ platform. */
    Larger values produce code that is faster but larger.
    Currently supported values are 0 - 3; 0 is unusably slow for most applications. */
 #ifndef uECC_OPTIMIZATION_LEVEL
-    #define uECC_OPTIMIZATION_LEVEL 1
+    #define uECC_OPTIMIZATION_LEVEL 2
 #endif
 
 #ifndef uECC_SQUARE_FUNC
