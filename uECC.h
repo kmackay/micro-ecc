@@ -229,7 +229,7 @@ Inputs:
 
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
-int uECC_verify(const uint8_t private_key[uECC_BYTES*2],
+int uECC_verify(const uint8_t public_key[uECC_BYTES*2],
                 const uint8_t hash[uECC_BYTES],
                 const uint8_t signature[uECC_BYTES*2]);
 
