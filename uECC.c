@@ -2518,10 +2518,6 @@ int uECC_sign(const uint8_t private_key[uECC_BYTES],
               const uint8_t message_hash[uECC_BYTES],
               uint8_t signature[uECC_BYTES*2]) {
     uECC_word_t k[uECC_N_WORDS];
-    uECC_word_t tmp[uECC_N_WORDS];
-    uECC_word_t s[uECC_N_WORDS];
-    uECC_word_t *k2[2] = {tmp, s};
-    EccPoint p;
     uECC_word_t tries;
 
     for (tries = 0; tries < MAX_TRIES; ++tries) {
