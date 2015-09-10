@@ -1,6 +1,7 @@
 /* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
 #include "uECC.h"
+#include "uECC_vli.h"
 
 #ifndef uECC_RNG_MAX_TRIES
     #define uECC_RNG_MAX_TRIES 64
@@ -20,10 +21,6 @@
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
     #undef uECC_MAX_BYTES
     #define uECC_MAX_BYTES 32
-#endif
-
-#ifndef uECC_ENABLE_VLI_API
-    #define uECC_ENABLE_VLI_API 0
 #endif
 
 #if uECC_ENABLE_VLI_API
@@ -1411,7 +1408,7 @@ int uECC_generate_random_int(uECC_word_t *random, uECC_Curve curve) {
         }
 
         if (!uECC_vli_isZero(random, num_n_words) &&
-                uECC_vli_cmp(curve->n, random, num_n_words) == 1)
+                uECC_vli_cmp(curve->n, random, num_n_words) == 1) {
             return 1;
         }
     }
