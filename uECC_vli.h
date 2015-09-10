@@ -4,15 +4,20 @@
 #define _UECC_VLI_H_
 
 #include "uECC.h"
-#include "types.inc"
+#include "types.h"
 
 /* Functions for raw large-integer manipulation. These are only available
    if uECC.c is compiled with uECC_ENABLE_VLI_API defined to 1. */
+#ifndef uECC_ENABLE_VLI_API
+    #define uECC_ENABLE_VLI_API 0
+#endif
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
+#if uECC_ENABLE_VLI_API
 
 void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words);
 
@@ -135,6 +140,8 @@ const uECC_word_t *uECC_curve_n(uECC_Curve curve);
 const uECC_word_t *uECC_curve_G(uECC_Curve curve);
 const uECC_word_t *uECC_curve_b(uECC_Curve curve);
 
+int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve);
+
 /* Multiplies a point by a scalar. Points are represented by the X coordinate followed by
    the Y coordinate in the same array, both coordinates are curve->num_words long. Note
    that scalar must be curve->num_n_words long (NOT curve->num_words). */
@@ -145,6 +152,8 @@ void uECC_point_mult(uECC_word_t *result,
 
 /* Generates a random integer r in the range 0 < r < curve->n */
 int uECC_generate_random_int(uECC_word_t *random, uECC_Curve curve);
+
+#endif /* uECC_ENABLE_VLI_API */
 
 #ifdef __cplusplus
 } /* end of extern "C" */
