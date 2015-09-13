@@ -29,6 +29,14 @@
     #define REG_WRITE "=r"
 #endif
 
+#if (uECC_PLATFORM == uECC_arm_thumb || uECC_PLATFORM == uECC_arm_thumb2)
+    #define REG_RW_LO "+l"
+    #define REG_WRITE_LO "=l"
+#else
+    #define REG_RW_LO "+r"
+    #define REG_WRITE_LO "=r"
+#endif
+
 #if (uECC_PLATFORM == uECC_arm_thumb2)
     #define RESUME_SYNTAX
 #else
@@ -103,9 +111,9 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     #endif
         "adcs %[carry], %[carry] \n\t"
         RESUME_SYNTAX
-        : [dptr] REG_RW (result), [lptr] REG_RW (left), [rptr] REG_RW (right),
-          [carry] REG_WRITE (carry), [left] REG_WRITE (left_word), [right] REG_WRITE (right_word),
-          [jump] REG_RW (jump)
+        : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
+          [jump] REG_RW_LO (jump), [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
+          [right] REG_WRITE_LO (right_word)
         :
         : "cc", "memory"
     );
@@ -179,9 +187,9 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     #endif
         "adcs %[carry], %[carry] \n\t"
         RESUME_SYNTAX
-        : [dptr] REG_RW (result), [lptr] REG_RW (left), [rptr] REG_RW (right),
-          [carry] REG_WRITE (carry), [left] REG_WRITE (left_word), [right] REG_WRITE (right_word),
-          [jump] REG_RW (jump)
+        : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
+          [jump] REG_RW_LO (jump), [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
+          [right] REG_WRITE_LO (right_word)
         :
         : "cc", "memory"
     );
@@ -212,192 +220,192 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     "mov r14, #0 \n\t"                       \
     "umull r9, r10, r4, r8 \n\t"             \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r6 \n\t"                       \
-    "adc r10, #0 \n\t"                       \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r6 \n\t"                   \
+    "adc r10, r10, #0 \n\t"                  \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "str r9, [r0], #4 \n\t"                  \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r10, r6 \n\t"                      \
-    "adcs r14, #0 \n\t"                      \
+    "adds r10, r10, r6 \n\t"                 \
+    "adcs r14, r14, #0 \n\t"                 \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r9, #0 \n\t"                        \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "str r10, [r0], #4 \n\t"                 \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r14, r6 \n\t"                      \
-    "adcs r9, #0 \n\t"                       \
+    "adds r14, r14, r6 \n\t"                 \
+    "adcs r9, r9, #0 \n\t"                   \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r10, #0 \n\t"                       \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
+    "adds r14, r14, r11 \n\t"                \
+    "adcs r9, r9, r12 \n\t"                  \
+    "adc r10, r10, #0 \n\t"                  \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
+    "adds r14, r14, r11 \n\t"                \
+    "adcs r9, r9, r12 \n\t"                  \
+    "adc r10, r10, #0 \n\t"                  \
     "str r14, [r0], #4 \n\t"                 \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r9, r6 \n\t"                       \
-    "adcs r10, #0 \n\t"                      \
+    "adds r9, r9, r6 \n\t"                   \
+    "adcs r10, r10, #0 \n\t"                 \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r14, #0 \n\t"                       \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "str r9, [r0], #4 \n\t"                  \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r10, r6 \n\t"                      \
-    "adcs r14, #0 \n\t"                      \
+    "adds r10, r10, r6 \n\t"                 \
+    "adcs r14, r14, #0 \n\t"                 \
     /* skip past already-loaded (r4, r5) */  \
     "ldr r7, [r1], #8 \n\t"                  \
     "ldr r8, [r2], #8 \n\t"                  \
     "mov r9, #0 \n\t"                        \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "str r10, [r0], #4 \n\t"                 \
                                              \
     "umull r11, r12, r4, r5 \n\t"            \
-    "adds r11, r14 \n\t"                     \
-    "adc r12, r9 \n\t"                       \
+    "adds r11, r11, r14 \n\t"                \
+    "adc r12, r12, r9 \n\t"                  \
     "stmia r0!, {r11, r12} \n\t"
 
-#define FAST_MULT_ASM_6_TO_7                 \
-    "cmp r3, #6 \n\t"                        \
-    "beq 1f \n\t"                            \
-                                             \
-    /* r4 = left high, r5 = right high */    \
-    "ldr r4, [r1] \n\t"                      \
-    "ldr r5, [r2] \n\t"                      \
-                                             \
-    "sub r0, #24 \n\t"                       \
-    "sub r1, #24 \n\t"                       \
-    "sub r2, #24 \n\t"                       \
-                                             \
-    "ldr r6, [r0] \n\t"                      \
-    "ldr r7, [r1], #4 \n\t"                  \
-    "ldr r8, [r2], #4 \n\t"                  \
-    "mov r14, #0 \n\t"                       \
-    "umull r9, r10, r4, r8 \n\t"             \
-    "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r6 \n\t"                       \
-    "adc r10, #0 \n\t"                       \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
-    "str r9, [r0], #4 \n\t"                  \
-                                             \
-    "ldr r6, [r0] \n\t"                      \
-    "adds r10, r6 \n\t"                      \
-    "adcs r14, #0 \n\t"                      \
-    "ldr r7, [r1], #4 \n\t"                  \
-    "ldr r8, [r2], #4 \n\t"                  \
-    "mov r9, #0 \n\t"                        \
-    "umull r11, r12, r4, r8 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
-    "umull r11, r12, r5, r7 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
-    "str r10, [r0], #4 \n\t"                 \
-                                             \
-    "ldr r6, [r0] \n\t"                      \
-    "adds r14, r6 \n\t"                      \
-    "adcs r9, #0 \n\t"                       \
-    "ldr r7, [r1], #4 \n\t"                  \
-    "ldr r8, [r2], #4 \n\t"                  \
-    "mov r10, #0 \n\t"                       \
-    "umull r11, r12, r4, r8 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
-    "umull r11, r12, r5, r7 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
-    "str r14, [r0], #4 \n\t"                 \
-                                             \
-    "ldr r6, [r0] \n\t"                      \
-    "adds r9, r6 \n\t"                       \
-    "adcs r10, #0 \n\t"                      \
-    "ldr r7, [r1], #4 \n\t"                  \
-    "ldr r8, [r2], #4 \n\t"                  \
-    "mov r14, #0 \n\t"                       \
-    "umull r11, r12, r4, r8 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
-    "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
-    "str r9, [r0], #4 \n\t"                  \
-                                             \
-    "ldr r6, [r0] \n\t"                      \
-    "adds r10, r6 \n\t"                      \
-    "adcs r14, #0 \n\t"                      \
-    "ldr r7, [r1], #4 \n\t"                  \
-    "ldr r8, [r2], #4 \n\t"                  \
-    "mov r9, #0 \n\t"                        \
-    "umull r11, r12, r4, r8 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
-    "umull r11, r12, r5, r7 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
-    "str r10, [r0], #4 \n\t"                 \
-                                             \
-    "ldr r6, [r0] \n\t"                      \
-    "adds r14, r6 \n\t"                      \
-    "adcs r9, #0 \n\t"                       \
-    /* skip past already-loaded (r4, r5) */  \
-    "ldr r7, [r1], #8 \n\t"                  \
-    "ldr r8, [r2], #8 \n\t"                  \
-    "mov r10, #0 \n\t"                       \
-    "umull r11, r12, r4, r8 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
-    "umull r11, r12, r5, r7 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
-    "str r14, [r0], #4 \n\t"                 \
-                                             \
-    "umull r11, r12, r4, r5 \n\t"            \
-    "adds r11, r9 \n\t"                      \
-    "adc r12, r10 \n\t"                      \
+#define FAST_MULT_ASM_6_TO_7                    \
+    "cmp r3, #6 \n\t"                           \
+    "beq 1f \n\t"                               \
+                                                \
+    /* r4 = left high, r5 = right high */       \
+    "ldr r4, [r1] \n\t"                         \
+    "ldr r5, [r2] \n\t"                         \
+                                                \
+    "sub r0, #24 \n\t"                          \
+    "sub r1, #24 \n\t"                          \
+    "sub r2, #24 \n\t"                          \
+                                                \
+    "ldr r6, [r0] \n\t"                         \
+    "ldr r7, [r1], #4 \n\t"                     \
+    "ldr r8, [r2], #4 \n\t"                     \
+    "mov r14, #0 \n\t"                          \
+    "umull r9, r10, r4, r8 \n\t"                \
+    "umull r11, r12, r5, r7 \n\t"               \
+    "adds r9, r9, r6 \n\t"                      \
+    "adc r10, r10, #0 \n\t"                     \
+    "adds r9, r9, r11 \n\t"                     \
+    "adcs r10, r10, r12 \n\t"                   \
+    "adc r14, r14, #0 \n\t"                     \
+    "str r9, [r0], #4 \n\t"                     \
+                                                \
+    "ldr r6, [r0] \n\t"                         \
+    "adds r10, r10, r6 \n\t"                    \
+    "adcs r14, r14, #0 \n\t"                    \
+    "ldr r7, [r1], #4 \n\t"                     \
+    "ldr r8, [r2], #4 \n\t"                     \
+    "mov r9, #0 \n\t"                           \
+    "umull r11, r12, r4, r8 \n\t"               \
+    "adds r10, r10, r11 \n\t"                   \
+    "adcs r14, r14, r12 \n\t"                   \
+    "adc r9, r9, #0 \n\t"                       \
+    "umull r11, r12, r5, r7 \n\t"               \
+    "adds r10, r10, r11 \n\t"                   \
+    "adcs r14, r14, r12 \n\t"                   \
+    "adc r9, r9, #0 \n\t"                       \
+    "str r10, [r0], #4 \n\t"                    \
+                                                \
+    "ldr r6, [r0] \n\t"                         \
+    "adds r14, r14, r6 \n\t"                    \
+    "adcs r9, r9, #0 \n\t"                      \
+    "ldr r7, [r1], #4 \n\t"                     \
+    "ldr r8, [r2], #4 \n\t"                     \
+    "mov r10, #0 \n\t"                          \
+    "umull r11, r12, r4, r8 \n\t"               \
+    "adds r14, r14, r11 \n\t"                   \
+    "adcs r9, r9, r12 \n\t"                     \
+    "adc r10, r10, #0 \n\t"                     \
+    "umull r11, r12, r5, r7 \n\t"               \
+    "adds r14, r14, r11 \n\t"                   \
+    "adcs r9, r9, r12 \n\t"                     \
+    "adc r10, r10, #0 \n\t"                     \
+    "str r14, [r0], #4 \n\t"                    \
+                                                \
+    "ldr r6, [r0] \n\t"                         \
+    "adds r9, r9, r6 \n\t"                      \
+    "adcs r10, r10, #0 \n\t"                    \
+    "ldr r7, [r1], #4 \n\t"                     \
+    "ldr r8, [r2], #4 \n\t"                     \
+    "mov r14, #0 \n\t"                          \
+    "umull r11, r12, r4, r8 \n\t"               \
+    "adds r9, r9, r11 \n\t"                     \
+    "adcs r10, r10, r12 \n\t"                   \
+    "adc r14, r14, #0 \n\t"                     \
+    "umull r11, r12, r5, r7 \n\t"               \
+    "adds r9, r9, r11 \n\t"                     \
+    "adcs r10, r10, r12 \n\t"                   \
+    "adc r14, r14, #0 \n\t"                     \
+    "str r9, [r0], #4 \n\t"                     \
+                                                \
+    "ldr r6, [r0] \n\t"                         \
+    "adds r10, r10, r6 \n\t"                    \
+    "adcs r14, r14, #0 \n\t"                    \
+    "ldr r7, [r1], #4 \n\t"                     \
+    "ldr r8, [r2], #4 \n\t"                     \
+    "mov r9, #0 \n\t"                           \
+    "umull r11, r12, r4, r8 \n\t"               \
+    "adds r10, r10, r11 \n\t"                   \
+    "adcs r14, r14, r12 \n\t"                   \
+    "adc r9, r9, #0 \n\t"                       \
+    "umull r11, r12, r5, r7 \n\t"               \
+    "adds r10, r10, r11 \n\t"                   \
+    "adcs r14, r14, r12 \n\t"                   \
+    "adc r9, r9, #0 \n\t"                       \
+    "str r10, [r0], #4 \n\t"                    \
+                                                \
+    "ldr r6, [r0] \n\t"                         \
+    "adds r14, r14, r6 \n\t"                    \
+    "adcs r9, r9, #0 \n\t"                      \
+    /* skip past already-loaded (r4, r5) */     \
+    "ldr r7, [r1], #8 \n\t"                     \
+    "ldr r8, [r2], #8 \n\t"                     \
+    "mov r10, #0 \n\t"                          \
+    "umull r11, r12, r4, r8 \n\t"               \
+    "adds r14, r14, r11 \n\t"                   \
+    "adcs r9, r9, r12 \n\t"                     \
+    "adc r10, r10, #0 \n\t"                     \
+    "umull r11, r12, r5, r7 \n\t"               \
+    "adds r14, r14, r11 \n\t"                   \
+    "adcs r9, r9, r12 \n\t"                     \
+    "adc r10, r10, #0 \n\t"                     \
+    "str r14, [r0], #4 \n\t"                    \
+                                                \
+    "umull r11, r12, r4, r5 \n\t"               \
+    "adds r11, r11, r9 \n\t"                    \
+    "adc r12, r12, r10 \n\t"                    \
     "stmia r0!, {r11, r12} \n\t"
 
 #define FAST_MULT_ASM_7_TO_8                 \
@@ -418,113 +426,113 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     "mov r14, #0 \n\t"                       \
     "umull r9, r10, r4, r8 \n\t"             \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r6 \n\t"                       \
-    "adc r10, #0 \n\t"                       \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r6 \n\t"                   \
+    "adc r10, r10, #0 \n\t"                  \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "str r9, [r0], #4 \n\t"                  \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r10, r6 \n\t"                      \
-    "adcs r14, #0 \n\t"                      \
+    "adds r10, r10, r6 \n\t"                 \
+    "adcs r14, r14, #0 \n\t"                 \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r9, #0 \n\t"                        \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "str r10, [r0], #4 \n\t"                 \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r14, r6 \n\t"                      \
-    "adcs r9, #0 \n\t"                       \
+    "adds r14, r14, r6 \n\t"                 \
+    "adcs r9, r9, #0 \n\t"                   \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r10, #0 \n\t"                       \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
+    "adds r14, r14, r11 \n\t"                \
+    "adcs r9, r9, r12 \n\t"                  \
+    "adc r10, r10, #0 \n\t"                  \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
+    "adds r14, r14, r11 \n\t"                \
+    "adcs r9, r9, r12 \n\t"                  \
+    "adc r10, r10, #0 \n\t"                  \
     "str r14, [r0], #4 \n\t"                 \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r9, r6 \n\t"                       \
-    "adcs r10, #0 \n\t"                      \
+    "adds r9, r9, r6 \n\t"                   \
+    "adcs r10, r10, #0 \n\t"                 \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r14, #0 \n\t"                       \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "str r9, [r0], #4 \n\t"                  \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r10, r6 \n\t"                      \
-    "adcs r14, #0 \n\t"                      \
+    "adds r10, r10, r6 \n\t"                 \
+    "adcs r14, r14, #0 \n\t"                 \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r9, #0 \n\t"                        \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r10, r11 \n\t"                     \
-    "adcs r14, r12 \n\t"                     \
-    "adc r9, #0 \n\t"                        \
+    "adds r10, r10, r11 \n\t"                \
+    "adcs r14, r14, r12 \n\t"                \
+    "adc r9, r9, #0 \n\t"                    \
     "str r10, [r0], #4 \n\t"                 \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r14, r6 \n\t"                      \
-    "adcs r9, #0 \n\t"                       \
+    "adds r14, r14, r6 \n\t"                 \
+    "adcs r9, r9, #0 \n\t"                   \
     "ldr r7, [r1], #4 \n\t"                  \
     "ldr r8, [r2], #4 \n\t"                  \
     "mov r10, #0 \n\t"                       \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
+    "adds r14, r14, r11 \n\t"                \
+    "adcs r9, r9, r12 \n\t"                  \
+    "adc r10, r10, #0 \n\t"                  \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r14, r11 \n\t"                     \
-    "adcs r9, r12 \n\t"                      \
-    "adc r10, #0 \n\t"                       \
+    "adds r14, r14, r11 \n\t"                \
+    "adcs r9, r9, r12 \n\t"                  \
+    "adc r10, r10, #0 \n\t"                  \
     "str r14, [r0], #4 \n\t"                 \
                                              \
     "ldr r6, [r0] \n\t"                      \
-    "adds r9, r6 \n\t"                       \
-    "adcs r10, #0 \n\t"                      \
+    "adds r9, r9, r6 \n\t"                   \
+    "adcs r10, r10, #0 \n\t"                 \
     /* skip past already-loaded (r4, r5) */  \
     "ldr r7, [r1], #8 \n\t"                  \
     "ldr r8, [r2], #8 \n\t"                  \
     "mov r14, #0 \n\t"                       \
     "umull r11, r12, r4, r8 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "umull r11, r12, r5, r7 \n\t"            \
-    "adds r9, r11 \n\t"                      \
-    "adcs r10, r12 \n\t"                     \
-    "adc r14, #0 \n\t"                       \
+    "adds r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"                \
+    "adc r14, r14, #0 \n\t"                  \
     "str r9, [r0], #4 \n\t"                  \
                                              \
     "umull r11, r12, r4, r5 \n\t"            \
-    "adds r11, r10 \n\t"                     \
-    "adc r12, r14 \n\t"                      \
+    "adds r11, r11, r10 \n\t"                \
+    "adc r12, r12, r14 \n\t"                 \
     "stmia r0!, {r11, r12} \n\t"
 
 #if (uECC_PLATFORM != uECC_arm_thumb)
@@ -599,52 +607,52 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
     "umull r4, r5, r3, r14 \n\t"         \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r7, r6, r3, r14 \n\t"         \
-    "adds r5, r7 \n\t"                   \
+    "adds r5, r5, r7 \n\t"               \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r8, r7, r3, r14 \n\t"         \
-    "adcs r6, r8 \n\t"                   \
+    "adcs r6, r6, r8 \n\t"               \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r9, r8, r3, r14 \n\t"         \
-    "adcs r7, r9 \n\t"                   \
+    "adcs r7, r7, r9 \n\t"               \
     /* Skip already-loaded r3 */         \
     "ldr r14, [r1], #8 \n\t"             \
     "umull r10, r9, r3, r14 \n\t"        \
-    "adcs r8, r10 \n\t"                  \
-    "adcs r9, #0 \n\t"                   \
+    "adcs r8, r8, r10 \n\t"              \
+    "adcs r9, r9, #0 \n\t"               \
                                          \
     /* Multiply by 2 */                  \
     "mov r10, #0 \n\t"                   \
-    "adds r4, r4 \n\t"                   \
-    "adcs r5, r5 \n\t"                   \
-    "adcs r6, r6 \n\t"                   \
-    "adcs r7, r7 \n\t"                   \
-    "adcs r8, r8 \n\t"                   \
-    "adcs r9, r9 \n\t"                   \
-    "adcs r10, #0 \n\t"                  \
+    "adds r4, r4, r4 \n\t"               \
+    "adcs r5, r5, r5 \n\t"               \
+    "adcs r6, r6, r6 \n\t"               \
+    "adcs r7, r7, r7 \n\t"               \
+    "adcs r8, r8, r8 \n\t"               \
+    "adcs r9, r9, r9 \n\t"               \
+    "adcs r10, r10, #0 \n\t"             \
                                          \
     /* Add into previous */              \
     "ldr r14, [r0] \n\t"                 \
-    "adds r4, r14 \n\t"                  \
+    "adds r4, r4, r14 \n\t"              \
     "str r4, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r5, r14 \n\t"                  \
+    "adcs r5, r5, r14 \n\t"              \
     "str r5, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r6, r14 \n\t"                  \
+    "adcs r6, r6, r14 \n\t"              \
     "str r6, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r7, r14 \n\t"                  \
+    "adcs r7, r7, r14 \n\t"              \
     "str r7, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r8, r14 \n\t"                  \
+    "adcs r8, r8, r14 \n\t"              \
     "str r8, [r0], #4 \n\t"              \
-    "adcs r9, #0 \n\t"                   \
-    "adcs r10, #0 \n\t"                  \
+    "adcs r9, r9, #0 \n\t"               \
+    "adcs r10, r10, #0 \n\t"             \
                                          \
     /* Perform center multiplication */  \
     "umull r4, r5, r3, r3 \n\t"          \
-    "adds r4, r9 \n\t"                   \
-    "adc r5, r10 \n\t"                   \
+    "adds r4, r4, r9 \n\t"               \
+    "adc r5, r5, r10 \n\t"               \
     "stmia r0!, {r4, r5} \n\t"           
 
 #define FAST_SQUARE_ASM_6_TO_7               \
@@ -662,59 +670,59 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
     "umull r4, r5, r3, r14 \n\t"             \
     "ldr r14, [r1], #4 \n\t"                 \
     "umull r7, r6, r3, r14 \n\t"             \
-    "adds r5, r7 \n\t"                       \
+    "adds r5, r5, r7 \n\t"                   \
     "ldr r14, [r1], #4 \n\t"                 \
     "umull r8, r7, r3, r14 \n\t"             \
-    "adcs r6, r8 \n\t"                       \
+    "adcs r6, r6, r8 \n\t"                   \
     "ldr r14, [r1], #4 \n\t"                 \
     "umull r9, r8, r3, r14 \n\t"             \
-    "adcs r7, r9 \n\t"                       \
+    "adcs r7, r7, r9 \n\t"                   \
     "ldr r14, [r1], #4 \n\t"                 \
     "umull r10, r9, r3, r14 \n\t"            \
-    "adcs r8, r10 \n\t"                      \
+    "adcs r8, r8, r10 \n\t"                  \
     /* Skip already-loaded r3 */             \
     "ldr r14, [r1], #8 \n\t"                 \
     "umull r11, r10, r3, r14 \n\t"           \
-    "adcs r9, r11 \n\t"                      \
-    "adcs r10, #0 \n\t"                      \
+    "adcs r9, r9, r11 \n\t"                  \
+    "adcs r10, r10, #0 \n\t"                 \
                                              \
     /* Multiply by 2 */                      \
     "mov r11, #0 \n\t"                       \
-    "adds r4, r4 \n\t"                       \
-    "adcs r5, r5 \n\t"                       \
-    "adcs r6, r6 \n\t"                       \
-    "adcs r7, r7 \n\t"                       \
-    "adcs r8, r8 \n\t"                       \
-    "adcs r9, r9 \n\t"                       \
-    "adcs r10, r10 \n\t"                     \
-    "adcs r11, #0 \n\t"                      \
+    "adds r4, r4, r4 \n\t"                   \
+    "adcs r5, r5, r5 \n\t"                   \
+    "adcs r6, r6, r6 \n\t"                   \
+    "adcs r7, r7, r7 \n\t"                   \
+    "adcs r8, r8, r8 \n\t"                   \
+    "adcs r9, r9, r9 \n\t"                   \
+    "adcs r10, r10, r10 \n\t"                \
+    "adcs r11, r11, #0 \n\t"                 \
                                              \
     /* Add into previous */                  \
     "ldr r14, [r0] \n\t"                     \
-    "adds r4, r14 \n\t"                      \
+    "adds r4, r4, r14 \n\t"                  \
     "str r4, [r0], #4 \n\t"                  \
     "ldr r14, [r0] \n\t"                     \
-    "adcs r5, r14 \n\t"                      \
+    "adcs r5, r5, r14 \n\t"                  \
     "str r5, [r0], #4 \n\t"                  \
     "ldr r14, [r0] \n\t"                     \
-    "adcs r6, r14 \n\t"                      \
+    "adcs r6, r6, r14 \n\t"                  \
     "str r6, [r0], #4 \n\t"                  \
     "ldr r14, [r0] \n\t"                     \
-    "adcs r7, r14 \n\t"                      \
+    "adcs r7, r7, r14 \n\t"                  \
     "str r7, [r0], #4 \n\t"                  \
     "ldr r14, [r0] \n\t"                     \
-    "adcs r8, r14 \n\t"                      \
+    "adcs r8, r8, r14 \n\t"                  \
     "str r8, [r0], #4 \n\t"                  \
     "ldr r14, [r0] \n\t"                     \
-    "adcs r9, r14 \n\t"                      \
+    "adcs r9, r9, r14 \n\t"                  \
     "str r9, [r0], #4 \n\t"                  \
-    "adcs r10, #0 \n\t"                      \
-    "adcs r11, #0 \n\t"                      \
+    "adcs r10, r10, #0 \n\t"                 \
+    "adcs r11, r11, #0 \n\t"                 \
                                              \
     /* Perform center multiplication */      \
     "umull r4, r5, r3, r3 \n\t"              \
-    "adds r4, r10 \n\t"                      \
-    "adc r5, r11 \n\t"                       \
+    "adds r4, r4, r10 \n\t"                  \
+    "adc r5, r5, r11 \n\t"                   \
     "stmia r0!, {r4, r5} \n\t"
 
 #define FAST_SQUARE_ASM_7_TO_8           \
@@ -732,66 +740,66 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
     "umull r4, r5, r3, r14 \n\t"         \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r7, r6, r3, r14 \n\t"         \
-    "adds r5, r7 \n\t"                   \
+    "adds r5, r5, r7 \n\t"               \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r8, r7, r3, r14 \n\t"         \
-    "adcs r6, r8 \n\t"                   \
+    "adcs r6, r6, r8 \n\t"               \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r9, r8, r3, r14 \n\t"         \
-    "adcs r7, r9 \n\t"                   \
+    "adcs r7, r7, r9 \n\t"               \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r10, r9, r3, r14 \n\t"        \
-    "adcs r8, r10 \n\t"                  \
+    "adcs r8, r8, r10 \n\t"              \
     "ldr r14, [r1], #4 \n\t"             \
     "umull r11, r10, r3, r14 \n\t"       \
-    "adcs r9, r11 \n\t"                  \
+    "adcs r9, r9, r11 \n\t"              \
     /* Skip already-loaded r3 */         \
     "ldr r14, [r1], #8 \n\t"             \
     "umull r12, r11, r3, r14 \n\t"       \
-    "adcs r10, r12 \n\t"                 \
-    "adcs r11, #0 \n\t"                  \
+    "adcs r10, r10, r12 \n\t"            \
+    "adcs r11, r11, #0 \n\t"             \
                                          \
     /* Multiply by 2 */                  \
     "mov r12, #0 \n\t"                   \
-    "adds r4, r4 \n\t"                   \
-    "adcs r5, r5 \n\t"                   \
-    "adcs r6, r6 \n\t"                   \
-    "adcs r7, r7 \n\t"                   \
-    "adcs r8, r8 \n\t"                   \
-    "adcs r9, r9 \n\t"                   \
-    "adcs r10, r10 \n\t"                 \
-    "adcs r11, r11 \n\t"                 \
-    "adcs r12, #0 \n\t"                  \
+    "adds r4, r4, r4 \n\t"               \
+    "adcs r5, r5, r5 \n\t"               \
+    "adcs r6, r6, r6 \n\t"               \
+    "adcs r7, r7, r7 \n\t"               \
+    "adcs r8, r8, r8 \n\t"               \
+    "adcs r9, r9, r9 \n\t"               \
+    "adcs r10, r10, r10 \n\t"            \
+    "adcs r11, r11, r11 \n\t"            \
+    "adcs r12, r12, #0 \n\t"             \
                                          \
     /* Add into previous */              \
     "ldr r14, [r0] \n\t"                 \
-    "adds r4, r14 \n\t"                  \
+    "adds r4, r4, r14 \n\t"              \
     "str r4, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r5, r14 \n\t"                  \
+    "adcs r5, r5, r14 \n\t"              \
     "str r5, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r6, r14 \n\t"                  \
+    "adcs r6, r6, r14 \n\t"              \
     "str r6, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r7, r14 \n\t"                  \
+    "adcs r7, r7, r14 \n\t"              \
     "str r7, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r8, r14 \n\t"                  \
+    "adcs r8, r8, r14 \n\t"              \
     "str r8, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r9, r14 \n\t"                  \
+    "adcs r9, r9, r14 \n\t"              \
     "str r9, [r0], #4 \n\t"              \
     "ldr r14, [r0] \n\t"                 \
-    "adcs r10, r14 \n\t"                 \
+    "adcs r10, r10, r14 \n\t"            \
     "str r10, [r0], #4 \n\t"             \
-    "adcs r11, #0 \n\t"                  \
-    "adcs r12, #0 \n\t"                  \
+    "adcs r11, r11, #0 \n\t"             \
+    "adcs r12, r12, #0 \n\t"             \
                                          \
     /* Perform center multiplication */  \
     "umull r4, r5, r3, r3 \n\t"          \
-    "adds r4, r11 \n\t"                  \
-    "adc r5, r12 \n\t"                   \
+    "adds r4, r4, r11 \n\t"              \
+    "adc r5, r5, r12 \n\t"               \
     "stmia r0!, {r4, r5} \n\t"           
 
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
@@ -871,8 +879,8 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "ldmia %[lptr]!, {%[left]} \n\t"  /* Load left word. */
         "ldmia %[rptr]!, {%[right]} \n\t" /* Load right word. */
         "lsrs %[carry], #1 \n\t"          /* Set up carry flag (carry = 0 after this). */
-        "adcs %[left], %[right] \n\t"     /* Add with carry. */
-        "adcs %[carry], %[carry] \n\t"    /* Store carry bit. */
+        "adcs %[left], %[left], %[right] \n\t"   /* Add with carry. */
+        "adcs %[carry], %[carry], %[carry] \n\t" /* Store carry bit. */
         "stmia %[dptr]!, {%[left]} \n\t"  /* Store result word. */
         "subs %[ctr], #1 \n\t"            /* Decrement counter. */
         "bne 1b \n\t"                     /* Loop until counter == 0. */
@@ -903,8 +911,8 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "ldmia %[lptr]!, {%[left]} \n\t"  /* Load left word. */
         "ldmia %[rptr]!, {%[right]} \n\t" /* Load right word. */
         "lsrs %[carry], #1 \n\t"          /* Set up carry flag (carry = 0 after this). */
-        "sbcs %[left], %[right] \n\t"     /* Subtract with borrow. */
-        "adcs %[carry], %[carry] \n\t"    /* Store carry bit. */
+        "sbcs %[left], %[left], %[right] \n\t"   /* Subtract with borrow. */
+        "adcs %[carry], %[carry], %[carry] \n\t" /* Store carry bit. */
         "stmia %[dptr]!, {%[left]} \n\t"  /* Store result word. */
         "subs %[ctr], #1 \n\t"            /* Decrement counter. */
         "bne 1b \n\t"                     /* Loop until counter == 0. */
@@ -952,9 +960,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         
         "umull %[t0], %[t1], %[t0], %[t1] \n\t" /* (t0, t1) = left[i] * right[k - i] */
         
-        "adds %[c0], %[t0] \n\t" /* add low word to c0 */
-        "adcs %[c1], %[t1] \n\t" /* add high word to c1, including carry */
-        "adcs %[c2], #0 \n\t"    /* add carry to c2 */
+        "adds %[c0], %[c0], %[t0] \n\t" /* add low word to c0 */
+        "adcs %[c1], %[c1], %[t1] \n\t" /* add high word to c1, including carry */
+        "adcs %[c2], %[c2], #0 \n\t"    /* add carry to c2 */
 
         "adds %[i], #4 \n\t"          /* i += 4 */
         "cmp %[i], %[last_word] \n\t" /* i > (num_words - 1) (times 4)? */
@@ -1116,18 +1124,18 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         
         "umull %[t0], %[t1], %[t0], %[t1] \n\t" /* (t0, t1) = left[i] * right[k - i] */
         
-        "cmp %[i], %[tt] \n\t" /* (i < k - i) ? */
-        "bge 4f \n\t"          /*   if i >= k - i, skip */
-        "lsls %[t1], #1 \n\t"  /* high word << 1 */
-        "adc %[c2], #0 \n\t"   /* add carry bit to c2 */
-        "lsls %[t0], #1 \n\t"  /* low word << 1 */
-        "adc %[t1], #0 \n\t"   /* add carry bit to high word */
+        "cmp %[i], %[tt] \n\t"      /* (i < k - i) ? */
+        "bge 4f \n\t"               /*   if i >= k - i, skip */
+        "lsls %[t1], #1 \n\t"       /* high word << 1 */
+        "adc %[c2], %[c2], #0 \n\t" /* add carry bit to c2 */
+        "lsls %[t0], #1 \n\t"       /* low word << 1 */
+        "adc %[t1], %[t1], #0 \n\t" /* add carry bit to high word */
         
         "4: \n\t"
 
-        "adds %[c0], %[t0] \n\t" /* add low word to c0 */
-        "adcs %[c1], %[t1] \n\t" /* add high word to c1, including carry */
-        "adc %[c2], #0 \n\t"     /* add carry to c2 */
+        "adds %[c0], %[c0], %[t0] \n\t" /* add low word to c0 */
+        "adcs %[c1], %[c1], %[t1] \n\t" /* add high word to c1, including carry */
+        "adcs %[c2], %[c2], #0 \n\t"    /* add carry to c2 */
         
         "adds %[i], #4 \n\t"          /* i += 4 */
         "cmp %[i], %[k] \n\t"         /* i >= k? */
