@@ -386,11 +386,13 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
 #else /* uECC_SQUARE_FUNC */
 
+#if uECC_ENABLE_VLI_API
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   wordcount_t num_words) {
     uECC_vli_mult(result, left, left, num_words);
 }
+#endif /* uECC_ENABLE_VLI_API */
     
 #endif /* uECC_SQUARE_FUNC */
 
@@ -493,6 +495,7 @@ uECC_VLI_API void uECC_vli_modMult_fast(uECC_word_t *result,
 
 #if uECC_SQUARE_FUNC
 
+#if uECC_ENABLE_VLI_API
 /* Computes result = left^2 % mod. */
 uECC_VLI_API void uECC_vli_modSquare(uECC_word_t *result,
                                      const uECC_word_t *left,
@@ -502,6 +505,7 @@ uECC_VLI_API void uECC_vli_modSquare(uECC_word_t *result,
     uECC_vli_square(product, left, num_words);
     uECC_vli_mmod(result, product, mod, num_words);
 }
+#endif /* uECC_ENABLE_VLI_API */
 
 uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
                                           const uECC_word_t *left,
@@ -517,12 +521,14 @@ uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
 
 #else /* uECC_SQUARE_FUNC */
 
+#if uECC_ENABLE_VLI_API
 uECC_VLI_API void uECC_vli_modSquare(uECC_word_t *result,
                                      const uECC_word_t *left,
                                      const uECC_word_t *mod,
                                      wordcount_t num_words) {
     uECC_vli_modMult(result, left, left, mod, num_words);
 }
+#endif /* uECC_ENABLE_VLI_API */
 
 uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
                                           const uECC_word_t *left,
