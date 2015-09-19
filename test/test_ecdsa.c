@@ -31,12 +31,12 @@ int main() {
             }
             memcpy(hash, public, sizeof(hash));
             
-            if (!uECC_sign(private, hash, sig, curves[c])) {
+            if (!uECC_sign(private, hash, sizeof(hash), sig, curves[c])) {
                 printf("uECC_sign() failed\n");
                 return 1;
             }
 
-            if (!uECC_verify(public, hash, sig, curves[c])) {
+            if (!uECC_verify(public, hash, sizeof(hash), sig, curves[c])) {
                 printf("uECC_verify() failed\n");
                 return 1;
             }

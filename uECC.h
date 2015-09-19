@@ -209,6 +209,7 @@ this function along with your private key.
 Inputs:
     private_key  - Your private key.
     message_hash - The hash of the message to sign.
+    hash_size    - The size of message_hash in bytes.
 
 Outputs:
     signature - Will be filled in with the signature value. Must be at least 2 * curve size long.
@@ -218,6 +219,7 @@ Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
 int uECC_sign(const uint8_t *private_key,
               const uint8_t *message_hash,
+              unsigned hash_size,
               uint8_t *signature,
               uECC_Curve curve);
 
@@ -277,11 +279,13 @@ this function; however, if the RNG is defined it will improve resistance to side
 attacks.
 
 Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pass it in to
-this function along with your private key and a hash context.
+this function along with your private key and a hash context. Note that the message_hash
+does not need to be computed with the same hash function used by hash_context.
 
 Inputs:
     private_key  - Your private key.
     message_hash - The hash of the message to sign.
+    hash_size    - The size of message_hash in bytes.
     hash_context - A hash context to use.
 
 Outputs:
@@ -291,6 +295,7 @@ Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
 int uECC_sign_deterministic(const uint8_t *private_key,
                             const uint8_t *message_hash,
+                            unsigned hash_size,
                             uECC_HashContext *hash_context,
                             uint8_t *signature,
                             uECC_Curve curve);
@@ -302,14 +307,16 @@ Usage: Compute the hash of the signed data using the same hash as the signer and
 pass it to this function along with the signer's public key and the signature values (r and s).
 
 Inputs:
-    public_key - The signer's public key
-    hash       - The hash of the signed data.
-    signature  - The signature value.
+    public_key   - The signer's public key.
+    message_hash - The hash of the signed data.
+    hash_size    - The size of message_hash in bytes.
+    signature    - The signature value.
 
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
 int uECC_verify(const uint8_t *private_key,
-                const uint8_t *hash,
+                const uint8_t *message_hash,
+                unsigned hash_size,
                 const uint8_t *signature,
                 uECC_Curve curve);
 
