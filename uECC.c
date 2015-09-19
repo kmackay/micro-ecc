@@ -407,7 +407,7 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
                                   const uECC_word_t *mod,
                                   wordcount_t num_words) {
     uECC_word_t carry = uECC_vli_add(result, left, right, num_words);
-    if (carry || uECC_vli_cmp_unsafe(result, mod, num_words) >= 0) {
+    if (carry || uECC_vli_cmp_unsafe(mod, result, num_words) != 1) {
         /* result > mod (result = mod + remainder), so subtract mod to get remainder. */
         uECC_vli_sub(result, result, mod, num_words);
     }
@@ -1023,18 +1023,23 @@ static void bits2int(uECC_word_t *native,
     if (bits_size > num_n_bytes) {
         bits_size = num_n_bytes;
     }
+    uECC_vli_clear(native, num_n_words);
     uECC_vli_bytesToNative(native, bits, bits_size, curve);
     if (bits_size * 8 <= (unsigned)curve->num_n_bits) {
         return;
     }
     int shift = bits_size * 8 - curve->num_n_bits;
     uECC_word_t carry = 0;
-    uECC_word_t *end = native;
-    native += num_n_words;
-    while (native-- > end) {
-        uECC_word_t temp = *native;
-        *native = (temp >> shift) | carry;
+    uECC_word_t *ptr = native + num_n_words;
+    while (ptr-- > native) {
+        uECC_word_t temp = *ptr;
+        *ptr = (temp >> shift) | carry;
         carry = temp << (uECC_WORD_BITS - shift);
+    }
+
+    /* Reduce mod curve_n */
+    if (uECC_vli_cmp_unsafe(curve->n, native, num_n_words) != 1) {
+        uECC_vli_sub(native, native, curve->n, num_n_words);
     }
 }
 
