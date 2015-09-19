@@ -17,8 +17,6 @@
 #define num_words_secp256r1 32
 #define num_words_secp256k1 32
 
-#define num_n_words_secp160r1 21
-
 #define BYTES_TO_WORDS_8(a, b, c, d, e, f, g, h) \
     0x##a, 0x##b, 0x##c, 0x##d, 0x##e, 0x##f, 0x##g, 0x##h
 #define BYTES_TO_WORDS_4(a, b, c, d) 0x##a, 0x##b, 0x##c, 0x##d
@@ -31,8 +29,6 @@
 #define num_words_secp256r1 8
 #define num_words_secp256k1 8
 
-#define num_n_words_secp160r1 6
-
 #define BYTES_TO_WORDS_8(a, b, c, d, e, f, g, h) 0x##d##c##b##a, 0x##h##g##f##e
 #define BYTES_TO_WORDS_4(a, b, c, d) 0x##d##c##b##a
 
@@ -44,13 +40,13 @@
 #define num_words_secp256r1 4
 #define num_words_secp256k1 4
 
-#define num_n_words_secp160r1 3
-
 #define BYTES_TO_WORDS_8(a, b, c, d, e, f, g, h) 0x##h##g##f##e##d##c##b##a##ull
 #define BYTES_TO_WORDS_4(a, b, c, d) 0x##d##c##b##a##ull
 
 #endif /* uECC_WORD_SIZE */
 
+#if uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1 || \
+    uECC_SUPPORTS_secp224r1 || uECC_SUPPORTS_secp256r1
 static void double_jacobian_default(uECC_word_t * X1,
                                     uECC_word_t * Y1,
                                     uECC_word_t * Z1,
@@ -98,7 +94,21 @@ static void double_jacobian_default(uECC_word_t * X1,
     uECC_vli_set(Y1, t4, num_words);
 }
 
+/* Computes result = x^3 + ax + b. result must not overlap x. */
+static void x_side_default(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve) {
+    uECC_word_t _3[uECC_MAX_WORDS] = {3}; /* -a = 3 */
+    wordcount_t num_words = curve->num_words;
+
+    uECC_vli_modSquare_fast(result, x, curve);                             /* r = x^2 */
+    uECC_vli_modSub(result, result, _3, curve->p, num_words);       /* r = x^2 - 3 */
+    uECC_vli_modMult_fast(result, result, x, curve);                       /* r = x^3 - 3x */
+    uECC_vli_modAdd(result, result, curve->b, curve->p, num_words); /* r = x^3 - 3x + b */
+}
+#endif /* uECC_SUPPORTS_secp... */
+
 #if uECC_SUPPORT_COMPRESSED_POINT
+#if uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1 || \
+    uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1
 /* Compute a = sqrt(a) (mod curve_p). */
 static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
     bitcount_t i;
@@ -117,18 +127,8 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
     }
     uECC_vli_set(a, l_result, num_words);
 }
-#endif
-
-/* Computes result = x^3 + ax + b. result must not overlap x. */
-static void x_side_default(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve) {
-    uECC_word_t _3[uECC_MAX_WORDS] = {3}; /* -a = 3 */
-    wordcount_t num_words = curve->num_words;
-
-    uECC_vli_modSquare_fast(result, x, curve);                             /* r = x^2 */
-    uECC_vli_modSub(result, result, _3, curve->p, num_words);       /* r = x^2 - 3 */
-    uECC_vli_modMult_fast(result, result, x, curve);                       /* r = x^3 - 3x */
-    uECC_vli_modAdd(result, result, curve->b, curve->p, num_words); /* r = x^3 - 3x + b */
-}
+#endif /* uECC_SUPPORTS_secp... */
+#endif /* uECC_SUPPORT_COMPRESSED_POINT */
 
 #if uECC_SUPPORTS_secp160r1
 
@@ -138,8 +138,8 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product);
 
 static const struct uECC_Curve_t curve_secp160r1 = {
     num_words_secp160r1,
-    num_n_words_secp160r1,
     num_bytes_secp160r1,
+    161, /* num_n_bits */
     { BYTES_TO_WORDS_8(FF, FF, FF, 7F, FF, FF, FF, FF),
         BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
         BYTES_TO_WORDS_4(FF, FF, FF, FF) },
@@ -283,8 +283,8 @@ static void vli_mmod_fast_secp192r1(uECC_word_t *result, uECC_word_t *product);
 
 static const struct uECC_Curve_t curve_secp192r1 = {
     num_words_secp192r1,
-    num_words_secp192r1,
     num_bytes_secp192r1,
+    192, /* num_n_bits */
     { BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
         BYTES_TO_WORDS_8(FE, FF, FF, FF, FF, FF, FF, FF),
         BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF) },
@@ -382,7 +382,7 @@ static void vli_mmod_fast_secp192r1(uint64_t *result, uint64_t *product) {
     uECC_vli_set(result, product, num_words_secp192r1);
     
     uECC_vli_set(tmp, &product[3], num_words_secp192r1);
-    carry = uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry = (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     tmp[0] = 0;
     tmp[1] = product[3];
@@ -413,8 +413,8 @@ static void vli_mmod_fast_secp224r1(uECC_word_t *result, uECC_word_t *product);
 
 static const struct uECC_Curve_t curve_secp224r1 = {
     num_words_secp224r1,
-    num_words_secp224r1,
     num_bytes_secp224r1,
+    224, /* num_n_bits */
     { BYTES_TO_WORDS_8(01, 00, 00, 00, 00, 00, 00, 00),
         BYTES_TO_WORDS_8(00, 00, 00, 00, FF, FF, FF, FF),
         BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
@@ -735,8 +735,8 @@ static void vli_mmod_fast_secp256r1(uECC_word_t *result, uECC_word_t *product);
 
 static const struct uECC_Curve_t curve_secp256r1 = {
     num_words_secp256r1,
-    num_words_secp256r1,
     num_bytes_secp256r1,
+    256, /* num_n_bits */
     { BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
         BYTES_TO_WORDS_8(FF, FF, FF, FF, 00, 00, 00, 00),
         BYTES_TO_WORDS_8(00, 00, 00, 00, 00, 00, 00, 00),
@@ -990,7 +990,7 @@ static void vli_mmod_fast_secp256r1(uint64_t *result, uint64_t *product) {
     tmp[1] = product[5] & 0xffffffff00000000ull;
     tmp[2] = product[6];
     tmp[3] = product[7];
-    carry = uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
+    carry = (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s2 */
@@ -1070,8 +1070,8 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product);
 
 static const struct uECC_Curve_t curve_secp256k1 = {
     num_words_secp256k1,
-    num_words_secp256k1,
     num_bytes_secp256k1,
+    256, /* num_n_bits */
     { BYTES_TO_WORDS_8(2F, FC, FF, FF, FE, FF, FF, FF),
         BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
         BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),

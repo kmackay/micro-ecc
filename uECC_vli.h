@@ -59,11 +59,13 @@ uECC_word_t uECC_vli_sub(uECC_word_t *result,
                          const uECC_word_t *right,
                          wordcount_t num_words);
 
+/* Computes result = left * right. Result must be 2 * num_words long. */
 void uECC_vli_mult(uECC_word_t *result,
                    const uECC_word_t *left,
                    const uECC_word_t *right,
                    wordcount_t num_words);
 
+/* Computes result = left^2. Result must be 2 * num_words long. */
 void uECC_vli_square(uECC_word_t *result, const uECC_word_t *left, wordcount_t num_words);
 
 /* Computes result = (left + right) % mod.
@@ -128,12 +130,15 @@ void uECC_vli_modInv(uECC_word_t *result,
 void uECC_vli_mod_sqrt(uECC_word_t *a, uECC_Curve curve);
 #endif
 
-void uECC_vli_nativeToBytes(uint8_t *bytes, const uECC_word_t *native, uECC_Curve curve);
-void uECC_vli_bytesToNative(uECC_word_t *native, const uint8_t *bytes, uECC_Curve curve);
+/* Converts an integer in uECC native format to big-endian bytes. */
+void uECC_vli_nativeToBytes(uint8_t *bytes, int num_bytes, const uECC_word_t *native, uECC_Curve curve);
+/* Converts big-endian bytes to an integer in uECC native format. */
+void uECC_vli_bytesToNative(uECC_word_t *native, const uint8_t *bytes, int num_bytes, uECC_Curve curve);
 
 unsigned uECC_curve_num_words(uECC_Curve curve);
 unsigned uECC_curve_num_bits(uECC_Curve curve);
 unsigned uECC_curve_num_n_words(uECC_Curve curve);
+unsigned uECC_curve_num_n_bits(uECC_Curve curve);
 
 const uECC_word_t *uECC_curve_p(uECC_Curve curve);
 const uECC_word_t *uECC_curve_n(uECC_Curve curve);

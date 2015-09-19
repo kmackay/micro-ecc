@@ -113,8 +113,15 @@ void uECC_set_rng(uECC_RNG_Function rng_function);
 Create a public/private key pair.
 
 Outputs:
-    public_key  - Will be filled in with the public key.
-    private_key - Will be filled in with the private key.
+    public_key  - Will be filled in with the public key. Must be at least 2 * the curve size
+                  (in bytes) long. For example, if the curve is secp256r1, public_key must be 64
+                  bytes long.
+    private_key - Will be filled in with the private key. Must be as long as the curve order; this
+                  is typically the same as the curve size, except for secp160r1. For example, if the
+                  curve is secp256r1, private_key must be 32 bytes long.
+                  
+                  For secp160r1, private_key must be 21 bytes long! Note that the first byte will 
+                  almost always be 0 (there is about a 1 in 2^80 chance of it being non-zero).
 
 Returns 1 if the key pair was generated successfully, 0 if an error occurred.
 */
@@ -130,7 +137,8 @@ Inputs:
     private_key - Your private key.
 
 Outputs:
-    secret - Will be filled in with the shared secret value.
+    secret - Will be filled in with the shared secret value. Must be the same size as the
+             curve size; for example, if the curve is secp256r1, secret must be 32 bytes long.
 
 Returns 1 if the shared secret was generated successfully, 0 if an error occurred.
 */
@@ -147,7 +155,9 @@ Inputs:
     public_key - The public key to compress.
 
 Outputs:
-    compressed - Will be filled in with the compressed public key.
+    compressed - Will be filled in with the compressed public key. Must be at least
+                 (curve size + 1) bytes long; for example, if the curve is secp256r1,
+                 compressed must be 33 bytes long.
 */
 void uECC_compress(const uint8_t *public_key, uint8_t *compressed, uECC_Curve curve);
 
@@ -201,7 +211,8 @@ Inputs:
     message_hash - The hash of the message to sign.
 
 Outputs:
-    signature - Will be filled in with the signature value.
+    signature - Will be filled in with the signature value. Must be at least 2 * curve size long.
+                For example, if the curve is secp256r1, signature must be 64 bytes long.
 
 Returns 1 if the signature generated successfully, 0 if an error occurred.
 */
