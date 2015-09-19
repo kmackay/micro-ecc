@@ -1014,8 +1014,33 @@ int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uEC
 
 /* -------- ECDSA code -------- */
 
+static void bits2int(uECC_word_t *native,
+                     const uint8_t *bits,
+                     unsigned bits_size,
+                     uECC_Curve curve) {
+    unsigned num_n_bytes = BITS_TO_BYTES(curve->num_n_bits);
+    unsigned num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    if (bits_size > num_n_bytes) {
+        bits_size = num_n_bytes;
+    }
+    uECC_vli_bytesToNative(native, bits, bits_size, curve);
+    if (bits_size * 8 <= (unsigned)curve->num_n_bits) {
+        return;
+    }
+    int shift = bits_size * 8 - curve->num_n_bits;
+    uECC_word_t carry = 0;
+    uECC_word_t *end = native;
+    native += num_n_words;
+    while (native-- > end) {
+        uECC_word_t temp = *native;
+        *native = (temp >> shift) | carry;
+        carry = temp << (uECC_WORD_BITS - shift);
+    }
+}
+
 static int uECC_sign_with_k(const uint8_t *private_key,
                             const uint8_t *message_hash,
+                            unsigned hash_size,
                             uECC_word_t *k,
                             uint8_t *signature,
                             uECC_Curve curve) {
@@ -1071,7 +1096,7 @@ got_random:
     uECC_vli_set(s, p, num_words);
     uECC_vli_modMult(s, tmp, s, curve->n, num_n_words); /* s = r*d */
 
-    uECC_vli_bytesToNative(tmp, message_hash, curve->num_bytes, curve);
+    bits2int(tmp, message_hash, hash_size, curve);
     uECC_vli_modAdd(s, tmp, s, curve->n, num_n_words); /* s = e + r*d */
     uECC_vli_modMult(s, s, k, curve->n, num_n_words);  /* s = (e + r*d) / k */
     if (uECC_vli_numBits(s, num_n_words) > (bitcount_t)curve->num_bytes * 8) {
@@ -1083,6 +1108,7 @@ got_random:
 
 int uECC_sign(const uint8_t *private_key,
               const uint8_t *message_hash,
+              unsigned hash_size,
               uint8_t *signature,
               uECC_Curve curve) {
     uECC_word_t k[uECC_MAX_WORDS];
@@ -1095,7 +1121,7 @@ int uECC_sign(const uint8_t *private_key,
             return 0;
         }
 
-        if (uECC_sign_with_k(private_key, message_hash, k, signature, curve)) {
+        if (uECC_sign_with_k(private_key, message_hash, hash_size, k, signature, curve)) {
             return 1;
         }
     }
@@ -1146,13 +1172,14 @@ static void update_V(uECC_HashContext *hash_context, uint8_t *K, uint8_t *V) {
 }
 
 /* Deterministic signing, similar to RFC 6979. Differences are:
-    * We just use (truncated) H(m) directly rather than bits2octets(H(m))
+    * We just use H(m) directly rather than bits2octets(H(m))
       (it is not reduced modulo curve_n).
     * We generate a value for k (aka T) directly rather than converting endianness.
     
    Layout of hash_context->tmp: <K> | <V> | (1 byte overlapped 0x00 or 0x01) / <HMAC pad> */
 int uECC_sign_deterministic(const uint8_t *private_key,
                             const uint8_t *message_hash,
+                            unsigned hash_size,
                             uECC_HashContext *hash_context,
                             uint8_t *signature,
                             uECC_Curve curve) {
@@ -1173,7 +1200,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     V[hash_context->result_size] = 0x00;
     HMAC_update(hash_context, V, hash_context->result_size + 1);
     HMAC_update(hash_context, private_key, num_bytes);
-    HMAC_update(hash_context, message_hash, num_bytes);
+    HMAC_update(hash_context, message_hash, hash_size);
     HMAC_finish(hash_context, K, K);
     
     update_V(hash_context, K, V);
@@ -1183,7 +1210,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     V[hash_context->result_size] = 0x01;
     HMAC_update(hash_context, V, hash_context->result_size + 1);
     HMAC_update(hash_context, private_key, num_bytes);
-    HMAC_update(hash_context, message_hash, num_bytes);
+    HMAC_update(hash_context, message_hash, hash_size);
     HMAC_finish(hash_context, K, K);
     
     update_V(hash_context, K, V);
@@ -1208,7 +1235,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
                 mask >> ((bitcount_t)(num_n_words * uECC_WORD_SIZE * 8 - num_n_bits));
         }
     
-        if (uECC_sign_with_k(private_key, message_hash, T, signature, curve)) {
+        if (uECC_sign_with_k(private_key, message_hash, hash_size, T, signature, curve)) {
             return 1;
         }
 
@@ -1228,7 +1255,8 @@ static bitcount_t smax(bitcount_t a, bitcount_t b) {
 }
 
 int uECC_verify(const uint8_t *public_key,
-                const uint8_t *hash,
+                const uint8_t *message_hash,
+                unsigned hash_size,
                 const uint8_t *signature,
                 uECC_Curve curve) {
     uECC_word_t u1[uECC_MAX_WORDS], u2[uECC_MAX_WORDS];
@@ -1272,7 +1300,7 @@ int uECC_verify(const uint8_t *public_key,
     /* Calculate u1 and u2. */
     uECC_vli_modInv(z, s, curve->n, num_n_words); /* z = 1/s */
     u1[num_n_words - 1] = 0;
-    uECC_vli_bytesToNative(u1, hash, curve->num_bytes, curve);
+    bits2int(u1, message_hash, hash_size, curve);
     uECC_vli_modMult(u1, u1, z, curve->n, num_n_words); /* u1 = e/s */
     uECC_vli_modMult(u2, r, z, curve->n, num_n_words); /* u2 = r/s */
     
