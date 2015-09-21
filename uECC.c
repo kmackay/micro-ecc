@@ -4,7 +4,7 @@
 #include "uECC_vli.h"
 
 #ifndef uECC_RNG_MAX_TRIES
-    #define uECC_RNG_MAX_TRIES 64
+    #define uECC_RNG_MAX_TRIES 4
 #endif
 
 #if uECC_SUPPORTS_secp160r1
@@ -789,15 +789,6 @@ static uECC_word_t EccPoint_compute_public_key(uECC_word_t *result,
     uECC_word_t *p2[2] = {tmp1, tmp2};
     uECC_word_t carry;
 
-    /* Make sure the private key is in the range [1, n-1]. */
-    if (uECC_vli_isZero(private, curve->num_words)) {
-        return 0;
-    }
-
-    if (uECC_vli_cmp(curve->n, private, BITS_TO_WORDS(curve->num_n_bits)) != 1) {
-        return 0;
-    }
-    
     /* Regularize the bitcount for the private key so that attackers cannot use a side channel
        attack to learn the number of leading zeros. */
     carry = regularize_k(private, tmp1, tmp2, curve);
@@ -853,19 +844,37 @@ uECC_VLI_API void uECC_vli_bytesToNative(uECC_word_t *native,
 
 #endif /* uECC_WORD_SIZE */
 
-/* Generate a random integer with num_bits bits. The remaining high bits
-   in the buffer (if any) are zeroed. */
-static cmpresult_t generate_random_int(uECC_word_t *random,
-                                       wordcount_t num_words,
-                                       wordcount_t num_bits) {
-    if (!g_rng_function || !g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
+/* Generates a random integer in the range 0 < random < top.
+   Both, random and top, have num_words words. */
+uECC_VLI_API int uECC_generate_random_int(uECC_word_t *random,
+                                          const uECC_word_t *top,
+                                          wordcount_t num_words) {
+    uECC_word_t random1[uECC_MAX_WORDS];
+    uECC_word_t random2[uECC_MAX_WORDS];
+    uECC_word_t *p2[2] = {random1, random2};
+    uECC_word_t borrow;
+    uECC_word_t mask = (uECC_word_t)-1;
+    uECC_word_t tries;
+    bitcount_t num_bits = uECC_vli_numBits(top, num_words);
+
+    if (!g_rng_function) {
         return 0;
     }
-    if (num_words * uECC_WORD_SIZE * 8 > num_bits) {
-        uECC_word_t mask = (uECC_word_t)-1;
-        random[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
+
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
+        if (g_rng_function((uint8_t *)random1, num_words * uECC_WORD_SIZE)) {
+
+            random1[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
+
+            borrow = uECC_vli_sub(random2, random1, top, num_words);
+
+            if (!uECC_vli_isZero(p2[!borrow], num_words)) {
+                uECC_vli_set(random, p2[!borrow], num_words);
+                return 1;
+            }
+        }
     }
-    return 1;
+    return 0;
 }
 
 int uECC_make_key(uint8_t *public_key,
@@ -874,9 +883,9 @@ int uECC_make_key(uint8_t *public_key,
     uECC_word_t private[uECC_MAX_WORDS];
     uECC_word_t public[uECC_MAX_WORDS * 2];
     uECC_word_t tries;
-    
+
     for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!generate_random_int(private, BITS_TO_WORDS(curve->num_n_bits), curve->num_n_bits)) {
+        if (!uECC_generate_random_int(private, curve->n, BITS_TO_WORDS(curve->num_n_bits))) {
             return 0;
         }
 
@@ -900,14 +909,13 @@ int uECC_shared_secret(const uint8_t *public_key,
     uECC_word_t tmp[uECC_MAX_WORDS];
     uECC_word_t *p2[2] = {private, tmp};
     uECC_word_t *initial_Z = 0;
-    uECC_word_t tries;
     uECC_word_t carry;
     wordcount_t num_words = curve->num_words;
+    wordcount_t num_bytes = curve->num_bytes;
     
     uECC_vli_bytesToNative(private, private_key, BITS_TO_BYTES(curve->num_n_bits));
-    uECC_vli_bytesToNative(public, public_key, curve->num_bytes);
-    uECC_vli_bytesToNative(
-        public + num_words, public_key + curve->num_bytes, curve->num_bytes);
+    uECC_vli_bytesToNative(public, public_key, num_bytes);
+    uECC_vli_bytesToNative(public + num_words, public_key + num_bytes, num_bytes);
     
     /* Regularize the bitcount for the private key so that attackers cannot use a side channel
        attack to learn the number of leading zeros. */
@@ -916,21 +924,14 @@ int uECC_shared_secret(const uint8_t *public_key,
     /* If an RNG function was specified, try to get a random initial Z value to improve
        protection against side-channel attacks. */
     if (g_rng_function) {
-        for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-            if (!generate_random_int(p2[carry], num_words, curve->num_bytes * 8)) {
-                return 0;
-            }
-            
-            if (!uECC_vli_isZero(p2[carry], num_words) &&
-                    uECC_vli_cmp(curve->p, p2[carry], num_words) == 1) {
-                initial_Z = p2[carry];
-                break;
-            }
+        if (!uECC_generate_random_int(p2[carry], curve->p, num_words)) {
+            return 0;
         }
+        initial_Z = p2[carry];
     }
     
     EccPoint_mult(public, public, p2[!carry], initial_Z, curve->num_n_bits + 1, curve);
-    uECC_vli_nativeToBytes(secret, curve->num_bytes, public);
+    uECC_vli_nativeToBytes(secret, num_bytes, public);
     return !EccPoint_isZero(public, curve);
 }
 
@@ -997,6 +998,16 @@ int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uEC
 
     uECC_vli_bytesToNative(private, private_key, BITS_TO_BYTES(curve->num_n_bits));
 
+    /* Make sure the private key is in the range [1, n-1]. */
+    if (uECC_vli_isZero(private, BITS_TO_WORDS(curve->num_n_bits))) {
+        return 0;
+    }
+
+    if (uECC_vli_cmp(curve->n, private, BITS_TO_WORDS(curve->num_n_bits)) != 1) {
+        return 0;
+    }
+
+    /* Compute public key. */
     if (!EccPoint_compute_public_key(public, private, curve)) {
         return 0;
     }
@@ -1065,25 +1076,17 @@ static int uECC_sign_with_k(const uint8_t *private_key,
         return 0;
     }
     
-    /* Attempt to get a random number to prevent side channel analysis of k. */
+    /* If an RNG function was specified, get a random number
+       to prevent side channel analysis of k. */
     if (!g_rng_function) {
         uECC_vli_clear(tmp, num_n_words);
         tmp[0] = 1;
     } else {
-        uECC_word_t tries;
-        for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-            if (!generate_random_int(tmp, num_n_words, num_n_bits)) {
-                return 0;
-            }
-            
-            if (!uECC_vli_isZero(tmp, num_n_words) &&
-                    uECC_vli_cmp(curve->n, tmp, num_n_words) == 1) {
-                goto got_random;
-            }
+        if (!uECC_generate_random_int(tmp, curve->n, num_n_words)) {
+            return 0;
         }
-        return 0;
     }
-got_random:
+
     /* Prevent side channel analysis of uECC_vli_modInv() to determine
        bits of k / the private key by premultiplying by a random number */
     uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k' = rand * k */
@@ -1114,11 +1117,9 @@ int uECC_sign(const uint8_t *private_key,
               uECC_Curve curve) {
     uECC_word_t k[uECC_MAX_WORDS];
     uECC_word_t tries;
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
-    bitcount_t num_n_bits = curve->num_n_bits;
-    
+
     for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!generate_random_int(k, num_n_words, num_n_bits)) {
+        if (!uECC_generate_random_int(k, curve->n, BITS_TO_WORDS(curve->num_n_bits))) {
             return 0;
         }
 
@@ -1416,24 +1417,6 @@ void uECC_point_mult(uECC_word_t *result,
     uECC_word_t carry = regularize_k(scalar, tmp1, tmp2, curve);
 
     EccPoint_mult(result, point, p2[!carry], 0, curve->num_n_bits + 1, curve);
-}
-
-int uECC_generate_random_int(uECC_word_t *random, uECC_Curve curve) {
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
-    bitcount_t num_n_bits = curve->num_n_bits;
-    uECC_word_t tries;
-
-    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!generate_random_int(random, num_n_words, num_n_bits)) {
-            return 0;
-        }
-
-        if (!uECC_vli_isZero(random, num_n_words) &&
-                uECC_vli_cmp(curve->n, random, num_n_words) == 1) {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 #endif /* uECC_ENABLE_VLI_API */
