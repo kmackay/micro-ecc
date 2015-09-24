@@ -4,7 +4,7 @@
 #include "uECC_vli.h"
 
 #ifndef uECC_RNG_MAX_TRIES
-    #define uECC_RNG_MAX_TRIES 4
+    #define uECC_RNG_MAX_TRIES 64
 #endif
 
 #if uECC_SUPPORTS_secp160r1
@@ -845,14 +845,10 @@ uECC_VLI_API void uECC_vli_bytesToNative(uECC_word_t *native,
 #endif /* uECC_WORD_SIZE */
 
 /* Generates a random integer in the range 0 < random < top.
-   Both, random and top, have num_words words. */
+   Both random and top have num_words words. */
 uECC_VLI_API int uECC_generate_random_int(uECC_word_t *random,
                                           const uECC_word_t *top,
                                           wordcount_t num_words) {
-    uECC_word_t random1[uECC_MAX_WORDS];
-    uECC_word_t random2[uECC_MAX_WORDS];
-    uECC_word_t *p2[2] = {random1, random2};
-    uECC_word_t borrow;
     uECC_word_t mask = (uECC_word_t)-1;
     uECC_word_t tries;
     bitcount_t num_bits = uECC_vli_numBits(top, num_words);
@@ -862,14 +858,14 @@ uECC_VLI_API int uECC_generate_random_int(uECC_word_t *random,
     }
 
     for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (g_rng_function((uint8_t *)random1, num_words * uECC_WORD_SIZE)) {
+        if (!g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
+            return 0;
+	}
+	else {
+            random[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
 
-            random1[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
-
-            borrow = uECC_vli_sub(random2, random1, top, num_words);
-
-            if (!uECC_vli_isZero(p2[!borrow], num_words)) {
-                uECC_vli_set(random, p2[!borrow], num_words);
+            if (!uECC_vli_isZero(random, num_words) &&
+		    uECC_vli_cmp(top, random, num_words) == 1) {
                 return 1;
             }
         }
@@ -1081,10 +1077,8 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     if (!g_rng_function) {
         uECC_vli_clear(tmp, num_n_words);
         tmp[0] = 1;
-    } else {
-        if (!uECC_generate_random_int(tmp, curve->n, num_n_words)) {
-            return 0;
-        }
+    } else if (!uECC_generate_random_int(tmp, curve->n, num_n_words)) {
+        return 0;
     }
 
     /* Prevent side channel analysis of uECC_vli_modInv() to determine
