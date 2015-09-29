@@ -23,14 +23,25 @@ int main() {
     int c;
     
     const struct uECC_Curve_t * curves[5];
-    curves[0] = uECC_secp160r1();
-    curves[1] = uECC_secp192r1();
-    curves[2] = uECC_secp224r1();
-    curves[3] = uECC_secp256r1();
-    curves[4] = uECC_secp256k1();
+    int num_curves = 0;
+#if uECC_SUPPORTS_secp160r1
+    curves[num_curves++] = uECC_secp160r1();
+#endif
+#if uECC_SUPPORTS_secp192r1
+    curves[num_curves++] = uECC_secp192r1();
+#endif
+#if uECC_SUPPORTS_secp224r1
+    curves[num_curves++] = uECC_secp224r1();
+#endif
+#if uECC_SUPPORTS_secp256r1
+    curves[num_curves++] = uECC_secp256r1();
+#endif
+#if uECC_SUPPORTS_secp256k1
+    curves[num_curves++] = uECC_secp256k1();
+#endif
 
     printf("Testing 256 random private key pairs\n");
-    for (c = 0; c < 5; ++c) {
+    for (c = 0; c < num_curves; ++c) {
         for (i = 0; i < 256; ++i) {
             printf(".");
             fflush(stdout);
