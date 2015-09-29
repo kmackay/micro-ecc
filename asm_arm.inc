@@ -49,10 +49,12 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-#if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
+#if (uECC_MAX_WORDS != uECC_MIN_WORDS)
+  #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
     uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 2 + 1;
-#else /* ARM */
+  #else /* ARM */
     uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 4;
+  #endif
 #endif
     uint32_t carry;
     uint32_t left_word;
@@ -61,15 +63,19 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     __asm__ volatile (
         ".syntax unified \n\t"
         "movs %[carry], #0 \n\t"
+    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "mov %[left], pc \n\t"
         "adds %[jump], %[left] \n\t"
+    #endif
         
         "ldmia %[lptr]!, {%[left]} \n\t"
         "ldmia %[rptr]!, {%[right]} \n\t"
         "adds %[left], %[right] \n\t"
         "stmia %[dptr]!, {%[left]} \n\t"
         
+    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "bx %[jump] \n\t"
+    #endif
 
         "ldmia %[lptr]!, {%[left]} \n\t"
         "ldmia %[rptr]!, {%[right]} \n\t"
@@ -112,7 +118,10 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "adcs %[carry], %[carry] \n\t"
         RESUME_SYNTAX
         : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
-          [jump] REG_RW_LO (jump), [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
+    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
+          [jump] REG_RW_LO (jump),
+    #endif
+          [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
           [right] REG_WRITE_LO (right_word)
         :
         : "cc", "memory"
@@ -125,10 +134,12 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-#if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
+#if (uECC_MAX_WORDS != uECC_MIN_WORDS)
+  #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
     uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 2 + 1;
-#else /* ARM */
+  #else /* ARM */
     uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 4;
+  #endif
 #endif
     uint32_t carry;
     uint32_t left_word;
@@ -137,15 +148,19 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     __asm__ volatile (
         ".syntax unified \n\t"
         "movs %[carry], #0 \n\t"
+    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "mov %[left], pc \n\t"
         "adds %[jump], %[left] \n\t"
+    #endif
         
         "ldmia %[lptr]!, {%[left]} \n\t"
         "ldmia %[rptr]!, {%[right]} \n\t"
         "subs %[left], %[right] \n\t"
         "stmia %[dptr]!, {%[left]} \n\t"
         
+    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "bx %[jump] \n\t"
+    #endif
         
         "ldmia %[lptr]!, {%[left]} \n\t"
         "ldmia %[rptr]!, {%[right]} \n\t"
@@ -188,7 +203,10 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "adcs %[carry], %[carry] \n\t"
         RESUME_SYNTAX
         : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
-          [jump] REG_RW_LO (jump), [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
+    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
+          [jump] REG_RW_LO (jump),
+    #endif
+          [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
           [right] REG_WRITE_LO (right_word)
         :
         : "cc", "memory"
