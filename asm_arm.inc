@@ -51,9 +51,9 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       wordcount_t num_words) {
 #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
   #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
-    uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 2 + 1;
+    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 2 + 1;
   #else /* ARM */
-    uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 4;
+    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 4;
   #endif
 #endif
     uint32_t carry;
@@ -64,7 +64,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         ".syntax unified \n\t"
         "movs %[carry], #0 \n\t"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "mov %[left], pc \n\t"
+        "adr %[left], 1f \n\t"
         "adds %[jump], %[left] \n\t"
     #endif
         
@@ -76,7 +76,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "bx %[jump] \n\t"
     #endif
-
+        "1: \n\t"
         "ldmia %[lptr]!, {%[left]} \n\t"
         "ldmia %[rptr]!, {%[right]} \n\t"
         "adcs %[left], %[right] \n\t"
@@ -136,9 +136,9 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       wordcount_t num_words) {
 #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
   #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
-    uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 2 + 1;
+    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 2 + 1;
   #else /* ARM */
-    uint32_t jump = ((uECC_MAX_WORDS - num_words) * 4 + 5) * 4;
+    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 4;
   #endif
 #endif
     uint32_t carry;
@@ -149,7 +149,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         ".syntax unified \n\t"
         "movs %[carry], #0 \n\t"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "mov %[left], pc \n\t"
+        "adr %[left], 1f \n\t"
         "adds %[jump], %[left] \n\t"
     #endif
         
@@ -161,7 +161,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "bx %[jump] \n\t"
     #endif
-        
+        "1: \n\t"
         "ldmia %[lptr]!, {%[left]} \n\t"
         "ldmia %[rptr]!, {%[right]} \n\t"
         "sbcs %[left], %[right] \n\t"
