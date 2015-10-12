@@ -7,36 +7,130 @@
     #define uECC_RNG_MAX_TRIES 64
 #endif
 
-#if uECC_SUPPORTS_secp160r1
-    #define uECC_MAX_BYTES 21 /* Due to the size of curve_n. */
-#endif
-#if uECC_SUPPORTS_secp192r1
-    #undef uECC_MAX_BYTES
-    #define uECC_MAX_BYTES 24
-#endif
-#if uECC_SUPPORTS_secp224r1
-    #undef uECC_MAX_BYTES
-    #define uECC_MAX_BYTES 28
-#endif
-#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-    #undef uECC_MAX_BYTES
-    #define uECC_MAX_BYTES 32
-#endif
-
 #if uECC_ENABLE_VLI_API
     #define uECC_VLI_API
 #else
     #define uECC_VLI_API static
 #endif
 
+#define CONCATX(a, ...) a ## __VA_ARGS__
+#define CONCAT(a, ...) CONCATX(a, __VA_ARGS__)
+
+#define STRX(a) #a
+#define STR(a) STRX(a)
+
+#define EVAL(...)  EVAL1(EVAL1(EVAL1(EVAL1(__VA_ARGS__))))
+#define EVAL1(...) EVAL2(EVAL2(EVAL2(EVAL2(__VA_ARGS__))))
+#define EVAL2(...) EVAL3(EVAL3(EVAL3(EVAL3(__VA_ARGS__))))
+#define EVAL3(...) EVAL4(EVAL4(EVAL4(EVAL4(__VA_ARGS__))))
+#define EVAL4(...) __VA_ARGS__
+
+#define DEC_1  0
+#define DEC_2  1
+#define DEC_3  2
+#define DEC_4  3
+#define DEC_5  4
+#define DEC_6  5
+#define DEC_7  6
+#define DEC_8  7
+#define DEC_9  8
+#define DEC_10 9
+#define DEC_11 10
+#define DEC_12 11
+#define DEC_13 12
+#define DEC_14 13
+#define DEC_15 14
+#define DEC_16 15
+#define DEC_17 16
+#define DEC_18 17
+#define DEC_19 18
+#define DEC_20 19
+#define DEC_21 20
+#define DEC_22 21
+#define DEC_23 22
+#define DEC_24 23
+#define DEC_25 24
+#define DEC_26 25
+#define DEC_27 26
+#define DEC_28 27
+#define DEC_29 28
+#define DEC_30 29
+#define DEC_31 30
+#define DEC_32 31
+
+#define DEC(N) CONCAT(DEC_, N)
+
+#define SECOND_ARG(_, val, ...) val
+#define SOME_CHECK_0 ~, 0
+#define GET_SECOND_ARG(...) SECOND_ARG(__VA_ARGS__, SOME,)
+#define SOME_OR_0(N) GET_SECOND_ARG(CONCAT(SOME_CHECK_, N))
+
+#define EMPTY(...)
+#define DEFER(...) __VA_ARGS__ EMPTY()
+
+#define REPEAT_NAME_0() REPEAT_0
+#define REPEAT_NAME_SOME() REPEAT_SOME
+#define REPEAT_0(...)
+#define REPEAT_SOME(N, stuff) DEFER(CONCAT(REPEAT_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), stuff) stuff
+#define REPEAT(N, stuff) EVAL(REPEAT_SOME(N, stuff))
+
+#define REPEATM_NAME_0() REPEATM_0
+#define REPEATM_NAME_SOME() REPEATM_SOME
+#define REPEATM_0(...)
+#define REPEATM_SOME(N, macro) macro(N) \
+    DEFER(CONCAT(REPEATM_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), macro)
+#define REPEATM(N, macro) EVAL(REPEATM_SOME(N, macro))
+
 #include "platform-specific.inc"
 
 #if (uECC_WORD_SIZE == 1)
-    #define uECC_MAX_WORDS uECC_MAX_BYTES
+    #if uECC_SUPPORTS_secp160r1
+        #define uECC_MAX_WORDS 21 /* Due to the size of curve_n. */
+    #endif
+    #if uECC_SUPPORTS_secp192r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 24
+    #endif
+    #if uECC_SUPPORTS_secp224r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 28
+    #endif
+    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 32
+    #endif
 #elif (uECC_WORD_SIZE == 4)
-    #define uECC_MAX_WORDS ((uECC_MAX_BYTES + 3) / 4)
+    #if uECC_SUPPORTS_secp160r1
+        #define uECC_MAX_WORDS 6 /* Due to the size of curve_n. */
+    #endif
+    #if uECC_SUPPORTS_secp192r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 6
+    #endif
+    #if uECC_SUPPORTS_secp224r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 7
+    #endif
+    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 8
+    #endif
 #elif (uECC_WORD_SIZE == 8)
-    #define uECC_MAX_WORDS ((uECC_MAX_BYTES + 7) / 8)
+    #if uECC_SUPPORTS_secp160r1
+        #define uECC_MAX_WORDS 3
+    #endif
+    #if uECC_SUPPORTS_secp192r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 3
+    #endif
+    #if uECC_SUPPORTS_secp224r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 4
+    #endif
+    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 4
+    #endif
 #endif /* uECC_WORD_SIZE */
 
 #define BITS_TO_WORDS(num_bits) ((num_bits + ((uECC_WORD_SIZE * 8) - 1)) / (uECC_WORD_SIZE * 8))
@@ -63,9 +157,17 @@ struct uECC_Curve_t {
 #endif
 };
 
+static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
+                                       const uECC_word_t *right,
+                                       wordcount_t num_words);
+
 #if (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
         uECC_PLATFORM == uECC_arm_thumb2)
     #include "asm_arm.inc"
+#endif
+
+#if (uECC_PLATFORM == uECC_avr)
+    #include "asm_avr.inc"
 #endif
 
 #if default_RNG_defined
@@ -78,12 +180,14 @@ void uECC_set_rng(uECC_RNG_Function rng_function) {
     g_rng_function = rng_function;
 }
 
+#if !asm_clear
 uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         vli[i] = 0;
     }
 }
+#endif /* !asm_clear */
 
 /* Constant-time comparison to zero - secure way to compare long integers */
 /* Returns 1 if vli == 0, 0 otherwise. */
@@ -131,12 +235,14 @@ uECC_VLI_API bitcount_t uECC_vli_numBits(const uECC_word_t *vli, const wordcount
 }
 
 /* Sets dest = src. */
+#if !asm_set
 uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         dest[i] = src[i];
     }
 }
+#endif /* !asm_set */
 
 /* Returns sign of left - right. */
 static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
@@ -182,6 +288,7 @@ uECC_VLI_API cmpresult_t uECC_vli_cmp(const uECC_word_t *left,
 }
 
 /* Computes vli = vli >> 1. */
+#if !asm_rshift1
 uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     uECC_word_t *end = vli;
     uECC_word_t carry = 0;
@@ -193,6 +300,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         carry = temp << (uECC_WORD_BITS - 1);
     }
 }
+#endif /* !asm_rshift1 */
 
 /* Computes result = left + right, returning carry. Can modify in place. */
 #if !asm_add

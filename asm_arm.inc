@@ -77,44 +77,12 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "bx %[jump] \n\t"
     #endif
         "1: \n\t"
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
+        REPEAT(DEC(uECC_MAX_WORDS),
+            "ldmia %[lptr]!, {%[left]} \n\t"
+            "ldmia %[rptr]!, {%[right]} \n\t"
+            "adcs %[left], %[right] \n\t"
+            "stmia %[dptr]!, {%[left]} \n\t")
         
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-    #if (uECC_MAX_WORDS >= 6)
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-    #endif
-    #if (uECC_MAX_WORDS >= 7)
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-    #endif
-    #if (uECC_MAX_WORDS >= 8)
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-    #endif
         "adcs %[carry], %[carry] \n\t"
         RESUME_SYNTAX
         : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
@@ -162,44 +130,12 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "bx %[jump] \n\t"
     #endif
         "1: \n\t"
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
+        REPEAT(DEC(uECC_MAX_WORDS),
+            "ldmia %[lptr]!, {%[left]} \n\t"
+            "ldmia %[rptr]!, {%[right]} \n\t"
+            "sbcs %[left], %[right] \n\t"
+            "stmia %[dptr]!, {%[left]} \n\t")
         
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-    #if (uECC_MAX_WORDS >= 6)
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-    #endif
-    #if (uECC_MAX_WORDS >= 7)
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-    #endif
-    #if (uECC_MAX_WORDS >= 8)
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "sbcs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-    #endif
         "adcs %[carry], %[carry] \n\t"
         RESUME_SYNTAX
         : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),

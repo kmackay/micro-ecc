@@ -38,27 +38,28 @@ void setup() {
 }
 
 void loop() {
-  uint8_t private1[uECC_BYTES];
-  uint8_t private2[uECC_BYTES];
+  const struct uECC_Curve_t * curve = uECC_secp160r1();
+  uint8_t private1[21];
+  uint8_t private2[21];
   
-  uint8_t public1[uECC_BYTES * 2];
-  uint8_t public2[uECC_BYTES * 2];
+  uint8_t public1[40];
+  uint8_t public2[40];
   
-  uint8_t secret1[uECC_BYTES];
-  uint8_t secret2[uECC_BYTES];
+  uint8_t secret1[20];
+  uint8_t secret2[20];
   
   unsigned long a = millis();
-  uECC_make_key(public1, private1);
+  uECC_make_key(public1, private1, curve);
   unsigned long b = millis();
   
   Serial.print("Made key 1 in "); Serial.println(b-a);
   a = millis();
-  uECC_make_key(public2, private2);
+  uECC_make_key(public2, private2, curve);
   b = millis();
   Serial.print("Made key 2 in "); Serial.println(b-a);
 
   a = millis();
-  int r = uECC_shared_secret(public2, private1, secret1);
+  int r = uECC_shared_secret(public2, private1, secret1, curve);
   b = millis();
   Serial.print("Shared secret 1 in "); Serial.println(b-a);
   if (!r) {
@@ -67,7 +68,7 @@ void loop() {
   }
 
   a = millis();
-  r = uECC_shared_secret(public1, private2, secret2);
+  r = uECC_shared_secret(public1, private2, secret2, curve);
   b = millis();
   Serial.print("Shared secret 2 in "); Serial.println(b-a);
   if (!r) {
@@ -75,7 +76,7 @@ void loop() {
     return;
   }
     
-  if (memcmp(secret1, secret2, sizeof(secret1)) != 0) {
+  if (memcmp(secret1, secret2, 20) != 0) {
     Serial.print("Shared secrets are not identical!\n");
   } else {
     Serial.print("Shared secrets are identical\n");
