@@ -1,3 +1,8 @@
+/* Copyright 2015, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
+#ifndef _UECC_ASM_AVR_H_
+#define _UECC_ASM_AVR_H_
+
 #if __AVR_HAVE_EIJMP_EICALL__
     #define IJMP "eijmp \n\t"
 #else
@@ -951,3 +956,5 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 }
 #define asm_square 1
 #endif /* uECC_SQUARE_FUNC && !asm_square */
+
+#endif /* _UECC_ASM_AVR_H_ */

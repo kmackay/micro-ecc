@@ -28,6 +28,9 @@ platform. */
     #define uECC_OPTIMIZATION_LEVEL 2
 #endif
 
+/* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be
+used for (scalar) squaring instead of the generic multiplication function. This can make things
+faster somewhat faster, but increases the code size. */
 #ifndef uECC_SQUARE_FUNC
     #define uECC_SQUARE_FUNC 0
 #endif

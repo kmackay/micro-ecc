@@ -1,3 +1,8 @@
+/* Copyright 2015, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
+#ifndef _UECC_ASM_AVR_MULT_SQUARE_H_
+#define _UECC_ASM_AVR_MULT_SQUARE_H_
+
 #define FAST_MULT_ASM_5    \
     "adiw r30, 10 \n\t"    \
     "adiw r28, 10 \n\t"    \
@@ -21177,3 +21182,5 @@
     "st z+, r23 \n\t"                  \
     "st z+, r28 \n\t"                  \
     "eor r1, r1 \n\t"
+
+#endif /* _UECC_ASM_AVR_MULT_SQUARE_H_ */
