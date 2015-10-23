@@ -65,6 +65,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "movs %[carry], #0 \n\t"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "adr %[left], 1f \n\t"
+        ".align 4 \n\t"
         "adds %[jump], %[left] \n\t"
     #endif
         
@@ -118,6 +119,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "movs %[carry], #0 \n\t"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "adr %[left], 1f \n\t"
+        ".align 4 \n\t"
         "adds %[jump], %[left] \n\t"
     #endif
         
@@ -973,7 +975,10 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "subs %[r7], %[r0] \n\t" /* r7 = i = k - (num_words - 1) (times 4) */
         
         "3: \n\t" /* inner loop */
-        "push {%[r3], %[r4], %[r5], %[r6]} \n\t" /* push things, r3 (c0) is at the top of stack. */
+        "push {%[r6]} \n\t"
+        "push {%[r5]} \n\t"
+        "push {%[r4]} \n\t"
+        "push {%[r3]} \n\t" /* push things, r3 (c0) is at the top of stack. */
         "subs %[r0], %[r6], %[r7] \n\t"          /* r0 = k - i */
         
         "ldr %[r4], [%[r2], %[r0]] \n\t" /* r4 = right[k - i] */
@@ -1003,7 +1008,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "adcs %[r6], %[r3] \n\t"      /* r6 = high word =
                                               a1 * b1 + carry + ((b0 * a1 + a0 * b1) >> 16) */
         
-        "pop {%[r3], %[r4], %[r5]} \n\t" /* r3 = c0, r4 = c1, r5 = c2 */
+        "pop {%[r3]} \n\t" /* r3 = c0 */
+        "pop {%[r4]} \n\t" /* r4 = c1 */
+        "pop {%[r5]} \n\t" /* r5 = c2 */
         "adds %[r3], %[r0] \n\t"         /* add low word to c0 */
         "adcs %[r4], %[r6] \n\t"         /* add high word to c1, including carry */
         "movs %[r0], #0 \n\t"            /* r0 = 0 (does not affect carry bit) */
@@ -1146,7 +1153,10 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "subs %[r6], %[r0] \n\t" /* r6 = i = k - (num_words - 1) (times 4) */
         
         "3: \n\t" /* inner loop */
-        "push {%[r2], %[r3], %[r4], %[r5]} \n\t" /* push things, r2 (c0) is at the top of stack. */
+        "push {%[r5]} \n\t"
+        "push {%[r4]} \n\t"
+        "push {%[r3]} \n\t"
+        "push {%[r2]} \n\t" /* push things, r2 (c0) is at the top of stack. */
         "subs %[r7], %[r5], %[r6] \n\t"          /* r7 = k - i */
         
         "ldr %[r3], [%[r1], %[r7]] \n\t" /* r3 = left[k - i] */
@@ -1186,7 +1196,9 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "adcs %[r5], %[r3] \n\t" /* add carry from shift to high word */
         
         "4: \n\t"
-        "pop {%[r2], %[r3], %[r4]} \n\t" /* r2 = c0, r3 = c1, r4 = c2 */
+        "pop {%[r2]} \n\t" /* r2 = c0 */
+        "pop {%[r3]} \n\t" /* r3 = c1 */
+        "pop {%[r4]} \n\t" /* r4 = c2 */
         "adds %[r2], %[r0] \n\t"         /* add low word to c0 */
         "adcs %[r3], %[r5] \n\t"         /* add high word to c1, including carry */
         "movs %[r0], #0 \n\t"            /* r0 = 0 (does not affect carry bit) */
