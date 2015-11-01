@@ -136,8 +136,10 @@ void uECC_vli_nativeToBytes(uint8_t *bytes, int num_bytes, const uECC_word_t *na
 void uECC_vli_bytesToNative(uECC_word_t *native, const uint8_t *bytes, int num_bytes);
 
 unsigned uECC_curve_num_words(uECC_Curve curve);
+unsigned uECC_curve_num_bytes(uECC_Curve curve);
 unsigned uECC_curve_num_bits(uECC_Curve curve);
 unsigned uECC_curve_num_n_words(uECC_Curve curve);
+unsigned uECC_curve_num_n_bytes(uECC_Curve curve);
 unsigned uECC_curve_num_n_bits(uECC_Curve curve);
 
 const uECC_word_t *uECC_curve_p(uECC_Curve curve);

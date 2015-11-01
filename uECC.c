@@ -1464,12 +1464,20 @@ unsigned uECC_curve_num_words(uECC_Curve curve) {
     return curve->num_words;
 }
 
+unsigned uECC_curve_num_bytes(uECC_Curve curve) {
+    return curve->num_bytes;
+}
+
 unsigned uECC_curve_num_bits(uECC_Curve curve) {
     return curve->num_bytes * 8;
 }
 
 unsigned uECC_curve_num_n_words(uECC_Curve curve) {
     return BITS_TO_WORDS(curve->num_n_bits);
+}
+
+unsigned uECC_curve_num_n_bytes(uECC_Curve curve) {
+    return BITS_TO_BYTES(curve->num_n_bits);
 }
 
 unsigned uECC_curve_num_n_bits(uECC_Curve curve) {
