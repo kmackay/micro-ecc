@@ -265,11 +265,11 @@ void finish_SHA256(uECC_HashContext *base, uint8_t *hash_result) {
 }
 */
 typedef struct uECC_HashContext {
-    void (*init_hash)(struct uECC_HashContext *context);
-    void (*update_hash)(struct uECC_HashContext *context,
+    void (*init_hash)(const struct uECC_HashContext *context);
+    void (*update_hash)(const struct uECC_HashContext *context,
                         const uint8_t *message,
                         unsigned message_size);
-    void (*finish_hash)(struct uECC_HashContext *context, uint8_t *hash_result);
+    void (*finish_hash)(const struct uECC_HashContext *context, uint8_t *hash_result);
     unsigned block_size; /* Hash function block size in bytes, eg 64 for SHA-256. */
     unsigned result_size; /* Hash function result size in bytes, eg 32 for SHA-256. */
     uint8_t *tmp; /* Must point to a buffer of at least (2 * result_size + block_size) bytes. */
@@ -299,7 +299,7 @@ Returns 1 if the signature generated successfully, 0 if an error occurred.
 int uECC_sign_deterministic(const uint8_t *private_key,
                             const uint8_t *message_hash,
                             unsigned hash_size,
-                            uECC_HashContext *hash_context,
+                            const uECC_HashContext *hash_context,
                             uint8_t *signature,
                             uECC_Curve curve);
 
