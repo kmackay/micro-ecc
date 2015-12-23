@@ -23,19 +23,19 @@ typedef struct SHA256_HashContext {
     SHA256_CTX ctx;
 } SHA256_HashContext;
 
-static void init_SHA256(uECC_HashContext *base) {
+static void init_SHA256(const uECC_HashContext *base) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Init(&context->ctx);
 }
 
-static void update_SHA256(uECC_HashContext *base,
+static void update_SHA256(const uECC_HashContext *base,
                           const uint8_t *message,
                           unsigned message_size) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Update(&context->ctx, message, message_size);
 }
 
-static void finish_SHA256(uECC_HashContext *base, uint8_t *hash_result) {
+static void finish_SHA256(const uECC_HashContext *base, uint8_t *hash_result) {
     SHA256_HashContext *context = (SHA256_HashContext *)base;
     SHA256_Final(hash_result, &context->ctx);
 }
@@ -76,12 +76,12 @@ int main() {
             }
             memcpy(hash, public, sizeof(hash));
             
-            if (!uECC_sign_deterministic(private, hash, &ctx.uECC, sig, curves[c])) {
+            if (!uECC_sign_deterministic(private, hash, sizeof(hash), &ctx.uECC, sig, curves[c])) {
                 printf("uECC_sign() failed\n");
                 return 1;
             }
 
-            if (!uECC_verify(public, hash, sig, curves[c])) {
+            if (!uECC_verify(public, hash, sizeof(hash), sig, curves[c])) {
                 printf("uECC_verify() failed\n");
                 return 1;
             }
