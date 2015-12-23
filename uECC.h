@@ -122,8 +122,8 @@ Outputs:
     private_key - Will be filled in with the private key. Must be as long as the curve order; this
                   is typically the same as the curve size, except for secp160r1. For example, if the
                   curve is secp256r1, private_key must be 32 bytes long.
-                  
-                  For secp160r1, private_key must be 21 bytes long! Note that the first byte will 
+
+                  For secp160r1, private_key must be 21 bytes long! Note that the first byte will
                   almost always be 0 (there is about a 1 in 2^80 chance of it being non-zero).
 
 Returns 1 if the key pair was generated successfully, 0 if an error occurred.
