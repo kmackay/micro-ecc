@@ -317,7 +317,7 @@ Inputs:
 
 Returns 1 if the signature is valid, 0 if it is invalid.
 */
-int uECC_verify(const uint8_t *private_key,
+int uECC_verify(const uint8_t *public_key,
                 const uint8_t *message_hash,
                 unsigned hash_size,
                 const uint8_t *signature,
