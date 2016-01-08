@@ -451,9 +451,9 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
 #define asm_mmod_fast_secp160r1 1
 #endif /* uECC_SUPPORTS_secp160r1 */
 
-#if uECC_SUPPORTS_secp256r1
-static const struct uECC_Curve_t curve_secp256r1;
-static void vli_mmod_fast_secp256r1(uECC_word_t *result, uECC_word_t *product) {
+#if uECC_SUPPORTS_secp256k1
+static const struct uECC_Curve_t curve_secp256k1;
+static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     uint8_t carry = 0;
     __asm__ volatile (
         "in r30, __SP_L__ \n\t"
@@ -764,17 +764,17 @@ static void vli_mmod_fast_secp256r1(uECC_word_t *result, uECC_word_t *product) {
     
     if (carry > 0) {
         --carry;
-        uECC_vli_sub(result, result, curve_secp256r1.p, 32);
+        uECC_vli_sub(result, result, curve_secp256k1.p, 32);
     }
     if (carry > 0) {
-        uECC_vli_sub(result, result, curve_secp256r1.p, 32);
+        uECC_vli_sub(result, result, curve_secp256k1.p, 32);
     }
-    if (uECC_vli_cmp_unsafe(result, curve_secp256r1.p, 32) > 0) {
-        uECC_vli_sub(result, result, curve_secp256r1.p, 32);
+    if (uECC_vli_cmp_unsafe(result, curve_secp256k1.p, 32) > 0) {
+        uECC_vli_sub(result, result, curve_secp256k1.p, 32);
     }
 }
-#define asm_mmod_fast_secp256r1 1
-#endif /* uECC_SUPPORTS_secp256r1 */
+#define asm_mmod_fast_secp256k1 1
+#endif /* uECC_SUPPORTS_secp256k1 */
 
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 2) */
 

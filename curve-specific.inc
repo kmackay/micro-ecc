@@ -1152,7 +1152,7 @@ static void x_side_secp256k1(uECC_word_t *result, const uECC_word_t *x, uECC_Cur
     uECC_vli_modAdd(result, result, curve->b, curve->p, num_words_secp256k1); /* r = x^3 + b */
 }
 
-#if (uECC_OPTIMIZATION_LEVEL > 0)
+#if (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp256k1)
 static void omega_mult_secp256k1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     uECC_word_t tmp[2 * num_words_secp256k1];
@@ -1241,7 +1241,7 @@ static void omega_mult_secp256k1(uint64_t * result, const uint64_t * right) {
     result[num_words_secp256k1] = r0;
 }
 #endif /* uECC_WORD_SIZE */
-#endif /* (uECC_OPTIMIZATION_LEVEL > 0) */
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0 &&  && !asm_mmod_fast_secp256k1) */
 
 #endif /* uECC_SUPPORTS_secp256k1 */
 
