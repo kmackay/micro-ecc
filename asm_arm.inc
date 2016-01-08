@@ -3,8 +3,6 @@
 #ifndef _UECC_ASM_ARM_H_
 #define _UECC_ASM_ARM_H_
 
-#include "asm_arm_mult_square.inc"
-
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
     #define uECC_MIN_WORDS 8
 #endif
@@ -157,6 +155,8 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 2) */
 
 #if (uECC_OPTIMIZATION_LEVEL >= 3)
+
+#include "asm_arm_mult_square.inc"
 
 #define FAST_MULT_ASM_5_TO_6                 \
     "cmp r3, #5 \n\t"                        \
