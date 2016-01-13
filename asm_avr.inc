@@ -250,16 +250,69 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         FAST_MULT_ASM_32
         "pop r18 \n\t"
 #endif
-        "done: \n\t"
+        "2: \n\t"
         "eor r1, r1 \n\t"
         : "+x" (left), "+y" (right), "+z" (result)
         : "r" (r18)
         : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
           "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r19", "r20",
-          "r21", "r22", "r23", "r24", "r25", "cc", "memory"
+          "r21", "r22", "r23", "r24", "r25", "cc"
     );
 }
 #define asm_mult 1
+
+#if uECC_SQUARE_FUNC
+__attribute((noinline))
+uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
+                                  const uECC_word_t *left,
+                                  wordcount_t num_words) {
+    /* num_words should already be in r20. */
+    register wordcount_t r20 __asm__("r20") = num_words;
+    
+    __asm__ volatile (
+        "push r20 \n\t"
+#if (uECC_MIN_WORDS == 20)
+        FAST_SQUARE_ASM_20
+        "pop r20 \n\t"
+    #if (uECC_MAX_WORDS > 20)
+        FAST_SQUARE_ASM_20_TO_24
+    #endif
+    #if (uECC_MAX_WORDS > 24)
+        FAST_SQUARE_ASM_24_TO_28
+    #endif
+    #if (uECC_MAX_WORDS > 28)
+        FAST_SQUARE_ASM_28_TO_32
+    #endif
+#elif (uECC_MIN_WORDS == 24)
+        FAST_SQUARE_ASM_24
+        "pop r20 \n\t"
+    #if (uECC_MAX_WORDS > 24)
+        FAST_SQUARE_ASM_24_TO_28
+    #endif
+    #if (uECC_MAX_WORDS > 28)
+        FAST_SQUARE_ASM_28_TO_32
+    #endif
+#elif (uECC_MIN_WORDS == 28)
+        FAST_SQUARE_ASM_28
+        "pop r20 \n\t"
+    #if (uECC_MAX_WORDS > 28)
+        FAST_SQUARE_ASM_28_TO_32
+    #endif
+#elif (uECC_MIN_WORDS == 32)
+        FAST_SQUARE_ASM_32
+        "pop r20 \n\t"
+#endif
+        "2: \n\t"
+        "eor r1, r1 \n\t"
+        : "+x" (left), "+z" (result)
+        : "r" (r20)
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
+          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc"
+    );
+}
+#define asm_square 1
+#endif /* uECC_SQUARE_FUNC */
 
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 3) */
 
@@ -434,7 +487,7 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
         
         : "+x" (product), [carry] "+r" (carry)
         : "y" (result)
-        : "r0", "r18", "r19", "r30", "r31", "cc", "memory"
+        : "r0", "r18", "r19", "r30", "r31", "cc"
     );
 
     if (carry > 0) {
@@ -759,7 +812,7 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
         
         : "+x" (product), [carry] "+r" (carry)
         : "y" (result)
-        : "r0", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r30", "r31", "cc", "memory"
+        : "r0", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r30", "r31", "cc"
     );
     
     if (carry > 0) {
