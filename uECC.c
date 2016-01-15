@@ -180,6 +180,10 @@ void uECC_set_rng(uECC_RNG_Function rng_function) {
     g_rng_function = rng_function;
 }
 
+uECC_RNG_Function uECC_get_rng(void) {
+    return g_rng_function;
+}
+
 #if !asm_clear
 uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
     wordcount_t i;
