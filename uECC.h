@@ -112,6 +112,12 @@ Inputs:
 */
 void uECC_set_rng(uECC_RNG_Function rng_function);
 
+/* uECC_get_rng() function.
+
+Returns the function that will be used to generate random bytes.
+*/
+uECC_RNG_Function uECC_get_rng(void);
+
 /* uECC_make_key() function.
 Create a public/private key pair.
 
