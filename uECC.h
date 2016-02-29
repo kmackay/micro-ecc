@@ -236,7 +236,7 @@ int uECC_sign(const uint8_t *private_key,
 This is used to pass in an arbitrary hash function to uECC_sign_deterministic().
 The structure will be used for multiple hash computations; each time a new hash
 is computed, init_hash() will be called, followed by one or more calls to
-update_hash(), and finally a call to finish_hash() to prudoce the resulting hash.
+update_hash(), and finally a call to finish_hash() to produce the resulting hash.
 
 The intention is that you will create a structure that includes uECC_HashContext
 followed by any hash-specific data. For example:
@@ -287,7 +287,7 @@ Generate an ECDSA signature for a given hash value, using a deterministic algori
 this function; however, if the RNG is defined it will improve resistance to side-channel
 attacks.
 
-Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pass it in to
+Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pass it to
 this function along with your private key and a hash context. Note that the message_hash
 does not need to be computed with the same hash function used by hash_context.
 
