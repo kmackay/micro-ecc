@@ -920,7 +920,11 @@ uECC_VLI_API void uECC_vli_nativeToBytes(uint8_t *bytes,
                                          const uint8_t *native) {
     wordcount_t i;
     for (i = 0; i < num_bytes; ++i) {
+#if uECC_VLI_NATIVE
+        bytes[i] = native[i];
+#else
         bytes[i] = native[(num_bytes - 1) - i];
+#endif
     }
 }
 
@@ -937,7 +941,11 @@ uECC_VLI_API void uECC_vli_nativeToBytes(uint8_t *bytes,
                                          const uECC_word_t *native) {
     wordcount_t i;
     for (i = 0; i < num_bytes; ++i) {
+#if uECC_VLI_NATIVE
+        unsigned b = i;
+#else
         unsigned b = num_bytes - 1 - i;
+#endif
         bytes[i] = native[b / uECC_WORD_SIZE] >> (8 * (b % uECC_WORD_SIZE));
     }
 }
@@ -948,7 +956,11 @@ uECC_VLI_API void uECC_vli_bytesToNative(uECC_word_t *native,
     wordcount_t i;
     uECC_vli_clear(native, (num_bytes + (uECC_WORD_SIZE - 1)) / uECC_WORD_SIZE);
     for (i = 0; i < num_bytes; ++i) {
+#if uECC_VLI_NATIVE
+        unsigned b = i;
+#else
         unsigned b = num_bytes - 1 - i;
+#endif
         native[b / uECC_WORD_SIZE] |=
             (uECC_word_t)bytes[i] << (8 * (b % uECC_WORD_SIZE));
     }
