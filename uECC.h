@@ -35,6 +35,13 @@ faster somewhat faster, but increases the code size. */
     #define uECC_SQUARE_FUNC 0
 #endif
 
+/* uECC_VLI_NATIVE_LITTLE_ENDIAN - If enabled (defined as nonzero), this will enable native
+little-endian format for all keys passed in and out of the public API. This will *only* work
+on native little-endian processors. */
+#ifndef uECC_VLI_NATIVE_LITTLE_ENDIAN
+    #define uECC_VLI_NATIVE_LITTLE_ENDIAN 0
+#endif
+
 /* Curve support selection. Set to 0 to remove that curve. */
 #ifndef uECC_SUPPORTS_secp160r1
     #define uECC_SUPPORTS_secp160r1 1
