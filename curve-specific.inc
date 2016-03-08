@@ -1215,7 +1215,7 @@ static void omega_mult_secp256k1(uint32_t * result, const uint32_t * right) {
     
     for (k = 0; k < num_words_secp256k1; ++k) {
         uint64_t p = (uint64_t)0x3D1 * right[k] + carry;
-        result[k] = p;
+        result[k] = (uint32_t) p;
         carry = p >> 32;
     }
     result[num_words_secp256k1] = carry;

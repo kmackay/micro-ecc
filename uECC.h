@@ -35,6 +35,18 @@ faster somewhat faster, but increases the code size. */
     #define uECC_SQUARE_FUNC 0
 #endif
 
+/* uECC_VLI_NATIVE_LITTLE_ENDIAN - If enabled (defined as nonzero), this will switch to native
+little-endian format for *all* arrays passed in and out of the public API. This includes public 
+and private keys, shared secrets, signatures and message hashes. 
+Using this switch reduces the amount of call stack memory used by uECC, since less intermediate
+translations are required. 
+Note that this will *only* work on native little-endian processors and it will treat the uint8_t
+arrays passed into the public API as word arrays, therefore requiring the provided byte arrays 
+to be word aligned on architectures that do not support unaligned accesses. */
+#ifndef uECC_VLI_NATIVE_LITTLE_ENDIAN
+    #define uECC_VLI_NATIVE_LITTLE_ENDIAN 0
+#endif
+
 /* Curve support selection. Set to 0 to remove that curve. */
 #ifndef uECC_SUPPORTS_secp160r1
     #define uECC_SUPPORTS_secp160r1 1
