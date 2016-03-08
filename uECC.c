@@ -161,10 +161,10 @@ static void bcopy(uint8_t *dst,
                   const uint8_t *src,
                   unsigned num_bytes)
 {
-  while (0 != num_bytes) {
-    num_bytes--;
-    dst[num_bytes] = src[num_bytes];
-  }
+    while (0 != num_bytes) {
+        num_bytes--;
+        dst[num_bytes] = src[num_bytes];
+    }
 }
 
 static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
@@ -996,8 +996,8 @@ int uECC_make_key(uint8_t *public_key,
                   uint8_t *private_key,
                   uECC_Curve curve) {
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
-    uECC_word_t *private = (uECC_word_t *) private_key;
-    uECC_word_t *public = (uECC_word_t *) public_key;
+    uECC_word_t *private = (uECC_word_t *)private_key;
+    uECC_word_t *public = (uECC_word_t *)public_key;
 #else
     uECC_word_t private[uECC_MAX_WORDS];
     uECC_word_t public[uECC_MAX_WORDS * 2];
@@ -1082,7 +1082,7 @@ void uECC_compress(const uint8_t *public_key, uint8_t *compressed, uECC_Curve cu
 
 void uECC_decompress(const uint8_t *compressed, uint8_t *public_key, uECC_Curve curve) {
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
-    uECC_word_t *point = (uECC_word_t *) public_key;
+    uECC_word_t *point = (uECC_word_t *)public_key;
 #else
     uECC_word_t point[uECC_MAX_WORDS * 2];
 #endif
@@ -1131,7 +1131,7 @@ int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve) {
 
 int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve) {
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
-    uECC_word_t *public = (uECC_word_t *) public_key;
+    uECC_word_t *public = (uECC_word_t *)public_key;
 #else
     uECC_word_t public[uECC_MAX_WORDS * 2];
 #endif
@@ -1146,8 +1146,8 @@ int uECC_valid_public_key(const uint8_t *public_key, uECC_Curve curve) {
 
 int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uECC_Curve curve) {
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
-    uECC_word_t *private = (uECC_word_t *) private_key;
-    uECC_word_t *public = (uECC_word_t *) public_key;
+    uECC_word_t *private = (uECC_word_t *)private_key;
+    uECC_word_t *public = (uECC_word_t *)public_key;
 #else
     uECC_word_t private[uECC_MAX_WORDS];
     uECC_word_t public[uECC_MAX_WORDS * 2];
@@ -1231,7 +1231,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     uECC_word_t s[uECC_MAX_WORDS];
     uECC_word_t *k2[2] = {tmp, s};
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
-    uECC_word_t *p = (uECC_word_t *) signature;
+    uECC_word_t *p = (uECC_word_t *)signature;
 #else
     uECC_word_t p[uECC_MAX_WORDS * 2];
 #endif
@@ -1460,7 +1460,7 @@ int uECC_verify(const uint8_t *public_key,
     bitcount_t num_bits;
     bitcount_t i;
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
-    uECC_word_t *public = (uECC_word_t *) public_key;
+    uECC_word_t *public = (uECC_word_t *)public_key;
 #else
     uECC_word_t public[uECC_MAX_WORDS * 2];
 #endif    
