@@ -157,6 +157,7 @@ struct uECC_Curve_t {
 #endif
 };
 
+#if uECC_VLI_NATIVE_LITTLE_ENDIAN
 static void bcopy(uint8_t *dst,
                   const uint8_t *src,
                   unsigned num_bytes) {
@@ -165,6 +166,7 @@ static void bcopy(uint8_t *dst,
         dst[num_bytes] = src[num_bytes];
     }
 }
+#endif
 
 static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
                                        const uECC_word_t *right,
