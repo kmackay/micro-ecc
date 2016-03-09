@@ -130,6 +130,18 @@ Returns the function that will be used to generate random bytes.
 */
 uECC_RNG_Function uECC_get_rng(void);
 
+/* uECC_curve_private_key_size() function.
+
+Returns the size of a private key for the curve in bytes.
+*/
+int uECC_curve_private_key_size(uECC_Curve curve);
+
+/* uECC_curve_public_key_size() function.
+
+Returns the size of a public key for the curve in bytes.
+*/
+int uECC_curve_public_key_size(uECC_Curve curve);
+
 /* uECC_make_key() function.
 Create a public/private key pair.
 

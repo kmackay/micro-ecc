@@ -195,6 +195,14 @@ uECC_RNG_Function uECC_get_rng(void) {
     return g_rng_function;
 }
 
+int uECC_curve_private_key_size(uECC_Curve curve) {
+    return BITS_TO_BYTES(curve->num_n_bits);
+}
+
+int uECC_curve_public_key_size(uECC_Curve curve) {
+    return 2 * curve->num_bytes;
+}
+
 #if !asm_clear
 uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
     wordcount_t i;
