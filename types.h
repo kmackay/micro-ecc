@@ -23,6 +23,16 @@
     #endif
 #endif
 
+#ifndef uECC_ARM_USE_UMAAL
+    #if (uECC_PLATFORM == uECC_arm) && (__ARM_ARCH >= 6)
+        #define uECC_ARM_USE_UMAAL 1
+    #elif (uECC_PLATFORM == uECC_arm_thumb2) && (__ARM_ARCH >= 6) && !__ARM_ARCH_7M__
+        #define uECC_ARM_USE_UMAAL 1
+    #else
+        #define uECC_ARM_USE_UMAAL 0
+    #endif
+#endif
+
 #ifndef uECC_WORD_SIZE
     #if uECC_PLATFORM == uECC_avr
         #define uECC_WORD_SIZE 1

@@ -23,7 +23,9 @@ platform. */
 
 /* Optimization level; trade speed for code size.
    Larger values produce code that is faster but larger.
-   Currently supported values are 0 - 3; 0 is unusably slow for most applications. */
+   Currently supported values are 0 - 4; 0 is unusably slow for most applications.
+   Optimization level 4 currently only has an effect ARM platforms where more than one
+   curve is enabled. */
 #ifndef uECC_OPTIMIZATION_LEVEL
     #define uECC_OPTIMIZATION_LEVEL 2
 #endif
