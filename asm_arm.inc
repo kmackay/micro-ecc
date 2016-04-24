@@ -554,10 +554,10 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "subs %[r7], %[r0] \n\t" /* r7 = i = k - (num_words - 1) (times 4) */
         
         "3: \n\t" /* inner loop */
-        "push {%[r6]} \n\t"
-        "push {%[r5]} \n\t"
-        "push {%[r4]} \n\t"
-        "push {%[r3]} \n\t" /* push things, r3 (c0) is at the top of stack. */
+        "mov r10, %[r3] \n\t"
+        "mov r11, %[r4] \n\t"
+        "mov r12, %[r5] \n\t"
+        "mov r14, %[r6] \n\t"
         "subs %[r0], %[r6], %[r7] \n\t"          /* r0 = k - i */
         
         "ldr %[r4], [%[r2], %[r0]] \n\t" /* r4 = right[k - i] */
@@ -586,15 +586,15 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "adds %[r0], %[r4] \n\t"
         "adcs %[r6], %[r5] \n\t"
         
-        "pop {%[r3]} \n\t" /* r3 = c0 */
-        "pop {%[r4]} \n\t" /* r4 = c1 */
-        "pop {%[r5]} \n\t" /* r5 = c2 */
+        "mov %[r3], r10\n\t"
+        "mov %[r4], r11\n\t"
+        "mov %[r5], r12\n\t"
         "adds %[r3], %[r0] \n\t"         /* add low word to c0 */
         "adcs %[r4], %[r6] \n\t"         /* add high word to c1, including carry */
         "movs %[r0], #0 \n\t"            /* r0 = 0 (does not affect carry bit) */
         "adcs %[r5], %[r0] \n\t"         /* add carry to c2 */
         
-        "pop {%[r6]} \n\t" /* r6 = k */
+        "mov %[r6], r14\n\t" /* r6 = k */
 
         "adds %[r7], #4 \n\t"   /* i += 4 */
         "cmp %[r7], r8 \n\t"    /* i > (num_words - 1) (times 4)? */
@@ -624,7 +624,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         : [r3] "+l" (num_words), [r4] "=&l" (r4),
           [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
         : [r0] "l" (result), [r1] "l" (left), [r2] "l" (right)
-        : "r8", "r9", "cc", "memory"
+        : "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
     );
 #endif
 }
@@ -713,7 +713,6 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "lsls %[r2], #1 \n\t" /* r2 = (num_words - 1) * 8 */
         "mov r9, %[r2] \n\t"  /* r9 = (num_words - 1) * 8 */
         "movs %[r2], #0 \n\t" /* c0 = 0 */
-        "mov r10, %[r2] \n\t" /* r10 = 0 */
         "movs %[r3], #0 \n\t" /* c1 = 0 */
         "movs %[r4], #0 \n\t" /* c2 = 0 */
         "movs %[r5], #0 \n\t" /* k = 0 */
@@ -730,10 +729,10 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "subs %[r6], %[r0] \n\t" /* r6 = i = k - (num_words - 1) (times 4) */
         
         "3: \n\t" /* inner loop */
-        "push {%[r5]} \n\t"
-        "push {%[r4]} \n\t"
-        "push {%[r3]} \n\t"
-        "push {%[r2]} \n\t" /* push things, r2 (c0) is at the top of stack. */
+        "mov r10, %[r2] \n\t"
+        "mov r11, %[r3] \n\t"
+        "mov r12, %[r4] \n\t"
+        "mov r14, %[r5] \n\t"
         "subs %[r7], %[r5], %[r6] \n\t"  /* r7 = k - i */
         
         "ldr %[r3], [%[r1], %[r7]] \n\t" /* r3 = left[k - i] */
@@ -763,22 +762,23 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "adcs %[r5], %[r4] \n\t"
         
         /* Add to acc, doubling if necessary */
-        "pop {%[r2]} \n\t" /* r2 = c0 */
-        "pop {%[r3]} \n\t" /* r3 = c1 */
-        "pop {%[r4]} \n\t" /* r4 = c2 */
+        "mov %[r2], r10\n\t"
+        "mov %[r3], r11\n\t"
+        "mov %[r4], r12\n\t"
         
         "cmp %[r6], %[r7] \n\t"    /* (i < k - i) ? */
-        "mov %[r7], r10 \n\t"    /* r7 = 0 (does not affect flags) */
         "bge 4f \n\t"            /*   if i >= k - i, skip */
+        "movs %[r7], #0 \n\t"    /* r7 = 0 */
         "adds %[r2], %[r0] \n\t" /* add low word to c0 */
         "adcs %[r3], %[r5] \n\t" /* add high word to c1, including carry */
         "adcs %[r4], %[r7] \n\t" /* add carry to c2 */
         "4: \n\t"
+        "movs %[r7], #0 \n\t"    /* r7 = 0 */
         "adds %[r2], %[r0] \n\t" /* add low word to c0 */
         "adcs %[r3], %[r5] \n\t" /* add high word to c1, including carry */
         "adcs %[r4], %[r7] \n\t" /* add carry to c2 */
         
-        "pop {%[r5]} \n\t" /* r5 = k */
+        "mov %[r5], r14\n\t" /* r5 = k */
         
         "adds %[r6], #4 \n\t"           /* i += 4 */
         "cmp %[r6], %[r5] \n\t"         /* i >= k? */
@@ -809,7 +809,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         : [r2] "+l" (num_words), [r3] "=&l" (r3), [r4] "=&l" (r4),
           [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
         : [r0] "l" (result), [r1] "l" (left)
-        : "r8", "r9", "r10", "cc", "memory"
+        : "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
     );
 #endif
 }
