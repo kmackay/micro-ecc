@@ -172,8 +172,11 @@ static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
                                        const uECC_word_t *right,
                                        wordcount_t num_words);
 
-#if (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
-        uECC_PLATFORM == uECC_arm_thumb2)
+#if defined( __arm__ ) && !defined( __ARM_ARCH_7A__ )
+#define ARM_THUMB_NOT_SUPPORTED
+#endif
+
+#if ( (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || uECC_PLATFORM == uECC_arm_thumb2) && !defined( ARM_THUMB_NOT_SUPPORTED ) )
     #include "asm_arm.inc"
 #endif
 
