@@ -47,7 +47,7 @@ def setup_osx():
     c.cxx.flags += ["-stdlib=libc++"]
     link.cxx.flags += ["-stdlib=libc++"]
 
-    link_flags = [("-arch", "x86_64")]
+    link_flags = [("-arch", "x86_64", "-lcrypto")]
     link.local_flags.extend(link_flags)
 
 def setup_avr():
