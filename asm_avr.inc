@@ -889,7 +889,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         
         "adc %[borrow], %[borrow] \n\t" /* Store carry bit in borrow. */
 
-        : "+z" (r), "+x" (left), "+y" (right), [i] "+r" (i),
+        : "+z" (r), "+x" (left), "+y" (right), [i] "+r" (num_words),
             [borrow] "+r" (borrow), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
         : "cc"
