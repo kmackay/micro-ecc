@@ -172,7 +172,7 @@ static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
                                        const uECC_word_t *right,
                                        wordcount_t num_words);
 
-#if defined( __arm__ ) && !defined( __ARM_ARCH_7A__ )
+#if defined( __arm__ ) && !defined( __ARM_ARCH_7A__ ) && !defined( __ARM_ARCH_7R__ ) && !defined( __ARM_ARCH_7M__ ) && !defined( __ARM_ARCH_7S__ )
 #define ARM_THUMB_NOT_SUPPORTED
 #endif
 
