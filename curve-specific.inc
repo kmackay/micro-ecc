@@ -1330,18 +1330,26 @@ uECC_Curve uECC_secp521r1(void) { return &curve_secp521r1; }
 #if (uECC_OPTIMIZATION_LEVEL > 0)
 /* Computes result = product % curve_p
    from https://www.iad.gov/iad/customcf/openAttachment.cfm?FilePath=/iad/library/ia-guidance/ia-solutions-for-classified/algorithm-guidance/assets/public/upload/Mathematical-routines-for-the-NIST-prime-elliptic-curves.pdf&WpKes=aF6woL7fQp3dJiyEfkweRSR88VCgsUeRStm5D9 */
-static void vli_mmod_fast_secp521r1(uECC_word_t *result, uECC_word_t *product) {
-    uECC_word_t tmp[ num_words_secp521r1 ];
+static void vli_mmod_fast_secp521r1(uint64_t *result, uint64_t *product) {
+    uint64_t tmp[ num_words_secp521r1 ];
     int carry;
+    int i;
 
     /* t */
     uECC_vli_set(result, product, num_words_secp521r1);
+
+    result[ num_words_secp521r1 - 1 ] &= 0x01FF;
+
     /* s */
-    uECC_vli_set(tmp, product + num_words_secp521r1, num_words_secp521r1);
+    for ( i = 0; i < num_words_secp521r1 - 2; ++i ) {
+        tmp[ i ] = ( product[ num_words_secp521r1 - 1 + i ] >> 9 ) | ( product[ num_words_secp521r1 + i ] << 55 );
+    }
+    tmp[ num_words_secp521r1 - 1 ] = ( product[ num_words_secp521r1 + num_words_secp521r1 - 1 ] >> 9 ) & 0x01FF;
 
     carry = (int)uECC_vli_add(result, result, tmp, num_words_secp521r1);
+
     while (carry || uECC_vli_cmp_unsafe(curve_secp521r1.p, result, num_words_secp521r1) != 1) {
-        carry -= uECC_vli_sub( result, result, curve_secp521r1.p, num_words_secp521r1);
+         carry -= uECC_vli_sub( result, result, curve_secp521r1.p, num_words_secp521r1);
     }
 
 }
