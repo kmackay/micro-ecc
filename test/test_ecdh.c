@@ -13,12 +13,12 @@ void vli_print(uint8_t *vli, unsigned int size) {
 
 int main() {
     int i, c;
-    uint8_t private1[32] = {0};
-    uint8_t private2[32] = {0};
-    uint8_t public1[64] = {0};
-    uint8_t public2[64] = {0};
-    uint8_t secret1[32] = {0};
-    uint8_t secret2[32] = {0};
+    uint8_t private1[66] = {0};
+    uint8_t private2[66] = {0};
+    uint8_t public1[132] = {0};
+    uint8_t public2[132] = {0};
+    uint8_t secret1[66] = {0};
+    uint8_t secret2[66] = {0};
     
     const struct uECC_Curve_t * curves[5];
     int num_curves = 0;
@@ -36,6 +36,9 @@ int main() {
 #endif
 #if uECC_SUPPORTS_secp256k1
     curves[num_curves++] = uECC_secp256k1();
+#endif
+#if uECC_SUPPORTS_secp521r1
+    curves[num_curves++] = uECC_secp521r1();
 #endif
     
     printf("Testing 256 random private key pairs\n");
