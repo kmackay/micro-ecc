@@ -67,22 +67,22 @@ int main() {
             if (memcmp(secret1, secret2, sizeof(secret1)) != 0) {
                 printf("Shared secrets are not identical!\n");
                 printf("Private key 1 = ");
-                vli_print(private1, 32);
+                vli_print(private1, 66);
                 printf("\n");
                 printf("Private key 2 = ");
-                vli_print(private2, 32);
+                vli_print(private2, 66);
                 printf("\n");
                 printf("Public key 1 = ");
-                vli_print(public1, 64);
+                vli_print(public1, 132);
                 printf("\n");
                 printf("Public key 2 = ");
-                vli_print(public2, 64);
+                vli_print(public2, 132);
                 printf("\n");
                 printf("Shared secret 1 = ");
-                vli_print(secret1, 32);
+                vli_print(secret1, 66);
                 printf("\n");
                 printf("Shared secret 2 = ");
-                vli_print(secret2, 32);
+                vli_print(secret2, 66);
                 printf("\n");
             }
         }
