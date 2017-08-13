@@ -1343,17 +1343,16 @@ static void vli_mmod_fast_secp521r1(uint32_t *result, uint32_t *product) {
     result[ num_words_secp521r1 - 1 ] &= 0x01FF;
 
     /* s */
-    for ( i = 0; i < num_words_secp521r1 - 2; ++i ) {
+    for ( i = 0; i < num_words_secp521r1 - 1; ++i ) {
         tmp[ i ] = ( product[ num_words_secp521r1 - 1 + i ] >> 9 ) | ( product[ num_words_secp521r1 + i ] << 23 );
     }
-    tmp[ num_words_secp521r1 - 1 ] = ( product[ num_words_secp521r1 + num_words_secp521r1 - 1 ] >> 9 ) & 0x01FF;
+    tmp[ num_words_secp521r1 - 1 ] = product[ 2 * num_words_secp521r1 - 2 ] >> 9;
 
     carry = (int)uECC_vli_add(result, result, tmp, num_words_secp521r1);
 
     while (carry || uECC_vli_cmp_unsafe(curve_secp521r1.p, result, num_words_secp521r1) != 1) {
          carry -= uECC_vli_sub( result, result, curve_secp521r1.p, num_words_secp521r1);
     }
-
 }
 #else
 static void vli_mmod_fast_secp521r1(uint64_t *result, uint64_t *product) {
@@ -1363,21 +1362,19 @@ static void vli_mmod_fast_secp521r1(uint64_t *result, uint64_t *product) {
 
     /* t */
     uECC_vli_set(result, product, num_words_secp521r1);
-
     result[ num_words_secp521r1 - 1 ] &= 0x01FF;
 
     /* s */
-    for ( i = 0; i < num_words_secp521r1 - 2; ++i ) {
+    for ( i = 0; i < num_words_secp521r1 - 1; ++i ) {
         tmp[ i ] = ( product[ num_words_secp521r1 - 1 + i ] >> 9 ) | ( product[ num_words_secp521r1 + i ] << 55 );
     }
-    tmp[ num_words_secp521r1 - 1 ] = ( product[ num_words_secp521r1 + num_words_secp521r1 - 1 ] >> 9 ) & 0x01FF;
+    tmp[ num_words_secp521r1 - 1 ] = product[ 2 * num_words_secp521r1 - 2 ] >> 9;
 
     carry = (int)uECC_vli_add(result, result, tmp, num_words_secp521r1);
 
     while (carry || uECC_vli_cmp_unsafe(curve_secp521r1.p, result, num_words_secp521r1) != 1) {
          carry -= uECC_vli_sub( result, result, curve_secp521r1.p, num_words_secp521r1);
     }
-
 }
 #endif
 #endif /* uECC_OPTIMIZATION_LEVEL > 0 */
