@@ -1330,8 +1330,9 @@ uECC_Curve uECC_secp521r1(void) { return &curve_secp521r1; }
 #if (uECC_OPTIMIZATION_LEVEL > 0)
 /* Computes result = product % curve_p
    from https://www.iad.gov/iad/customcf/openAttachment.cfm?FilePath=/iad/library/ia-guidance/ia-solutions-for-classified/algorithm-guidance/assets/public/upload/Mathematical-routines-for-the-NIST-prime-elliptic-curves.pdf&WpKes=aF6woL7fQp3dJiyEfkweRSR88VCgsUeRStm5D9 */
-
-#if uECC_WORD_SIZE == 4
+#if uECC_WORD_SIZE == 1
+#error "Sorry, but secp521r1 is too complex for 8-bit computers!"
+#elif uECC_WORD_SIZE == 4
 static void vli_mmod_fast_secp521r1(uint32_t *result, uint32_t *product) {
     uint32_t tmp[ num_words_secp521r1 ];
     int carry;
