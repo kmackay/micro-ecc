@@ -13,73 +13,77 @@
     #define uECC_VLI_API static
 #endif
 
-#define CONCATX(a, ...) a ## __VA_ARGS__
-#define CONCAT(a, ...) CONCATX(a, __VA_ARGS__)
+#if (uECC_PLATFORM == uECC_avr) || \
+    (uECC_PLATFORM == uECC_arm) || \
+    (uECC_PLATFORM == uECC_arm_thumb)
+    #define CONCATX(a, ...) a ## __VA_ARGS__
+    #define CONCAT(a, ...) CONCATX(a, __VA_ARGS__)
 
-#define STRX(a) #a
-#define STR(a) STRX(a)
+    #define STRX(a) #a
+    #define STR(a) STRX(a)
 
-#define EVAL(...)  EVAL1(EVAL1(EVAL1(EVAL1(__VA_ARGS__))))
-#define EVAL1(...) EVAL2(EVAL2(EVAL2(EVAL2(__VA_ARGS__))))
-#define EVAL2(...) EVAL3(EVAL3(EVAL3(EVAL3(__VA_ARGS__))))
-#define EVAL3(...) EVAL4(EVAL4(EVAL4(EVAL4(__VA_ARGS__))))
-#define EVAL4(...) __VA_ARGS__
+    #define EVAL(...)  EVAL1(EVAL1(EVAL1(EVAL1(__VA_ARGS__))))
+    #define EVAL1(...) EVAL2(EVAL2(EVAL2(EVAL2(__VA_ARGS__))))
+    #define EVAL2(...) EVAL3(EVAL3(EVAL3(EVAL3(__VA_ARGS__))))
+    #define EVAL3(...) EVAL4(EVAL4(EVAL4(EVAL4(__VA_ARGS__))))
+    #define EVAL4(...) __VA_ARGS__
 
-#define DEC_1  0
-#define DEC_2  1
-#define DEC_3  2
-#define DEC_4  3
-#define DEC_5  4
-#define DEC_6  5
-#define DEC_7  6
-#define DEC_8  7
-#define DEC_9  8
-#define DEC_10 9
-#define DEC_11 10
-#define DEC_12 11
-#define DEC_13 12
-#define DEC_14 13
-#define DEC_15 14
-#define DEC_16 15
-#define DEC_17 16
-#define DEC_18 17
-#define DEC_19 18
-#define DEC_20 19
-#define DEC_21 20
-#define DEC_22 21
-#define DEC_23 22
-#define DEC_24 23
-#define DEC_25 24
-#define DEC_26 25
-#define DEC_27 26
-#define DEC_28 27
-#define DEC_29 28
-#define DEC_30 29
-#define DEC_31 30
-#define DEC_32 31
+    #define DEC_1  0
+    #define DEC_2  1
+    #define DEC_3  2
+    #define DEC_4  3
+    #define DEC_5  4
+    #define DEC_6  5
+    #define DEC_7  6
+    #define DEC_8  7
+    #define DEC_9  8
+    #define DEC_10 9
+    #define DEC_11 10
+    #define DEC_12 11
+    #define DEC_13 12
+    #define DEC_14 13
+    #define DEC_15 14
+    #define DEC_16 15
+    #define DEC_17 16
+    #define DEC_18 17
+    #define DEC_19 18
+    #define DEC_20 19
+    #define DEC_21 20
+    #define DEC_22 21
+    #define DEC_23 22
+    #define DEC_24 23
+    #define DEC_25 24
+    #define DEC_26 25
+    #define DEC_27 26
+    #define DEC_28 27
+    #define DEC_29 28
+    #define DEC_30 29
+    #define DEC_31 30
+    #define DEC_32 31
 
-#define DEC(N) CONCAT(DEC_, N)
+    #define DEC(N) CONCAT(DEC_, N)
 
-#define SECOND_ARG(_, val, ...) val
-#define SOME_CHECK_0 ~, 0
-#define GET_SECOND_ARG(...) SECOND_ARG(__VA_ARGS__, SOME,)
-#define SOME_OR_0(N) GET_SECOND_ARG(CONCAT(SOME_CHECK_, N))
+    #define SECOND_ARG(_, val, ...) val
+    #define SOME_CHECK_0 ~, 0
+    #define GET_SECOND_ARG(...) SECOND_ARG(__VA_ARGS__, SOME,)
+    #define SOME_OR_0(N) GET_SECOND_ARG(CONCAT(SOME_CHECK_, N))
 
-#define EMPTY(...)
-#define DEFER(...) __VA_ARGS__ EMPTY()
+    #define EMPTY(...)
+    #define DEFER(...) __VA_ARGS__ EMPTY()
 
-#define REPEAT_NAME_0() REPEAT_0
-#define REPEAT_NAME_SOME() REPEAT_SOME
-#define REPEAT_0(...)
-#define REPEAT_SOME(N, stuff) DEFER(CONCAT(REPEAT_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), stuff) stuff
-#define REPEAT(N, stuff) EVAL(REPEAT_SOME(N, stuff))
+    #define REPEAT_NAME_0() REPEAT_0
+    #define REPEAT_NAME_SOME() REPEAT_SOME
+    #define REPEAT_0(...)
+    #define REPEAT_SOME(N, stuff) DEFER(CONCAT(REPEAT_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), stuff) stuff
+    #define REPEAT(N, stuff) EVAL(REPEAT_SOME(N, stuff))
 
-#define REPEATM_NAME_0() REPEATM_0
-#define REPEATM_NAME_SOME() REPEATM_SOME
-#define REPEATM_0(...)
-#define REPEATM_SOME(N, macro) macro(N) \
-    DEFER(CONCAT(REPEATM_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), macro)
-#define REPEATM(N, macro) EVAL(REPEATM_SOME(N, macro))
+    #define REPEATM_NAME_0() REPEATM_0
+    #define REPEATM_NAME_SOME() REPEATM_SOME
+    #define REPEATM_0(...)
+    #define REPEATM_SOME(N, macro) macro(N) \
+        DEFER(CONCAT(REPEATM_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), macro)
+    #define REPEATM(N, macro) EVAL(REPEATM_SOME(N, macro))
+#endif
 
 #include "platform-specific.inc"
 
