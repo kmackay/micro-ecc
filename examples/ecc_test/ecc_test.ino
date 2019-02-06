@@ -6,6 +6,7 @@ static int RNG(uint8_t *dest, unsigned size) {
   // Use the least-significant bits from the ADC for an unconnected pin (or connected to a source of 
   // random noise). This can take a long time to generate random data if the result of analogRead(0) 
   // doesn't change very frequently.
+  // HINT: You can speed this up considerably by adding a wire (e.g. 10cm) to the A0 pin as an antenna.
   while (size) {
     uint8_t val = 0;
     for (unsigned i = 0; i < 8; ++i) {
