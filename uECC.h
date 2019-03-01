@@ -20,6 +20,7 @@ Possible values for uECC_PLATFORM are defined below: */
 /* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 4, or 8 bytes).
 If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your
 platform. */
+#define uECC_WORD_SIZE 4
 
 /* Optimization level; trade speed for code size.
    Larger values produce code that is faster but larger.
@@ -49,24 +50,24 @@ IMPORTANT: Keys and signatures generated with uECC_VLI_NATIVE_LITTLE_ENDIAN=1 ar
 with keys and signatures generated with uECC_VLI_NATIVE_LITTLE_ENDIAN=0; all parties must use
 the same endianness. */
 #ifndef uECC_VLI_NATIVE_LITTLE_ENDIAN
-    #define uECC_VLI_NATIVE_LITTLE_ENDIAN 0
+    #define uECC_VLI_NATIVE_LITTLE_ENDIAN 1
 #endif
 
 /* Curve support selection. Set to 0 to remove that curve. */
 #ifndef uECC_SUPPORTS_secp160r1
-    #define uECC_SUPPORTS_secp160r1 1
+    #define uECC_SUPPORTS_secp160r1 0
 #endif
 #ifndef uECC_SUPPORTS_secp192r1
-    #define uECC_SUPPORTS_secp192r1 1
+    #define uECC_SUPPORTS_secp192r1 0
 #endif
 #ifndef uECC_SUPPORTS_secp224r1
-    #define uECC_SUPPORTS_secp224r1 1
+    #define uECC_SUPPORTS_secp224r1 0
 #endif
 #ifndef uECC_SUPPORTS_secp256r1
     #define uECC_SUPPORTS_secp256r1 1
 #endif
 #ifndef uECC_SUPPORTS_secp256k1
-    #define uECC_SUPPORTS_secp256k1 1
+    #define uECC_SUPPORTS_secp256k1 0
 #endif
 
 /* Specifies whether compressed point format is supported.
