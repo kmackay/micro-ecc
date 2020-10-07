@@ -1210,7 +1210,7 @@ static void bits2int(uECC_word_t *native,
     bcopy((uint8_t *) native, bits, bits_size);
 #else
     uECC_vli_bytesToNative(native, bits, bits_size);
-#endif    
+#endif
     if (bits_size * 8 <= (unsigned)curve->num_n_bits) {
         return;
     }
@@ -1239,6 +1239,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     uECC_word_t tmp[uECC_MAX_WORDS];
     uECC_word_t s[uECC_MAX_WORDS];
     uECC_word_t *k2[2] = {tmp, s};
+    uECC_word_t *initial_Z = 0;
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
     uECC_word_t *p = (uECC_word_t *)signature;
 #else
@@ -1255,7 +1256,15 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     }
 
     carry = regularize_k(k, tmp, s, curve);
-    EccPoint_mult(p, curve->G, k2[!carry], 0, num_n_bits + 1, curve);
+    /* If an RNG function was specified, try to get a random initial Z value to improve
+       protection against side-channel attacks. */
+    if (g_rng_function) {
+        if (!uECC_generate_random_int(k2[carry], curve->p, num_words)) {
+            return 0;
+        }
+        initial_Z = k2[carry];
+    }
+    EccPoint_mult(p, curve->G, k2[!carry], initial_Z, num_n_bits + 1, curve);
     if (uECC_vli_isZero(p, num_words)) {
         return 0;
     }
@@ -1299,7 +1308,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     bcopy((uint8_t *) signature + curve->num_bytes, (uint8_t *) s, curve->num_bytes);
 #else
     uECC_vli_nativeToBytes(signature + curve->num_bytes, curve->num_bytes, s);
-#endif    
+#endif
     return 1;
 }
 
@@ -1472,7 +1481,7 @@ int uECC_verify(const uint8_t *public_key,
     uECC_word_t *_public = (uECC_word_t *)public_key;
 #else
     uECC_word_t _public[uECC_MAX_WORDS * 2];
-#endif    
+#endif
     uECC_word_t r[uECC_MAX_WORDS], s[uECC_MAX_WORDS];
     wordcount_t num_words = curve->num_words;
     wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
