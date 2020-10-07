@@ -38,12 +38,12 @@ faster somewhat faster, but increases the code size. */
 #endif
 
 /* uECC_VLI_NATIVE_LITTLE_ENDIAN - If enabled (defined as nonzero), this will switch to native
-little-endian format for *all* arrays passed in and out of the public API. This includes public 
-and private keys, shared secrets, signatures and message hashes. 
+little-endian format for *all* arrays passed in and out of the public API. This includes public
+and private keys, shared secrets, signatures and message hashes.
 Using this switch reduces the amount of call stack memory used by uECC, since less intermediate
-translations are required. 
+translations are required.
 Note that this will *only* work on native little-endian processors and it will treat the uint8_t
-arrays passed into the public API as word arrays, therefore requiring the provided byte arrays 
+arrays passed into the public API as word arrays, therefore requiring the provided byte arrays
 to be word aligned on architectures that do not support unaligned accesses.
 IMPORTANT: Keys and signatures generated with uECC_VLI_NATIVE_LITTLE_ENDIAN=1 are incompatible
 with keys and signatures generated with uECC_VLI_NATIVE_LITTLE_ENDIAN=0; all parties must use
