@@ -1115,7 +1115,7 @@ void uECC_decompress(const uint8_t *compressed, uint8_t *public_key, uECC_Curve 
 }
 #endif /* uECC_SUPPORT_COMPRESSED_POINT */
 
-int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve) {
+uECC_VLI_API int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve) {
     uECC_word_t tmp1[uECC_MAX_WORDS];
     uECC_word_t tmp2[uECC_MAX_WORDS];
     wordcount_t num_words = curve->num_words;
