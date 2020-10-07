@@ -15,7 +15,8 @@
 
 #if (uECC_PLATFORM == uECC_avr) || \
     (uECC_PLATFORM == uECC_arm) || \
-    (uECC_PLATFORM == uECC_arm_thumb)
+    (uECC_PLATFORM == uECC_arm_thumb) || \
+    (uECC_PLATFORM == uECC_arm_thumb2)
     #define CONCATX(a, ...) a ## __VA_ARGS__
     #define CONCAT(a, ...) CONCATX(a, __VA_ARGS__)
 
