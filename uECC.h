@@ -166,7 +166,9 @@ Returns 1 if the key pair was generated successfully, 0 if an error occurred.
 int uECC_make_key(uint8_t *public_key, uint8_t *private_key, uECC_Curve curve);
 
 /* uECC_shared_secret() function.
-Compute a shared secret given your secret key and someone else's public key.
+Compute a shared secret given your secret key and someone else's public key. If the public key
+is not from a trusted source and has not been previously verified, you should verify it first
+using uECC_valid_public_key().
 Note: It is recommended that you hash the result of uECC_shared_secret() before using it for
 symmetric encryption or HMAC.
 
