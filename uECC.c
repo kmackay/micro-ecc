@@ -917,19 +917,54 @@ static uECC_word_t regularize_k(const uECC_word_t * const k,
     return carry;
 }
 
+/* Generates a random integer in the range 0 < random < top.
+   Both random and top have num_words words. */
+uECC_VLI_API int uECC_generate_random_int(uECC_word_t *random,
+                                          const uECC_word_t *top,
+                                          wordcount_t num_words) {
+    uECC_word_t mask = (uECC_word_t)-1;
+    uECC_word_t tries;
+    bitcount_t num_bits = uECC_vli_numBits(top, num_words);
+
+    if (!g_rng_function) {
+        return 0;
+    }
+
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
+        if (!g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
+            return 0;
+        }
+        random[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
+        if (!uECC_vli_isZero(random, num_words) &&
+                uECC_vli_cmp(top, random, num_words) == 1) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static uECC_word_t EccPoint_compute_public_key(uECC_word_t *result,
                                                uECC_word_t *private_key,
                                                uECC_Curve curve) {
     uECC_word_t tmp1[uECC_MAX_WORDS];
     uECC_word_t tmp2[uECC_MAX_WORDS];
     uECC_word_t *p2[2] = {tmp1, tmp2};
+    uECC_word_t *initial_Z = 0;
     uECC_word_t carry;
 
     /* Regularize the bitcount for the private key so that attackers cannot use a side channel
        attack to learn the number of leading zeros. */
     carry = regularize_k(private_key, tmp1, tmp2, curve);
 
-    EccPoint_mult(result, curve->G, p2[!carry], 0, curve->num_n_bits + 1, curve);
+    /* If an RNG function was specified, try to get a random initial Z value to improve
+       protection against side-channel attacks. */
+    if (g_rng_function) {
+        if (!uECC_generate_random_int(p2[carry], curve->p, curve->num_words)) {
+            return 0;
+        }
+        initial_Z = p2[carry];
+    }
+    EccPoint_mult(result, curve->G, p2[!carry], initial_Z, curve->num_n_bits + 1, curve);
 
     if (EccPoint_isZero(result, curve)) {
         return 0;
@@ -979,32 +1014,6 @@ uECC_VLI_API void uECC_vli_bytesToNative(uECC_word_t *native,
 }
 
 #endif /* uECC_WORD_SIZE */
-
-/* Generates a random integer in the range 0 < random < top.
-   Both random and top have num_words words. */
-uECC_VLI_API int uECC_generate_random_int(uECC_word_t *random,
-                                          const uECC_word_t *top,
-                                          wordcount_t num_words) {
-    uECC_word_t mask = (uECC_word_t)-1;
-    uECC_word_t tries;
-    bitcount_t num_bits = uECC_vli_numBits(top, num_words);
-
-    if (!g_rng_function) {
-        return 0;
-    }
-
-    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
-            return 0;
-	    }
-        random[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
-        if (!uECC_vli_isZero(random, num_words) &&
-		        uECC_vli_cmp(top, random, num_words) == 1) {
-            return 1;
-        }
-    }
-    return 0;
-}
 
 int uECC_make_key(uint8_t *public_key,
                   uint8_t *private_key,
