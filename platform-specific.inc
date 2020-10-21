@@ -66,6 +66,16 @@ static int default_RNG(uint8_t *dest, unsigned size) {
 }
 #define default_RNG_defined 1
 
+#elif defined(RIOT_VERSION)
+
+#include <random.h>
+
+static int default_RNG(uint8_t *dest, unsigned size) {
+    random_bytes(dest, size);
+    return 1;
+}
+#define default_RNG_defined 1
+
 #endif /* platform */
 
 #endif /* _UECC_PLATFORM_SPECIFIC_H_ */
