@@ -76,6 +76,19 @@ static int default_RNG(uint8_t *dest, unsigned size) {
 }
 #define default_RNG_defined 1
 
+#elif defined(NRF52_SERIES)
+
+#include "app_error.h"
+#include "nrf_crypto_rng.h"
+
+static int default_RNG(uint8_t *dest, unsigned size) 
+{
+    // make sure to call nrf_crypto_init and nrf_crypto_rng_init first
+    ret_code_t ret_code = nrf_crypto_rng_vector_generate(dest, size);
+    return (ret_code == NRF_SUCCESS) ? 1 : 0;
+}
+#define default_RNG_defined 1
+
 #endif /* platform */
 
 #endif /* _UECC_PLATFORM_SPECIFIC_H_ */
