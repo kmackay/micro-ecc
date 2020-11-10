@@ -240,6 +240,31 @@ Returns 1 if the key was computed successfully, 0 if an error occurred.
 */
 int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uECC_Curve curve);
 
+/* uECC_sign_recoverable() function.
+Generate an ECDSA signature for a given hash value, with public key recovery.
+
+Usage: Compute a hash of the data you wish to sign (SHA-2 is recommended) and pass it in to
+this function along with your private key.
+
+Inputs:
+    private_key  - Your private key.
+    message_hash - The hash of the message to sign.
+    hash_size    - The size of message_hash in bytes.
+
+Outputs:
+    recid     - 0 or 1 recovery ID (the sign of P.y)
+    signature - Will be filled in with the signature value. Must be at least 2 * curve size long.
+                For example, if the curve is secp256r1, signature must be 64 bytes long.
+
+Returns 1 if the signature generated successfully, 0 if an error occurred.
+*/
+int uECC_sign_recoverable(const uint8_t *private_key,
+              const uint8_t *message_hash,
+              unsigned hash_size,
+              uint8_t *recid,
+              uint8_t *signature,
+              uECC_Curve curve);
+
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
 

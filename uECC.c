@@ -1247,6 +1247,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
                             const uint8_t *message_hash,
                             unsigned hash_size,
                             uECC_word_t *k,
+                            uint8_t *recid,
                             uint8_t *signature,
                             uECC_Curve curve) {
 
@@ -1260,9 +1261,9 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     uECC_word_t p[uECC_MAX_WORDS * 2];
 #endif
     uECC_word_t carry;
-    wordcount_t num_words = curve->num_words;
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
-    bitcount_t num_n_bits = curve->num_n_bits;
+    const wordcount_t num_words = curve->num_words;
+    const wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    const bitcount_t num_n_bits = curve->num_n_bits;
 
     /* Make sure 0 < k < curve_n */
     if (uECC_vli_isZero(k, num_words) || uECC_vli_cmp(curve->n, k, num_n_words) != 1) {
@@ -1292,6 +1293,10 @@ static int uECC_sign_with_k(const uint8_t *private_key,
         return 0;
     }
 
+    if (recid) {
+        *recid = uECC_vli_testBit(p + num_words, 0);
+    }
+
     /* Prevent side channel analysis of uECC_vli_modInv() to determine
        bits of k / the private key by premultiplying by a random number */
     uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k' = rand * k */
@@ -1299,7 +1304,7 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k = 1 / k */
 
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN == 0
-    uECC_vli_nativeToBytes(signature, curve->num_bytes, p); /* store r */
+    uECC_vli_nativeToBytes(signature, curve->num_bytes, p); /* store r = p.x */
 #endif
 
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
@@ -1339,7 +1344,28 @@ int uECC_sign(const uint8_t *private_key,
             return 0;
         }
 
-        if (uECC_sign_with_k(private_key, message_hash, hash_size, k, signature, curve)) {
+        if (uECC_sign_with_k(private_key, message_hash, hash_size, k, 0, signature, curve)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int uECC_sign_recoverable(const uint8_t *private_key,
+              const uint8_t *message_hash,
+              unsigned hash_size,
+              uint8_t *recid,
+              uint8_t *signature,
+              uECC_Curve curve) {
+    uECC_word_t k[uECC_MAX_WORDS];
+    uECC_word_t tries;
+
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
+        if (!uECC_generate_random_int(k, curve->n, BITS_TO_WORDS(curve->num_n_bits))) {
+            return 0;
+        }
+
+        if (uECC_sign_with_k(private_key, message_hash, hash_size, k, recid, signature, curve)) {
             return 1;
         }
     }
@@ -1455,7 +1481,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
                 mask >> ((bitcount_t)(num_n_words * uECC_WORD_SIZE * 8 - num_n_bits));
         }
 
-        if (uECC_sign_with_k(private_key, message_hash, hash_size, T, signature, curve)) {
+        if (uECC_sign_with_k(private_key, message_hash, hash_size, T, 0, signature, curve)) {
             return 1;
         }
 
