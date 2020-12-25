@@ -1243,7 +1243,7 @@ static void bits2int(uECC_word_t *native,
     }
 }
 
-static int uECC_sign_with_k(const uint8_t *private_key,
+static int uECC_sign_with_k_internal(const uint8_t *private_key,
                             const uint8_t *message_hash,
                             unsigned hash_size,
                             uECC_word_t *k,
@@ -1326,6 +1326,18 @@ static int uECC_sign_with_k(const uint8_t *private_key,
     return 1;
 }
 
+/* For testing - sign with an explicitly specified k value */
+int uECC_sign_with_k(const uint8_t *private_key,
+                            const uint8_t *message_hash,
+                            unsigned hash_size,
+                            const uint8_t *k,
+                            uint8_t *signature,
+                            uECC_Curve curve) {
+    uECC_word_t k2[uECC_MAX_WORDS];
+    bits2int(k2, k, BITS_TO_BYTES(curve->num_n_bits), curve);
+    return uECC_sign_with_k_internal(private_key, message_hash, hash_size, k2, signature, curve);
+}
+
 int uECC_sign(const uint8_t *private_key,
               const uint8_t *message_hash,
               unsigned hash_size,
@@ -1339,7 +1351,7 @@ int uECC_sign(const uint8_t *private_key,
             return 0;
         }
 
-        if (uECC_sign_with_k(private_key, message_hash, hash_size, k, signature, curve)) {
+        if (uECC_sign_with_k_internal(private_key, message_hash, hash_size, k, signature, curve)) {
             return 1;
         }
     }
@@ -1455,7 +1467,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
                 mask >> ((bitcount_t)(num_n_words * uECC_WORD_SIZE * 8 - num_n_bits));
         }
 
-        if (uECC_sign_with_k(private_key, message_hash, hash_size, T, signature, curve)) {
+        if (uECC_sign_with_k_internal(private_key, message_hash, hash_size, T, signature, curve)) {
             return 1;
         }
 
