@@ -1308,7 +1308,6 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
     uECC_vli_bytesToNative(tmp, private_key, BITS_TO_BYTES(curve->num_n_bits)); /* tmp = d */
 #endif
 
-    s[num_n_words - 1] = 0;
     uECC_vli_set(s, p, num_words);
     uECC_vli_modMult(s, tmp, s, curve->n, num_n_words); /* s = r*d */
 
