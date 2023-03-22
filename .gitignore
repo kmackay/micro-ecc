@@ -5,4 +5,7 @@ __pycache__
 *.pyd
 *.pyz
 *.egg-info/
+*.a
+*.o
+*.so
 .DS_Store
