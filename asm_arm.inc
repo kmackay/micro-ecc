@@ -20,19 +20,19 @@
 #endif
 
 #if (uECC_PLATFORM == uECC_arm_thumb)
-    #define REG_RW "+l"
-    #define REG_WRITE "=l"
+    #define REG_RW "+&l"
+    #define REG_WRITE "=&l"
 #else
-    #define REG_RW "+r"
-    #define REG_WRITE "=r"
+    #define REG_RW "+&r"
+    #define REG_WRITE "=&r"
 #endif
 
 #if (uECC_PLATFORM == uECC_arm_thumb || uECC_PLATFORM == uECC_arm_thumb2)
-    #define REG_RW_LO "+l"
-    #define REG_WRITE_LO "=l"
+    #define REG_RW_LO "+&l"
+    #define REG_WRITE_LO "=&l"
 #else
-    #define REG_RW_LO "+r"
-    #define REG_WRITE_LO "=r"
+    #define REG_RW_LO "+&r"
+    #define REG_WRITE_LO "=&r"
 #endif
 
 #if (uECC_PLATFORM == uECC_arm_thumb2)
