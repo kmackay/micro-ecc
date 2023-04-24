@@ -858,6 +858,52 @@ static void XYcZ_addC(uECC_word_t * X1,
     uECC_vli_set(X1, t7, num_words);
 }
 
+/* Compute P + Q */
+static void EccPoint_add(uECC_word_t * result,
+                         const uECC_word_t * P,
+                         const uECC_word_t * Q,
+                         uECC_Curve curve) {
+
+    // Variables for x, y and z coordinates for P and Q
+    uECC_word_t Px[uECC_MAX_WORDS];
+    uECC_word_t Py[uECC_MAX_WORDS];
+    uECC_word_t Qx[uECC_MAX_WORDS];
+    uECC_word_t Qy[uECC_MAX_WORDS];
+    uECC_word_t z[uECC_MAX_WORDS]
+    wordcount_t num_words = curve->num_words;
+
+    /* Get P = (Px, Py) and Q = (Qx, Qy) */
+    uECC_vli_set(Px, P, num_words);
+    uECC_vli_set(Py, P + num_words, num_words);
+    uECC_vli_set(Qx, Q, num_words);
+    uECC_vli_set(Qy, Q + num_words, num_words);
+
+    // If P = Q, the formula is not the same.
+    if (1 == uECC_vli_equal(P, Q, 2*curve->num_words)) {
+      // Perform point doubling by coordinate
+      // Before call: (Qx , Qy ) = Q   and (Px , Py ) = P
+      // After  call: (Qx', Qy') = 2Q  and (Px', Py') = P'
+      XYcZ_initial_double(Qx, Qy, Px, Py, 0, curve);
+    }
+    else {
+      /* Compute the final 1/Z value */
+      uECC_vli_modSub(z, Qx, Px, curve->p, num_words); /* (Qx - Px) or (x2 - x1) */
+      uECC_vli_modInv(z, z, curve->p, num_words);            /* 1 / (x2 - x1) */
+
+      // Perform point addition by coordinate
+      // Before call: (Px , Py ) = P   and (Qx , Qy ) = Q
+      // After  call: (Px', Py') = P'  and (Qx', Qy') = P + Q
+      XYcZ_add(Px, Py, Qx, Qy, curve);
+
+      // Remove the extra (x2-x1)² and (x2-x1)³ of Qx and Qy respectively.
+      apply_z(Qx, Qy, z, curve);
+    }
+
+    // Store result in the return variable
+    uECC_vli_set(result, Qx, num_words);
+    uECC_vli_set(result + num_words, Qy, num_words);
+}
+
 /* result may overlap point. */
 static void EccPoint_mult(uECC_word_t * result,
                           const uECC_word_t * point,
@@ -1652,6 +1698,15 @@ void uECC_vli_mmod_fast(uECC_word_t *result, uECC_word_t *product, uECC_Curve cu
 #else
     uECC_vli_mmod(result, product, curve->p, curve->num_words);
 #endif
+}
+
+void uECC_point_add(uECC_word_t * result,
+                    const uECC_word_t * P,
+                    const uECC_word_t * Q,
+                    uECC_Curve curve) {
+
+    // If P = Q, EccPoint_add will take care of applying the right formula for point doubling
+    EccPoint_add(result, P, Q, curve);
 }
 
 void uECC_point_mult(uECC_word_t *result,

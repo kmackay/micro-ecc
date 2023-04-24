@@ -149,6 +149,14 @@ const uECC_word_t *uECC_curve_b(uECC_Curve curve);
 
 int uECC_valid_point(const uECC_word_t *point, uECC_Curve curve);
 
+/* Addition two points P and Q. result = P + Q
+   Points are represented by the X coordinate followed by the Y coordinate
+   in the same array, both coordinates are curve->num_words long. */
+void uECC_point_add(uECC_word_t * result,
+                    const uECC_word_t * P,
+                    const uECC_word_t * Q,
+                    uECC_Curve curve);
+
 /* Multiplies a point by a scalar. Points are represented by the X coordinate followed by
    the Y coordinate in the same array, both coordinates are curve->num_words long. Note
    that scalar must be curve->num_n_words long (NOT curve->num_words). */
