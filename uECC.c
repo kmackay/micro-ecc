@@ -1,6 +1,9 @@
 /* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
 #include "uECC.h"
+#ifdef UECC_TEST
+#include "uECC_test.h"
+#endif
 #include "uECC_vli.h"
 
 #ifndef uECC_RNG_MAX_TRIES
@@ -89,52 +92,34 @@
 #include "platform-specific.inc"
 
 #if (uECC_WORD_SIZE == 1)
-    #if uECC_SUPPORTS_secp160r1
+    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        #define uECC_MAX_WORDS 32
+    #elif uECC_SUPPORTS_secp224r1
+        #define uECC_MAX_WORDS 28
+    #elif uECC_SUPPORTS_secp192r1
+        #define uECC_MAX_WORDS 24
+    #elif uECC_SUPPORTS_secp160r1
         #define uECC_MAX_WORDS 21 /* Due to the size of curve_n. */
     #endif
-    #if uECC_SUPPORTS_secp192r1
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 24
-    #endif
-    #if uECC_SUPPORTS_secp224r1
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 28
-    #endif
-    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 32
-    #endif
 #elif (uECC_WORD_SIZE == 4)
-    #if uECC_SUPPORTS_secp160r1
+    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        #define uECC_MAX_WORDS 8
+    #elif uECC_SUPPORTS_secp224r1
+        #define uECC_MAX_WORDS 7
+    #elif uECC_SUPPORTS_secp192r1
+        #define uECC_MAX_WORDS 6
+    #elif uECC_SUPPORTS_secp160r1
         #define uECC_MAX_WORDS 6 /* Due to the size of curve_n. */
     #endif
-    #if uECC_SUPPORTS_secp192r1
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 6
-    #endif
-    #if uECC_SUPPORTS_secp224r1
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 7
-    #endif
-    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 8
-    #endif
 #elif (uECC_WORD_SIZE == 8)
-    #if uECC_SUPPORTS_secp160r1
-        #define uECC_MAX_WORDS 3
-    #endif
-    #if uECC_SUPPORTS_secp192r1
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 3
-    #endif
-    #if uECC_SUPPORTS_secp224r1
-        #undef uECC_MAX_WORDS
-        #define uECC_MAX_WORDS 4
-    #endif
     #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-        #undef uECC_MAX_WORDS
         #define uECC_MAX_WORDS 4
+    #elif uECC_SUPPORTS_secp224r1
+        #define uECC_MAX_WORDS 4
+    #elif uECC_SUPPORTS_secp192r1
+        #define uECC_MAX_WORDS 3
+    #elif uECC_SUPPORTS_secp160r1
+        #define uECC_MAX_WORDS 3 /* Due to the size of curve_n. */
     #endif
 #endif /* uECC_WORD_SIZE */
 
@@ -186,7 +171,7 @@ static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
     #include "asm_avr.inc"
 #endif
 
-#if default_RNG_defined
+#if defined(default_RNG_defined) && default_RNG_defined
 static uECC_RNG_Function g_rng_function = &default_RNG;
 #else
 static uECC_RNG_Function g_rng_function = 0;
@@ -208,7 +193,7 @@ int uECC_curve_public_key_size(uECC_Curve curve) {
     return 2 * curve->num_bytes;
 }
 
-#if !asm_clear
+#if !defined(asm_clear) || !asm_clear
 uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
@@ -259,11 +244,11 @@ uECC_VLI_API bitcount_t uECC_vli_numBits(const uECC_word_t *vli, const wordcount
         digit >>= 1;
     }
 
-    return (((bitcount_t)(num_digits - 1) << uECC_WORD_BITS_SHIFT) + i);
+    return (bitcount_t)(((num_digits - 1) << uECC_WORD_BITS_SHIFT) + (int)i);
 }
 
 /* Sets dest = src. */
-#if !asm_set
+#if !defined(asm_set) || !asm_set
 uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_words) {
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
@@ -312,11 +297,11 @@ uECC_VLI_API cmpresult_t uECC_vli_cmp(const uECC_word_t *left,
     uECC_word_t tmp[uECC_MAX_WORDS];
     uECC_word_t neg = !!uECC_vli_sub(tmp, left, right, num_words);
     uECC_word_t equal = uECC_vli_isZero(tmp, num_words);
-    return (!equal - 2 * neg);
+    return (cmpresult_t)(!equal - 2 * neg);
 }
 
 /* Computes vli = vli >> 1. */
-#if !asm_rshift1
+#if !defined(asm_rshift1) || !asm_rshift1
 uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     uECC_word_t *end = vli;
     uECC_word_t carry = 0;
@@ -331,7 +316,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
 #endif /* !asm_rshift1 */
 
 /* Computes result = left + right, returning carry. Can modify in place. */
-#if !asm_add
+#if !defined(asm_add) || !asm_add
 uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
@@ -350,7 +335,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
 #endif /* !asm_add */
 
 /* Computes result = left - right, returning borrow. Can modify in place. */
-#if !asm_sub
+#if !defined(asm_sub) || !asm_sub
 uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
@@ -368,7 +353,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 }
 #endif /* !asm_sub */
 
-#if !asm_mult || (uECC_SQUARE_FUNC && !asm_square) || \
+#if !defined(asm_mult) || !asm_mult || (uECC_SQUARE_FUNC && !asm_square) || \
     (uECC_SUPPORTS_secp256k1 && (uECC_OPTIMIZATION_LEVEL > 0) && \
         ((uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 8)))
 static void muladd(uECC_word_t a,
@@ -412,7 +397,7 @@ static void muladd(uECC_word_t a,
 }
 #endif /* muladd needed */
 
-#if !asm_mult
+#if !defined(asm_mult) || !asm_mult
 uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
                                 const uECC_word_t *right,
@@ -447,7 +432,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 
 #if uECC_SQUARE_FUNC
 
-#if !asm_square
+#if !defined(asm_square) || !asm_square
 static void mul2add(uECC_word_t a,
                     uECC_word_t b,
                     uECC_word_t *r0,
@@ -576,14 +561,14 @@ uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
     uECC_word_t index;
 
     /* Shift mod so its highest set bit is at the maximum position. */
-    bitcount_t shift = (num_words * 2 * uECC_WORD_BITS) - uECC_vli_numBits(mod, num_words);
-    wordcount_t word_shift = shift / uECC_WORD_BITS;
-    wordcount_t bit_shift = shift % uECC_WORD_BITS;
+    bitcount_t shift = (bitcount_t)(num_words * 2 * uECC_WORD_BITS) - uECC_vli_numBits(mod, num_words);
+    wordcount_t word_shift = (wordcount_t)(shift / uECC_WORD_BITS);
+    wordcount_t bit_shift = (wordcount_t)(shift % uECC_WORD_BITS);
     uECC_word_t carry = 0;
     uECC_vli_clear(mod_multiple, word_shift);
     if (bit_shift > 0) {
         for(index = 0; index < (uECC_word_t)num_words; ++index) {
-            mod_multiple[word_shift + index] = (mod[index] << bit_shift) | carry;
+            mod_multiple[(uECC_word_t)word_shift + index] = (mod[index] << bit_shift) | carry;
             carry = mod[index] >> (uECC_WORD_BITS - bit_shift);
         }
     } else {
@@ -908,7 +893,7 @@ static uECC_word_t regularize_k(const uECC_word_t * const k,
                                 uECC_word_t *k0,
                                 uECC_word_t *k1,
                                 uECC_Curve curve) {
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    wordcount_t num_n_words = (wordcount_t)BITS_TO_WORDS(curve->num_n_bits);
     bitcount_t num_n_bits = curve->num_n_bits;
     uECC_word_t carry = uECC_vli_add(k0, k, curve->n, num_n_words) ||
         (num_n_bits < ((bitcount_t)num_n_words * uECC_WORD_SIZE * 8) &&
@@ -931,7 +916,7 @@ uECC_VLI_API int uECC_generate_random_int(uECC_word_t *random,
     }
 
     for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!g_rng_function((uint8_t *)random, num_words * uECC_WORD_SIZE)) {
+        if (!g_rng_function((uint8_t *)random, (unsigned int) (num_words * uECC_WORD_SIZE))) {
             return 0;
         }
         random[num_words - 1] &= mask >> ((bitcount_t)(num_words * uECC_WORD_SIZE * 8 - num_bits));
@@ -996,8 +981,8 @@ uECC_VLI_API void uECC_vli_nativeToBytes(uint8_t *bytes,
                                          const uECC_word_t *native) {
     int i;
     for (i = 0; i < num_bytes; ++i) {
-        unsigned b = num_bytes - 1 - i;
-        bytes[i] = native[b / uECC_WORD_SIZE] >> (8 * (b % uECC_WORD_SIZE));
+        unsigned b = (unsigned)(num_bytes - 1 - i);
+        bytes[i] = (uint8_t)(native[b / uECC_WORD_SIZE] >> (8 * (b % uECC_WORD_SIZE)));
     }
 }
 
@@ -1005,9 +990,9 @@ uECC_VLI_API void uECC_vli_bytesToNative(uECC_word_t *native,
                                          const uint8_t *bytes,
                                          int num_bytes) {
     int i;
-    uECC_vli_clear(native, (num_bytes + (uECC_WORD_SIZE - 1)) / uECC_WORD_SIZE);
+    uECC_vli_clear(native, (wordcount_t)((num_bytes + (uECC_WORD_SIZE - 1)) / uECC_WORD_SIZE));
     for (i = 0; i < num_bytes; ++i) {
-        unsigned b = num_bytes - 1 - i;
+        unsigned b = (unsigned)(num_bytes - 1 - i);
         native[b / uECC_WORD_SIZE] |=
             (uECC_word_t)bytes[i] << (8 * (b % uECC_WORD_SIZE));
     }
@@ -1028,7 +1013,7 @@ int uECC_make_key(uint8_t *public_key,
     uECC_word_t tries;
 
     for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!uECC_generate_random_int(_private, curve->n, BITS_TO_WORDS(curve->num_n_bits))) {
+        if (!uECC_generate_random_int(_private, curve->n, (wordcount_t)BITS_TO_WORDS(curve->num_n_bits))) {
             return 0;
         }
 
@@ -1181,11 +1166,11 @@ int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uEC
 #endif
 
     /* Make sure the private key is in the range [1, n-1]. */
-    if (uECC_vli_isZero(_private, BITS_TO_WORDS(curve->num_n_bits))) {
+    if (uECC_vli_isZero(_private, (wordcount_t)BITS_TO_WORDS(curve->num_n_bits))) {
         return 0;
     }
 
-    if (uECC_vli_cmp(curve->n, _private, BITS_TO_WORDS(curve->num_n_bits)) != 1) {
+    if (uECC_vli_cmp(curve->n, _private, (wordcount_t)BITS_TO_WORDS(curve->num_n_bits)) != 1) {
         return 0;
     }
 
@@ -1209,8 +1194,8 @@ static void bits2int(uECC_word_t *native,
                      const uint8_t *bits,
                      unsigned bits_size,
                      uECC_Curve curve) {
-    unsigned num_n_bytes = BITS_TO_BYTES(curve->num_n_bits);
-    unsigned num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    unsigned num_n_bytes = (unsigned)BITS_TO_BYTES(curve->num_n_bits);
+    unsigned num_n_words = (unsigned)BITS_TO_WORDS(curve->num_n_bits);
     int shift;
     uECC_word_t carry;
     uECC_word_t *ptr;
@@ -1219,16 +1204,16 @@ static void bits2int(uECC_word_t *native,
         bits_size = num_n_bytes;
     }
 
-    uECC_vli_clear(native, num_n_words);
+    uECC_vli_clear(native, (wordcount_t)num_n_words);
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN
     bcopy((uint8_t *) native, bits, bits_size);
 #else
-    uECC_vli_bytesToNative(native, bits, bits_size);
+    uECC_vli_bytesToNative(native, bits, (int)bits_size);
 #endif
     if (bits_size * 8 <= (unsigned)curve->num_n_bits) {
         return;
     }
-    shift = bits_size * 8 - curve->num_n_bits;
+    shift = (int)((int)bits_size * 8 - curve->num_n_bits);
     carry = 0;
     ptr = native + num_n_words;
     while (ptr-- > native) {
@@ -1238,8 +1223,8 @@ static void bits2int(uECC_word_t *native,
     }
 
     /* Reduce mod curve_n */
-    if (uECC_vli_cmp_unsafe(curve->n, native, num_n_words) != 1) {
-        uECC_vli_sub(native, native, curve->n, num_n_words);
+    if (uECC_vli_cmp_unsafe(curve->n, native, (wordcount_t)num_n_words) != 1) {
+        uECC_vli_sub(native, native, curve->n, (wordcount_t)num_n_words);
     }
 }
 
@@ -1261,7 +1246,7 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
 #endif
     uECC_word_t carry;
     wordcount_t num_words = curve->num_words;
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    wordcount_t num_n_words = (wordcount_t)BITS_TO_WORDS(curve->num_n_bits);
     bitcount_t num_n_bits = curve->num_n_bits;
 
     /* Make sure 0 < k < curve_n */
@@ -1326,6 +1311,7 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
     return 1;
 }
 
+#ifdef UECC_TEST
 /* For testing - sign with an explicitly specified k value */
 int uECC_sign_with_k(const uint8_t *private_key,
                             const uint8_t *message_hash,
@@ -1334,9 +1320,10 @@ int uECC_sign_with_k(const uint8_t *private_key,
                             uint8_t *signature,
                             uECC_Curve curve) {
     uECC_word_t k2[uECC_MAX_WORDS];
-    bits2int(k2, k, BITS_TO_BYTES(curve->num_n_bits), curve);
+    bits2int(k2, k, (unsigned int)BITS_TO_BYTES(curve->num_n_bits), curve);
     return uECC_sign_with_k_internal(private_key, message_hash, hash_size, k2, signature, curve);
 }
+#endif
 
 int uECC_sign(const uint8_t *private_key,
               const uint8_t *message_hash,
@@ -1347,7 +1334,7 @@ int uECC_sign(const uint8_t *private_key,
     uECC_word_t tries;
 
     for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
-        if (!uECC_generate_random_int(k, curve->n, BITS_TO_WORDS(curve->num_n_bits))) {
+        if (!uECC_generate_random_int(k, curve->n, (wordcount_t)BITS_TO_WORDS(curve->num_n_bits))) {
             return 0;
         }
 
@@ -1418,7 +1405,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     uint8_t *K = hash_context->tmp;
     uint8_t *V = K + hash_context->result_size;
     wordcount_t num_bytes = curve->num_bytes;
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    wordcount_t num_n_words = (wordcount_t)BITS_TO_WORDS(curve->num_n_bits);
     bitcount_t num_n_bits = curve->num_n_bits;
     uECC_word_t tries;
     unsigned i;
@@ -1431,7 +1418,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     HMAC_init(hash_context, K);
     V[hash_context->result_size] = 0x00;
     HMAC_update(hash_context, V, hash_context->result_size + 1);
-    HMAC_update(hash_context, private_key, num_bytes);
+    HMAC_update(hash_context, private_key, (unsigned)num_bytes);
     HMAC_update(hash_context, message_hash, hash_size);
     HMAC_finish(hash_context, K, K);
 
@@ -1441,7 +1428,7 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     HMAC_init(hash_context, K);
     V[hash_context->result_size] = 0x01;
     HMAC_update(hash_context, V, hash_context->result_size + 1);
-    HMAC_update(hash_context, private_key, num_bytes);
+    HMAC_update(hash_context, private_key, (unsigned)num_bytes);
     HMAC_update(hash_context, message_hash, hash_size);
     HMAC_finish(hash_context, K, K);
 
@@ -1510,7 +1497,7 @@ int uECC_verify(const uint8_t *public_key,
 #endif
     uECC_word_t r[uECC_MAX_WORDS], s[uECC_MAX_WORDS];
     wordcount_t num_words = curve->num_words;
-    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    wordcount_t num_n_words = (wordcount_t)BITS_TO_WORDS(curve->num_n_bits);
 
     rx[num_n_words - 1] = 0;
     r[num_n_words - 1] = 0;
@@ -1574,7 +1561,7 @@ int uECC_verify(const uint8_t *public_key,
         uECC_word_t index;
         curve->double_jacobian(rx, ry, z, curve);
 
-        index = (!!uECC_vli_testBit(u1, i)) | ((!!uECC_vli_testBit(u2, i)) << 1);
+        index = (uECC_word_t)((!!uECC_vli_testBit(u1, i)) | ((!!uECC_vli_testBit(u2, i)) << 1));
         point = points[index];
         if (point) {
             uECC_vli_set(tx, point, num_words);
