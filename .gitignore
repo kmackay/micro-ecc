@@ -8,4 +8,7 @@ __pycache__
 *.a
 *.o
 *.so
+*.d
+*.su
+build/
 .DS_Store
