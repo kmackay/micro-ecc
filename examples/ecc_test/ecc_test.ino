@@ -1,5 +1,8 @@
 #include <uECC.h>
 
+//L1uTongwei: uncomment this to test optimize.
+#define uECC_OPTIMIZATION_LEVEL 4
+
 static int RNG(uint8_t *dest, unsigned size) {
   // Use the least-significant bits from the ADC for an unconnected pin (or connected to a source of 
   // random noise). This can take a long time to generate random data if the result of analogRead(0) 
