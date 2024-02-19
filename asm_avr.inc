@@ -249,8 +249,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
     FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_32);
     FAST_MULT_ENVIRONMENT("pop r18 \n\t");
 #endif
-    FAST_MULT_ENVIRONMENT("2: \n\t")
-    FAST_MULT_ENVIRONMENT("eor r1, r1 \n\t");
+    FAST_MULT_ENVIRONMENT("2: \n\t eor r1, r1 \n\t");
 }
 #define asm_mult 1
 
@@ -294,8 +293,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_32);
     FAST_SQUARE_ENVIRONMENT("pop r20 \n\t");
 #endif
-    FAST_SQUARE_ENVIRONMENT("2: \n\t");
-    FAST_SQUARE_ENVIRONMENT("eor r1, r1 \n\t");
+    FAST_SQUARE_ENVIRONMENT("2: \n\t eor r1, r1 \n\t");
 }
 #define asm_square 1
 #endif /* uECC_SQUARE_FUNC */
