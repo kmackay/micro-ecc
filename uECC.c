@@ -340,9 +340,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         uECC_word_t sum = left[i] + right[i] + carry;
-        if (sum != left[i]) {
-            carry = (sum < left[i]);
-        }
+        carry = ((sum-carry) < left[i]);
         result[i] = sum;
     }
     return carry;
@@ -359,9 +357,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     wordcount_t i;
     for (i = 0; i < num_words; ++i) {
         uECC_word_t diff = left[i] - right[i] - borrow;
-        if (diff != left[i]) {
-            borrow = (diff > left[i]);
-        }
+        borrow = ( (diff+borrow) > left[i]);
         result[i] = diff;
     }
     return borrow;
