@@ -3,6 +3,13 @@
 #ifndef _UECC_ASM_AVR_MULT_SQUARE_H_
 #define _UECC_ASM_AVR_MULT_SQUARE_H_
 
+//L1uTongwei: These environments are comfort for this avr optimize.
+//This be adopted by asm_avr.inc to fix the issue #154
+#define FAST_MULT_ENVIRONMENT(X) \
+__asm__ volatile ( X : "+x" (left), "+y" (right), "+z" (result) : "r" (r18) : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc");
+#define FAST_SQUARE_ENVIRONMENT(X) \
+__asm__ volatile ( X : "+x" (left), "+z" (result) : "r" (r20) : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc");
+
 #define FAST_MULT_ASM_20   \
     "adiw r30, 10 \n\t"    \
     "adiw r28, 10 \n\t"    \
