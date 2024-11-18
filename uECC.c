@@ -582,12 +582,12 @@ uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
     uECC_word_t carry = 0;
     uECC_vli_clear(mod_multiple, word_shift);
     if (bit_shift > 0) {
-        for(index = 0; index < (uECC_word_t)num_words; ++index) {
+        for(index = 0; word_shift + index < (uECC_word_t)(num_words * 2); ++index) {
             mod_multiple[word_shift + index] = (mod[index] << bit_shift) | carry;
             carry = mod[index] >> (uECC_WORD_BITS - bit_shift);
         }
     } else {
-        uECC_vli_set(mod_multiple + word_shift, mod, num_words);
+        uECC_vli_set(mod_multiple + word_shift, mod, (num_words * 2) - word_shift);
     }
 
     for (index = 1; shift >= 0; --shift) {
