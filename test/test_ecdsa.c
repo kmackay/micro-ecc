@@ -7,12 +7,12 @@
 
 int main() {
     int i, c;
-    uint8_t private[32] = {0};
-    uint8_t public[64] = {0};
-    uint8_t hash[32] = {0};
-    uint8_t sig[64] = {0};
+    uint8_t private[66] = {0};
+    uint8_t public[132] = {0};
+    uint8_t hash[66] = {0};
+    uint8_t sig[132] = {0};
 
-    const struct uECC_Curve_t * curves[5];
+    const struct uECC_Curve_t * curves[6];
     int num_curves = 0;
 #if uECC_SUPPORTS_secp160r1
     curves[num_curves++] = uECC_secp160r1();
@@ -28,6 +28,9 @@ int main() {
 #endif
 #if uECC_SUPPORTS_secp256k1
     curves[num_curves++] = uECC_secp256k1();
+#endif
+#if uECC_SUPPORTS_secp521r1
+    curves[num_curves++] = uECC_secp521r1();
 #endif
     
     printf("Testing 256 signatures\n");
