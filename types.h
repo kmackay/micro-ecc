@@ -4,7 +4,7 @@
 #define _UECC_TYPES_H_
 
 #ifndef uECC_PLATFORM
-    #if __AVR__
+    #if defined(__AVR__) && __AVR__
         #define uECC_PLATFORM uECC_avr
     #elif defined(__thumb2__) || defined(_M_ARMT) /* I think MSVC only supports Thumb-2 targets */
         #define uECC_PLATFORM uECC_arm_thumb2
@@ -26,7 +26,7 @@
 #ifndef uECC_ARM_USE_UMAAL
     #if (uECC_PLATFORM == uECC_arm) && (__ARM_ARCH >= 6)
         #define uECC_ARM_USE_UMAAL 1
-    #elif (uECC_PLATFORM == uECC_arm_thumb2) && (__ARM_ARCH >= 6) && !__ARM_ARCH_7M__
+    #elif (uECC_PLATFORM == uECC_arm_thumb2) && (__ARM_ARCH >= 6) && (!defined(__ARM_ARCH_7M__) || !__ARM_ARCH_7M__)
         #define uECC_ARM_USE_UMAAL 1
     #else
         #define uECC_ARM_USE_UMAAL 0
@@ -61,7 +61,7 @@
     #define uECC_WORD_SIZE 4
 #endif
 
-#if defined(__SIZEOF_INT128__) || ((__clang_major__ * 100 + __clang_minor__) >= 302)
+#if defined(__SIZEOF_INT128__) || (defined(__clang_major__) && (__clang_major__ * 100 + __clang_minor__) >= 302)
     #define SUPPORTS_INT128 1
 #else
     #define SUPPORTS_INT128 0

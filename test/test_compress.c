@@ -17,7 +17,7 @@ void vli_print(char *str, uint8_t *vli, unsigned int size) {
     printf("\n");
 }
 
-int main() {
+int main(void) {
     uint8_t public[64];
     uint8_t private[32];
     uint8_t compressed_point[33];

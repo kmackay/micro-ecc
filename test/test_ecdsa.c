@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int main() {
+int main(void) {
     int i, c;
     uint8_t private[32] = {0};
     uint8_t public[64] = {0};
