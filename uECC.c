@@ -325,7 +325,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     while (vli-- > end) {
         uECC_word_t temp = *vli;
         *vli = (temp >> 1) | carry;
-        carry = temp << (uECC_WORD_BITS - 1);
+        carry = (temp & 1) << (uECC_WORD_BITS - 1);
     }
 }
 #endif /* !asm_rshift1 */
@@ -395,7 +395,7 @@ static void muladd(uECC_word_t a,
         i3 += 0x100000000ull;
     }
 
-    p0 = (i0 & 0xffffffffull) | (i2 << 32);
+    p0 = (i0 & 0xffffffffull) | ((i2 & 0xffffffffull) << 32);
     p1 = i3 + (i2 >> 32);
 
     *r0 += p0;
@@ -602,7 +602,7 @@ uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
         }
         index = !(index ^ borrow); /* Swap the index if there was no borrow */
         uECC_vli_rshift1(mod_multiple, num_words);
-        mod_multiple[num_words - 1] |= mod_multiple[num_words] << (uECC_WORD_BITS - 1);
+        mod_multiple[num_words - 1] |= (mod_multiple[num_words] & 1) << (uECC_WORD_BITS - 1);
         uECC_vli_rshift1(mod_multiple + num_words, num_words);
     }
     uECC_vli_set(result, v[index], num_words);
@@ -1000,7 +1000,7 @@ uECC_VLI_API void uECC_vli_nativeToBytes(uint8_t *bytes,
     int i;
     for (i = 0; i < num_bytes; ++i) {
         unsigned b = num_bytes - 1 - i;
-        bytes[i] = native[b / uECC_WORD_SIZE] >> (8 * (b % uECC_WORD_SIZE));
+        bytes[i] = (native[b / uECC_WORD_SIZE] >> (8 * (b % uECC_WORD_SIZE))) & 0xff;
     }
 }
 
@@ -1237,7 +1237,7 @@ static void bits2int(uECC_word_t *native,
     while (ptr-- > native) {
         uECC_word_t temp = *ptr;
         *ptr = (temp >> shift) | carry;
-        carry = temp << (uECC_WORD_BITS - shift);
+        carry = (temp & (((uECC_word_t)1 << shift) - 1)) << (uECC_WORD_BITS - shift);
     }
 
     /* Reduce mod curve_n */

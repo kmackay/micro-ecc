@@ -74,7 +74,7 @@ static void double_jacobian_default(uECC_word_t * X1,
     uECC_vli_modAdd(Z1, X1, X1, curve->p, num_words); /* t3 = 2*(x1^2 - z1^4) */
     uECC_vli_modAdd(X1, X1, Z1, curve->p, num_words); /* t1 = 3*(x1^2 - z1^4) */
     if (uECC_vli_testBit(X1, 0)) {
-        uECC_word_t l_carry = uECC_vli_add(X1, X1, curve->p, num_words);
+        uECC_word_t l_carry = (int)uECC_vli_add(X1, X1, curve->p, num_words);
         uECC_vli_rshift1(X1, num_words);
         X1[num_words - 1] |= l_carry << (uECC_WORD_BITS - 1);
     } else {
@@ -221,10 +221,10 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
 
     omega_mult_secp160r1(tmp, product + num_words_secp160r1); /* (Rq, q) = q * c */
     
-    carry = uECC_vli_add(result, product, tmp, num_words_secp160r1); /* (C, r) = r + q */
+    carry = (int)uECC_vli_add(result, product, tmp, num_words_secp160r1); /* (C, r) = r + q */
     uECC_vli_clear(product, num_words_secp160r1);
     omega_mult_secp160r1(product, tmp + num_words_secp160r1); /* Rq*c */
-    carry += uECC_vli_add(result, result, product, num_words_secp160r1); /* (C1, r) = r + Rq*c */
+    carry += (int)uECC_vli_add(result, result, product, num_words_secp160r1); /* (C1, r) = r + Rq*c */
 
     while (carry > 0) {
         --carry;
@@ -246,7 +246,7 @@ static void omega_mult_secp160r1(uint8_t *result, const uint8_t *right) {
     uECC_vli_rshift1(result + 4, num_words_secp160r1); /* 2^31 */
     result[3] = right[0] << 7; /* get last bit from shift */
     
-    carry = uECC_vli_add(result, result, right, num_words_secp160r1); /* 2^31 + 1 */
+    carry = (int)uECC_vli_add(result, result, right, num_words_secp160r1); /* 2^31 + 1 */
     for (i = num_words_secp160r1; carry; ++i) {
         uint16_t sum = (uint16_t)result[i] + carry;
         result[i] = (uint8_t)sum;
@@ -263,7 +263,7 @@ static void omega_mult_secp160r1(uint32_t *result, const uint32_t *right) {
     uECC_vli_rshift1(result + 1, num_words_secp160r1); /* 2^31 */
     result[0] = right[0] << 31; /* get last bit from shift */
     
-    carry = uECC_vli_add(result, result, right, num_words_secp160r1); /* 2^31 + 1 */
+    carry = (int)uECC_vli_add(result, result, right, num_words_secp160r1); /* 2^31 + 1 */
     for (i = num_words_secp160r1; carry; ++i) {
         uint64_t sum = (uint64_t)result[i] + carry;
         result[i] = (uint32_t)sum;
@@ -324,14 +324,14 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
     uECC_vli_set(result, product, num_words_secp192r1);
     
     uECC_vli_set(tmp, &product[24], num_words_secp192r1);
-    carry = uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry = (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     tmp[0] = tmp[1] = tmp[2] = tmp[3] = tmp[4] = tmp[5] = tmp[6] = tmp[7] = 0;
     tmp[8] = product[24]; tmp[9] = product[25]; tmp[10] = product[26]; tmp[11] = product[27];
     tmp[12] = product[28]; tmp[13] = product[29]; tmp[14] = product[30]; tmp[15] = product[31];
     tmp[16] = product[32]; tmp[17] = product[33]; tmp[18] = product[34]; tmp[19] = product[35];
     tmp[20] = product[36]; tmp[21] = product[37]; tmp[22] = product[38]; tmp[23] = product[39];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     tmp[0] = tmp[8] = product[40];
     tmp[1] = tmp[9] = product[41];
@@ -342,10 +342,10 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
     tmp[6] = tmp[14] = product[46];
     tmp[7] = tmp[15] = product[47];
     tmp[16] = tmp[17] = tmp[18] = tmp[19] = tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
-        carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
+        carry -= (int)uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
 }
 #elif uECC_WORD_SIZE == 4
@@ -356,22 +356,22 @@ static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
     uECC_vli_set(result, product, num_words_secp192r1);
     
     uECC_vli_set(tmp, &product[6], num_words_secp192r1);
-    carry = uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry = (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     tmp[0] = tmp[1] = 0;
     tmp[2] = product[6];
     tmp[3] = product[7];
     tmp[4] = product[8];
     tmp[5] = product[9];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     tmp[0] = tmp[2] = product[10];
     tmp[1] = tmp[3] = product[11];
     tmp[4] = tmp[5] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
-        carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
+        carry -= (int)uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
 }
 #else
@@ -387,14 +387,14 @@ static void vli_mmod_fast_secp192r1(uint64_t *result, uint64_t *product) {
     tmp[0] = 0;
     tmp[1] = product[3];
     tmp[2] = product[4];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     tmp[0] = tmp[1] = product[5];
     tmp[2] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
     
     while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
-        carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
+        carry -= (int)uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
 }
 #endif /* uECC_WORD_SIZE */
@@ -586,14 +586,14 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
     tmp[16] = product[32]; tmp[17] = product[33]; tmp[18] = product[34]; tmp[19] = product[35];
     tmp[20] = product[36]; tmp[21] = product[37]; tmp[22] = product[38]; tmp[23] = product[39];
     tmp[24] = product[40]; tmp[25] = product[41]; tmp[26] = product[42]; tmp[27] = product[43];
-    carry = uECC_vli_add(result, result, tmp, num_words_secp224r1);
+    carry = (int)uECC_vli_add(result, result, tmp, num_words_secp224r1);
 
     /* s2 */
     tmp[12] = product[44]; tmp[13] = product[45]; tmp[14] = product[46]; tmp[15] = product[47];
     tmp[16] = product[48]; tmp[17] = product[49]; tmp[18] = product[50]; tmp[19] = product[51];
     tmp[20] = product[52]; tmp[21] = product[53]; tmp[22] = product[54]; tmp[23] = product[55];
     tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp224r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp224r1);
 
     /* d1 */
     tmp[0]  = product[28]; tmp[1]  = product[29]; tmp[2]  = product[30]; tmp[3]  = product[31];
@@ -603,7 +603,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
     tmp[16] = product[44]; tmp[17] = product[45]; tmp[18] = product[46]; tmp[19] = product[47];
     tmp[20] = product[48]; tmp[21] = product[49]; tmp[22] = product[50]; tmp[23] = product[51];
     tmp[24] = product[52]; tmp[25] = product[53]; tmp[26] = product[54]; tmp[27] = product[55];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp224r1);
 
     /* d2 */
     tmp[0]  = product[44]; tmp[1]  = product[45]; tmp[2]  = product[46]; tmp[3]  = product[47];
@@ -613,15 +613,15 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
     tmp[16] = tmp[17] = tmp[18] = tmp[19] = 0;
     tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
     tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp224r1);
 
     if (carry < 0) {
         do {
-            carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
+            carry += (int)uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
         } while (carry < 0);
     } else {
         while (carry || uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
+            carry -= (int)uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
         }
     }
 }
@@ -640,14 +640,14 @@ static void vli_mmod_fast_secp224r1(uint32_t *result, uint32_t *product)
     tmp[4] = product[8];
     tmp[5] = product[9];
     tmp[6] = product[10];
-    carry = uECC_vli_add(result, result, tmp, num_words_secp224r1);
+    carry = (int)uECC_vli_add(result, result, tmp, num_words_secp224r1);
 
     /* s2 */
     tmp[3] = product[11];
     tmp[4] = product[12];
     tmp[5] = product[13];
     tmp[6] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp224r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp224r1);
 
     /* d1 */
     tmp[0] = product[7];
@@ -657,22 +657,22 @@ static void vli_mmod_fast_secp224r1(uint32_t *result, uint32_t *product)
     tmp[4] = product[11];
     tmp[5] = product[12];
     tmp[6] = product[13];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp224r1);
 
     /* d2 */
     tmp[0] = product[11];
     tmp[1] = product[12];
     tmp[2] = product[13];
     tmp[3] = tmp[4] = tmp[5] = tmp[6] = 0;
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp224r1);
 
     if (carry < 0) {
         do {
-            carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
+            carry += (int)uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
         } while (carry < 0);
     } else {
         while (carry || uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
+            carry -= (int)uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
         }
     }
 }
@@ -704,17 +704,17 @@ static void vli_mmod_fast_secp224r1(uint64_t *result, uint64_t *product)
     tmp[1] = (product[4] >> 32) | (product[5] << 32);
     tmp[2] = (product[5] >> 32) | (product[6] << 32);
     tmp[3] = product[6] >> 32;
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp224r1);
 
     /* d2 */
     tmp[0] = (product[5] >> 32) | (product[6] << 32);
     tmp[1] = product[6] >> 32;
     tmp[2] = tmp[3] = 0;
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp224r1);
 
     if (carry < 0) {
         do {
-            carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
+            carry += (int)uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
         } while (carry < 0);
     } else {
         while (uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
@@ -791,8 +791,8 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = product[52]; tmp[21] = product[53]; tmp[22] = product[54]; tmp[23] = product[55];
     tmp[24] = product[56]; tmp[25] = product[57]; tmp[26] = product[58]; tmp[27] = product[59];
     tmp[28] = product[60]; tmp[29] = product[61]; tmp[30] = product[62]; tmp[31] = product[63];
-    carry = uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry = (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s2 */
     tmp[12] = product[48]; tmp[13] = product[49]; tmp[14] = product[50]; tmp[15] = product[51];
@@ -800,8 +800,8 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = product[56]; tmp[21] = product[57]; tmp[22] = product[58]; tmp[23] = product[59];
     tmp[24] = product[60]; tmp[25] = product[61]; tmp[26] = product[62]; tmp[27] = product[63];
     tmp[28] = tmp[29] = tmp[30] = tmp[31] = 0;
-    carry += uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s3 */
     tmp[0] = product[32]; tmp[1] = product[33]; tmp[2] = product[34]; tmp[3] = product[35];
@@ -812,7 +812,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
     tmp[24] = product[56]; tmp[25] = product[57]; tmp[26] = product[58]; tmp[27] = product[59];
     tmp[28] = product[60]; tmp[29] = product[61]; tmp[30] = product[62]; tmp[31] = product[63];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s4 */
     tmp[0] = product[36]; tmp[1] = product[37]; tmp[2] = product[38]; tmp[3] = product[39];
@@ -823,7 +823,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = product[60]; tmp[21] = product[61]; tmp[22] = product[62]; tmp[23] = product[63];
     tmp[24] = product[52]; tmp[25] = product[53]; tmp[26] = product[54]; tmp[27] = product[55];
     tmp[28] = product[32]; tmp[29] = product[33]; tmp[30] = product[34]; tmp[31] = product[35];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* d1 */
     tmp[0] = product[44]; tmp[1] = product[45]; tmp[2] = product[46]; tmp[3] = product[47];
@@ -834,7 +834,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
     tmp[24] = product[32]; tmp[25] = product[33]; tmp[26] = product[34]; tmp[27] = product[35];
     tmp[28] = product[40]; tmp[29] = product[41]; tmp[30] = product[42]; tmp[31] = product[43];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d2 */
     tmp[0] = product[48]; tmp[1] = product[49]; tmp[2] = product[50]; tmp[3] = product[51];
@@ -845,7 +845,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
     tmp[24] = product[36]; tmp[25] = product[37]; tmp[26] = product[38]; tmp[27] = product[39];
     tmp[28] = product[44]; tmp[29] = product[45]; tmp[30] = product[46]; tmp[31] = product[47];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d3 */
     tmp[0] = product[52]; tmp[1] = product[53]; tmp[2] = product[54]; tmp[3] = product[55];
@@ -856,7 +856,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = product[40]; tmp[21] = product[41]; tmp[22] = product[42]; tmp[23] = product[43];
     tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
     tmp[28] = product[48]; tmp[29] = product[49]; tmp[30] = product[50]; tmp[31] = product[51];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d4 */
     tmp[0] = product[56]; tmp[1] = product[57]; tmp[2] = product[58]; tmp[3] = product[59];
@@ -867,15 +867,15 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     tmp[20] = product[44]; tmp[21] = product[45]; tmp[22] = product[46]; tmp[23] = product[47];
     tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
     tmp[28] = product[52]; tmp[29] = product[53]; tmp[30] = product[54]; tmp[31] = product[55];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     if (carry < 0) {
         do {
-            carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
+            carry += (int)uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
         } while (carry < 0);
     } else {
         while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
+            carry -= (int)uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
         }
     }
 }
@@ -894,8 +894,8 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[5] = product[13];
     tmp[6] = product[14];
     tmp[7] = product[15];
-    carry = uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry = (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s2 */
     tmp[3] = product[12];
@@ -903,8 +903,8 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[5] = product[14];
     tmp[6] = product[15];
     tmp[7] = 0;
-    carry += uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s3 */
     tmp[0] = product[8];
@@ -913,7 +913,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[3] = tmp[4] = tmp[5] = 0;
     tmp[6] = product[14];
     tmp[7] = product[15];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s4 */
     tmp[0] = product[9];
@@ -924,7 +924,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[5] = product[15];
     tmp[6] = product[13];
     tmp[7] = product[8];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* d1 */
     tmp[0] = product[11];
@@ -933,7 +933,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[3] = tmp[4] = tmp[5] = 0;
     tmp[6] = product[8];
     tmp[7] = product[10];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d2 */
     tmp[0] = product[12];
@@ -943,7 +943,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[4] = tmp[5] = 0;
     tmp[6] = product[9];
     tmp[7] = product[11];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d3 */
     tmp[0] = product[13];
@@ -954,7 +954,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[5] = product[10];
     tmp[6] = 0;
     tmp[7] = product[12];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d4 */
     tmp[0] = product[14];
@@ -965,15 +965,15 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[5] = product[11];
     tmp[6] = 0;
     tmp[7] = product[13];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     if (carry < 0) {
         do {
-            carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
+            carry += (int)uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
         } while (carry < 0);
     } else {
         while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
+            carry -= (int)uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
         }
     }
 }
@@ -991,64 +991,64 @@ static void vli_mmod_fast_secp256r1(uint64_t *result, uint64_t *product) {
     tmp[2] = product[6];
     tmp[3] = product[7];
     carry = (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s2 */
-    tmp[1] = product[6] << 32;
-    tmp[2] = (product[6] >> 32) | (product[7] << 32);
+    tmp[1] = (product[6] & 0xffffffff) << 32;
+    tmp[2] = (product[6] >> 32) | ((product[7] & 0xffffffff) << 32);
     tmp[3] = product[7] >> 32;
-    carry += uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s3 */
     tmp[0] = product[4];
     tmp[1] = product[5] & 0xffffffff;
     tmp[2] = 0;
     tmp[3] = product[7];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* s4 */
-    tmp[0] = (product[4] >> 32) | (product[5] << 32);
+    tmp[0] = (product[4] >> 32) | ((product[5] & 0xffffffff) << 32);
     tmp[1] = (product[5] >> 32) | (product[6] & 0xffffffff00000000ull);
     tmp[2] = product[7];
-    tmp[3] = (product[6] >> 32) | (product[4] << 32);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
+    tmp[3] = (product[6] >> 32) | ((product[4] & 0xffffffff) << 32);
+    carry += (int)uECC_vli_add(result, result, tmp, num_words_secp256r1);
     
     /* d1 */
-    tmp[0] = (product[5] >> 32) | (product[6] << 32);
+    tmp[0] = (product[5] >> 32) | ((product[6] & 0xffffffff) << 32);
     tmp[1] = (product[6] >> 32);
     tmp[2] = 0;
-    tmp[3] = (product[4] & 0xffffffff) | (product[5] << 32);
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    tmp[3] = (product[4] & 0xffffffff) | ((product[5] & 0xffffffff) << 32);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d2 */
     tmp[0] = product[6];
     tmp[1] = product[7];
     tmp[2] = 0;
     tmp[3] = (product[4] >> 32) | (product[5] & 0xffffffff00000000ull);
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d3 */
-    tmp[0] = (product[6] >> 32) | (product[7] << 32);
-    tmp[1] = (product[7] >> 32) | (product[4] << 32);
-    tmp[2] = (product[4] >> 32) | (product[5] << 32);
-    tmp[3] = (product[6] << 32);
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    tmp[0] = (product[6] >> 32) | ((product[7] & 0xffffffff) << 32);
+    tmp[1] = (product[7] >> 32) | ((product[4] & 0xffffffff) << 32);
+    tmp[2] = (product[4] >> 32) | ((product[5] & 0xffffffff) << 32);
+    tmp[3] = ((product[6] & 0xffffffff) << 32);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     /* d4 */
     tmp[0] = product[7];
     tmp[1] = product[4] & 0xffffffff00000000ull;
     tmp[2] = product[5];
     tmp[3] = product[6] & 0xffffffff00000000ull;
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
+    carry -= (int)uECC_vli_sub(result, result, tmp, num_words_secp256r1);
     
     if (carry < 0) {
         do {
-            carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
+            carry += (int)uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
         } while (carry < 0);
     } else {
         while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
+            carry -= (int)uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
         }
     }
 }
@@ -1128,9 +1128,9 @@ static void double_jacobian_secp256k1(uECC_word_t * X1,
     uECC_vli_modAdd(Y1, X1, X1, curve->p, num_words_secp256k1); /* t2 = 2*x1^2 */
     uECC_vli_modAdd(Y1, Y1, X1, curve->p, num_words_secp256k1); /* t2 = 3*x1^2 */
     if (uECC_vli_testBit(Y1, 0)) {
-        uECC_word_t carry = uECC_vli_add(Y1, Y1, curve->p, num_words_secp256k1);
+        uECC_word_t carry = (int)uECC_vli_add(Y1, Y1, curve->p, num_words_secp256k1);
         uECC_vli_rshift1(Y1, num_words_secp256k1);
-        Y1[num_words_secp256k1 - 1] |= carry << (uECC_WORD_BITS - 1);
+        Y1[num_words_secp256k1 - 1] |= (carry & 1) << (uECC_WORD_BITS - 1);
     } else {
         uECC_vli_rshift1(Y1, num_words_secp256k1);
     }
@@ -1163,10 +1163,10 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     
     omega_mult_secp256k1(tmp, product + num_words_secp256k1); /* (Rq, q) = q * c */
     
-    carry = uECC_vli_add(result, product, tmp, num_words_secp256k1); /* (C, r) = r + q       */
+    carry = (int)uECC_vli_add(result, product, tmp, num_words_secp256k1); /* (C, r) = r + q       */
     uECC_vli_clear(product, num_words_secp256k1);
     omega_mult_secp256k1(product, tmp + num_words_secp256k1); /* Rq*c */
-    carry += uECC_vli_add(result, result, product, num_words_secp256k1); /* (C1, r) = r + Rq*c */
+    carry += (int)uECC_vli_add(result, result, product, num_words_secp256k1); /* (C1, r) = r + Rq*c */
     
     while (carry > 0) {
         --carry;
