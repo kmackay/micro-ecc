@@ -899,7 +899,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 #define asm_sub 1
 #endif
 
-#if !asm_mult
+#if asm_mult
 __attribute((noinline))
 uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
