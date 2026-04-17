@@ -1208,6 +1208,8 @@ int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uEC
 
 /* -------- ECDSA code -------- */
 
+/* bits2int and smax are shared with ECSDSA verify. */
+
 static void bits2int(uECC_word_t *native,
                      const uint8_t *bits,
                      unsigned bits_size,
@@ -1245,6 +1247,12 @@ static void bits2int(uECC_word_t *native,
         uECC_vli_sub(native, native, curve->n, num_n_words);
     }
 }
+
+static bitcount_t smax(bitcount_t a, bitcount_t b) {
+    return (a > b ? a : b);
+}
+
+#if uECC_SUPPORTS_ECDSA
 
 static int uECC_sign_with_k_internal(const uint8_t *private_key,
                             const uint8_t *message_hash,
@@ -1485,10 +1493,6 @@ int uECC_sign_deterministic(const uint8_t *private_key,
     return 0;
 }
 
-static bitcount_t smax(bitcount_t a, bitcount_t b) {
-    return (a > b ? a : b);
-}
-
 int uECC_verify(const uint8_t *public_key,
                 const uint8_t *message_hash,
                 unsigned hash_size,
@@ -1601,6 +1605,274 @@ int uECC_verify(const uint8_t *public_key,
     /* Accept only if v == r. */
     return (int)(uECC_vli_equal(rx, r, num_words));
 }
+
+#endif /* uECC_SUPPORTS_ECDSA */
+
+/* -------- ECSDSA -------- */
+
+#if uECC_SUPPORTS_ECSDSA_OPTIMIZED || uECC_SUPPORTS_ECSDSA_STANDARD
+
+/*
+ * Shared sign implementation.
+ *   include_y=0  →  optimized variant: R = Hash(x1 || M)
+ *   include_y=1  →  standard variant:  R = Hash(x1 || y1 || M)
+ */
+static int ecsdsa_sign_impl(const uint8_t *private_key,
+                             const uint8_t *message, unsigned message_size,
+                             const uECC_HashContext *hash_context,
+                             uint8_t *signature, uECC_Curve curve,
+                             int include_y) {
+    uECC_word_t k[uECC_MAX_WORDS];
+    uECC_word_t kreg0[uECC_MAX_WORDS];
+    uECC_word_t kreg1[uECC_MAX_WORDS];
+    uECC_word_t *k2[2] = {kreg0, kreg1};
+    uECC_word_t *initial_Z = 0;
+    uECC_word_t d[uECC_MAX_WORDS];
+    uECC_word_t r[uECC_MAX_WORDS];
+    uECC_word_t s[uECC_MAX_WORDS];
+    uECC_word_t P[uECC_MAX_WORDS * 2];
+    uint8_t X1[uECC_MAX_WORDS * uECC_WORD_SIZE]; /* big-endian x1 */
+    uint8_t Y1[uECC_MAX_WORDS * uECC_WORD_SIZE]; /* big-endian y1 (standard only) */
+    uECC_word_t carry;
+    uECC_word_t tries;
+    wordcount_t num_words    = curve->num_words;
+    wordcount_t num_n_words  = BITS_TO_WORDS(curve->num_n_bits);
+    bitcount_t  num_n_bits   = curve->num_n_bits;
+    unsigned    hash_size    = hash_context->result_size;
+
+#if uECC_VLI_NATIVE_LITTLE_ENDIAN
+    bcopy((uint8_t *)d, private_key, BITS_TO_BYTES(curve->num_n_bits));
+#else
+    uECC_vli_bytesToNative(d, private_key, BITS_TO_BYTES(curve->num_n_bits));
+#endif
+
+    for (tries = 0; tries < uECC_RNG_MAX_TRIES; ++tries) {
+        if (!uECC_generate_random_int(k, curve->n, num_n_words)) {
+            return 0;
+        }
+        carry = regularize_k(k, kreg0, kreg1, curve);
+
+        if (g_rng_function) {
+            if (!uECC_generate_random_int(k2[carry], curve->p, num_words)) {
+                return 0;
+            }
+            initial_Z = k2[carry];
+        }
+
+        EccPoint_mult(P, curve->G, k2[!carry], initial_Z, num_n_bits + 1, curve);
+        if (EccPoint_isZero(P, curve)) {
+            continue;
+        }
+
+        /* R = Hash(x1 || [y1 ||] M) */
+        uECC_vli_nativeToBytes(X1, curve->num_bytes, P);
+        hash_context->init_hash(hash_context);
+        hash_context->update_hash(hash_context, X1, curve->num_bytes);
+        if (include_y) {
+            uECC_vli_nativeToBytes(Y1, curve->num_bytes, P + num_words);
+            hash_context->update_hash(hash_context, Y1, curve->num_bytes);
+        }
+        hash_context->update_hash(hash_context, message, message_size);
+        hash_context->finish_hash(hash_context, signature);
+
+        bits2int(r, signature, hash_size, curve);
+        if (uECC_vli_isZero(r, num_n_words)) {
+            continue;
+        }
+
+        /* s = (k + r*d) mod n */
+        uECC_vli_modMult(s, r, d, curve->n, num_n_words);
+        uECC_vli_modAdd(s, k, s, curve->n, num_n_words);
+        if (uECC_vli_isZero(s, num_n_words)) {
+            continue;
+        }
+
+#if uECC_VLI_NATIVE_LITTLE_ENDIAN
+        bcopy((uint8_t *)signature + hash_size, (uint8_t *)s, curve->num_bytes);
+#else
+        uECC_vli_nativeToBytes(signature + hash_size, curve->num_bytes, s);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Shared verify implementation.
+ * Computes (x2,y2) = s*G - r*Q via Shamir's trick with -Q, then checks
+ * R' = Hash(x2 || [y2 ||] M) == R.
+ */
+static int ecsdsa_verify_impl(const uint8_t *public_key,
+                               const uint8_t *message, unsigned message_size,
+                               const uECC_HashContext *hash_context,
+                               const uint8_t *signature, uECC_Curve curve,
+                               int include_y) {
+    uECC_word_t r[uECC_MAX_WORDS];
+    uECC_word_t s[uECC_MAX_WORDS];
+    uECC_word_t neg_Q[uECC_MAX_WORDS * 2];
+    uECC_word_t sum[uECC_MAX_WORDS * 2];
+    uECC_word_t rx[uECC_MAX_WORDS];
+    uECC_word_t ry[uECC_MAX_WORDS];
+    uECC_word_t tx[uECC_MAX_WORDS];
+    uECC_word_t ty[uECC_MAX_WORDS];
+    uECC_word_t tz[uECC_MAX_WORDS];
+    uECC_word_t z[uECC_MAX_WORDS];
+    const uECC_word_t *points[4];
+    const uECC_word_t *point;
+    bitcount_t num_bits;
+    bitcount_t i;
+    uint8_t X2[uECC_MAX_WORDS * uECC_WORD_SIZE];
+    uint8_t Y2[uECC_MAX_WORDS * uECC_WORD_SIZE]; /* standard variant only */
+    uint8_t R_prime[64];
+#if uECC_VLI_NATIVE_LITTLE_ENDIAN
+    uECC_word_t *_public = (uECC_word_t *)public_key;
+#else
+    uECC_word_t _public[uECC_MAX_WORDS * 2];
+#endif
+    wordcount_t num_words   = curve->num_words;
+    wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
+    unsigned    hash_size   = hash_context->result_size;
+    unsigned j;
+
+    if (hash_size > sizeof(R_prime)) {
+        return 0;
+    }
+
+#if uECC_VLI_NATIVE_LITTLE_ENDIAN == 0
+    uECC_vli_bytesToNative(_public, public_key, curve->num_bytes);
+    uECC_vli_bytesToNative(_public + num_words, public_key + curve->num_bytes,
+                           curve->num_bytes);
+#endif
+
+    r[num_n_words - 1] = 0;
+    s[num_n_words - 1] = 0;
+
+#if uECC_VLI_NATIVE_LITTLE_ENDIAN
+    bcopy((uint8_t *)s, signature + hash_size, curve->num_bytes);
+#else
+    uECC_vli_bytesToNative(s, signature + hash_size, curve->num_bytes);
+#endif
+
+    bits2int(r, signature, hash_size, curve);
+
+    if (uECC_vli_isZero(r, num_n_words)) {
+        return 0;
+    }
+    if (uECC_vli_isZero(s, num_n_words) ||
+            uECC_vli_cmp_unsafe(curve->n, s, num_n_words) != 1) {
+        return 0;
+    }
+
+    /* -Q = (Q.x, p - Q.y) */
+    uECC_vli_set(neg_Q, _public, num_words);
+    if (uECC_vli_isZero(_public + num_words, num_words)) {
+        uECC_vli_clear(neg_Q + num_words, num_words);
+    } else {
+        uECC_vli_sub(neg_Q + num_words, curve->p, _public + num_words, num_words);
+    }
+
+    /* Precompute G + (-Q) = G - Q for Shamir's trick */
+    uECC_vli_set(sum, neg_Q, num_words);
+    uECC_vli_set(sum + num_words, neg_Q + num_words, num_words);
+    uECC_vli_set(tx, curve->G, num_words);
+    uECC_vli_set(ty, curve->G + num_words, num_words);
+    uECC_vli_modSub(z, sum, tx, curve->p, num_words);
+    XYcZ_add(tx, ty, sum, sum + num_words, tx, curve);
+    uECC_vli_modInv(z, z, curve->p, num_words);
+    apply_z(sum, sum + num_words, z, curve);
+
+    /* s*G + r*(-Q) = s*G - r*Q */
+    points[0] = 0;
+    points[1] = curve->G;
+    points[2] = neg_Q;
+    points[3] = sum;
+    num_bits = smax(uECC_vli_numBits(s, num_n_words),
+                    uECC_vli_numBits(r, num_n_words));
+
+    point = points[(!!uECC_vli_testBit(s, num_bits - 1)) |
+                   ((!!uECC_vli_testBit(r, num_bits - 1)) << 1)];
+    uECC_vli_set(rx, point, num_words);
+    uECC_vli_set(ry, point + num_words, num_words);
+    uECC_vli_clear(z, num_words);
+    z[0] = 1;
+
+    for (i = num_bits - 2; i >= 0; --i) {
+        uECC_word_t index;
+        curve->double_jacobian(rx, ry, z, curve);
+        index = (!!uECC_vli_testBit(s, i)) | ((!!uECC_vli_testBit(r, i)) << 1);
+        point = points[index];
+        if (point) {
+            uECC_vli_set(tx, point, num_words);
+            uECC_vli_set(ty, point + num_words, num_words);
+            apply_z(tx, ty, z, curve);
+            uECC_vli_modSub(tz, rx, tx, curve->p, num_words);
+            XYcZ_add(tx, ty, rx, ry, tx, curve);
+            uECC_vli_modMult_fast(z, z, tz, curve);
+        }
+    }
+
+    uECC_vli_modInv(z, z, curve->p, num_words);
+    apply_z(rx, ry, z, curve);
+
+    /* R' = Hash(x2 || [y2 ||] M) */
+    uECC_vli_nativeToBytes(X2, curve->num_bytes, rx);
+    hash_context->init_hash(hash_context);
+    hash_context->update_hash(hash_context, X2, curve->num_bytes);
+    if (include_y) {
+        uECC_vli_nativeToBytes(Y2, curve->num_bytes, ry);
+        hash_context->update_hash(hash_context, Y2, curve->num_bytes);
+    }
+    hash_context->update_hash(hash_context, message, message_size);
+    hash_context->finish_hash(hash_context, R_prime);
+
+    {
+        uECC_word_t diff = 0;
+        for (j = 0; j < hash_size; ++j) {
+            diff |= R_prime[j] ^ signature[j];
+        }
+        return (diff == 0);
+    }
+}
+
+#endif /* uECC_SUPPORTS_ECSDSA_OPTIMIZED || uECC_SUPPORTS_ECSDSA_STANDARD */
+
+/* ---- Public API wrappers ---- */
+
+#if uECC_SUPPORTS_ECSDSA_OPTIMIZED
+int uECC_ecsdsa_sign_optimized(const uint8_t *private_key,
+                                const uint8_t *message, unsigned message_size,
+                                const uECC_HashContext *hash_context,
+                                uint8_t *signature, uECC_Curve curve) {
+    return ecsdsa_sign_impl(private_key, message, message_size,
+                            hash_context, signature, curve, 0);
+}
+
+int uECC_ecsdsa_verify_optimized(const uint8_t *public_key,
+                                  const uint8_t *message, unsigned message_size,
+                                  const uECC_HashContext *hash_context,
+                                  const uint8_t *signature, uECC_Curve curve) {
+    return ecsdsa_verify_impl(public_key, message, message_size,
+                              hash_context, signature, curve, 0);
+}
+#endif /* uECC_SUPPORTS_ECSDSA_OPTIMIZED */
+
+#if uECC_SUPPORTS_ECSDSA_STANDARD
+int uECC_ecsdsa_sign_standard(const uint8_t *private_key,
+                               const uint8_t *message, unsigned message_size,
+                               const uECC_HashContext *hash_context,
+                               uint8_t *signature, uECC_Curve curve) {
+    return ecsdsa_sign_impl(private_key, message, message_size,
+                            hash_context, signature, curve, 1);
+}
+
+int uECC_ecsdsa_verify_standard(const uint8_t *public_key,
+                                 const uint8_t *message, unsigned message_size,
+                                 const uECC_HashContext *hash_context,
+                                 const uint8_t *signature, uECC_Curve curve) {
+    return ecsdsa_verify_impl(public_key, message, message_size,
+                              hash_context, signature, curve, 1);
+}
+#endif /* uECC_SUPPORTS_ECSDSA_STANDARD */
 
 #if uECC_ENABLE_VLI_API
 

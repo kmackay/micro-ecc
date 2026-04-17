@@ -69,6 +69,27 @@ the same endianness. */
     #define uECC_SUPPORTS_secp256k1 1
 #endif
 
+/* Master ECDSA switch.  Set to 0 to exclude ECDSA sign/verify code. */
+#ifndef uECC_SUPPORTS_ECDSA
+    #define uECC_SUPPORTS_ECDSA 1
+#endif
+
+/* Master ECSDSA switch.  Set to 0 to exclude all ECSDSA code. */
+#ifndef uECC_SUPPORTS_ECSDSA
+    #define uECC_SUPPORTS_ECSDSA 1
+#endif
+
+/* Fine-grained variant controls.  Both default to the master switch so that
+ * setting uECC_SUPPORTS_ECSDSA=0 disables both, while individual variants can
+ * be excluded independently (e.g. define uECC_SUPPORTS_ECSDSA_STANDARD=0 to
+ * keep only the optimized variant and save a few hundred bytes of flash). */
+#ifndef uECC_SUPPORTS_ECSDSA_OPTIMIZED
+    #define uECC_SUPPORTS_ECSDSA_OPTIMIZED uECC_SUPPORTS_ECSDSA
+#endif
+#ifndef uECC_SUPPORTS_ECSDSA_STANDARD
+    #define uECC_SUPPORTS_ECSDSA_STANDARD uECC_SUPPORTS_ECSDSA
+#endif
+
 /* Specifies whether compressed point format is supported.
    Set to 0 to disable point compression/decompression functions. */
 #ifndef uECC_SUPPORT_COMPRESSED_POINT
@@ -240,6 +261,8 @@ Returns 1 if the key was computed successfully, 0 if an error occurred.
 */
 int uECC_compute_public_key(const uint8_t *private_key, uint8_t *public_key, uECC_Curve curve);
 
+#if uECC_SUPPORTS_ECDSA
+
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
 
@@ -262,6 +285,8 @@ int uECC_sign(const uint8_t *private_key,
               unsigned hash_size,
               uint8_t *signature,
               uECC_Curve curve);
+
+#endif /* uECC_SUPPORTS_ECDSA */
 
 /* uECC_HashContext structure.
 This is used to pass in an arbitrary hash function to uECC_sign_deterministic().
@@ -312,6 +337,8 @@ typedef struct uECC_HashContext {
     uint8_t *tmp; /* Must point to a buffer of at least (2 * result_size + block_size) bytes. */
 } uECC_HashContext;
 
+#if uECC_SUPPORTS_ECDSA
+
 /* uECC_sign_deterministic() function.
 Generate an ECDSA signature for a given hash value, using a deterministic algorithm
 (see RFC 6979). You do not need to set the RNG using uECC_set_rng() before calling
@@ -359,6 +386,59 @@ int uECC_verify(const uint8_t *public_key,
                 unsigned hash_size,
                 const uint8_t *signature,
                 uECC_Curve curve);
+
+#endif /* uECC_SUPPORTS_ECDSA */
+
+/*
+ * ECSDSA — Schnorr signature (two variants).
+ *
+ * Both variants share the same key format and s = (k + r*d) mod n equation.
+ * They differ only in what is hashed to form R:
+ *
+ *   Optimized: R = Hash(x1 || M)        -- x coordinate only
+ *   Standard:  R = Hash(x1 || y1 || M)  -- both coordinates
+ *
+ * Signature format: R || S
+ *   |R| = hash_context->result_size bytes
+ *   |S| = curve->num_bytes (private-key size)
+ *
+ * sign() requires an RNG (uECC_set_rng()).
+ * verify() requires hash_context->result_size <= 64.
+ */
+
+#if uECC_SUPPORTS_ECSDSA_OPTIMIZED
+/* Optimized EC-SDSA: R = Hash(x1 || M). */
+int uECC_ecsdsa_sign_optimized(const uint8_t *private_key,
+                                const uint8_t *message,
+                                unsigned message_size,
+                                const uECC_HashContext *hash_context,
+                                uint8_t *signature,
+                                uECC_Curve curve);
+
+int uECC_ecsdsa_verify_optimized(const uint8_t *public_key,
+                                  const uint8_t *message,
+                                  unsigned message_size,
+                                  const uECC_HashContext *hash_context,
+                                  const uint8_t *signature,
+                                  uECC_Curve curve);
+#endif /* uECC_SUPPORTS_ECSDSA_OPTIMIZED */
+
+#if uECC_SUPPORTS_ECSDSA_STANDARD
+/* Standard EC-SDSA: R = Hash(x1 || y1 || M). */
+int uECC_ecsdsa_sign_standard(const uint8_t *private_key,
+                               const uint8_t *message,
+                               unsigned message_size,
+                               const uECC_HashContext *hash_context,
+                               uint8_t *signature,
+                               uECC_Curve curve);
+
+int uECC_ecsdsa_verify_standard(const uint8_t *public_key,
+                                 const uint8_t *message,
+                                 unsigned message_size,
+                                 const uECC_HashContext *hash_context,
+                                 const uint8_t *signature,
+                                 uECC_Curve curve);
+#endif /* uECC_SUPPORTS_ECSDSA_STANDARD */
 
 #ifdef __cplusplus
 } /* end of extern "C" */

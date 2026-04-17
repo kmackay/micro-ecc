@@ -7,5 +7,7 @@ __pycache__
 *.egg-info/
 *.a
 *.o
+*.obj
 *.so
+*.exe
 .DS_Store
