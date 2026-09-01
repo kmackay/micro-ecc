@@ -1498,6 +1498,15 @@ static void XYcZ_addC(uECC_word_t * X1,
     uECC_vli_set(X1, t7, num_words);                  /* move x3' to output */
 }
 
+static void select_ptr(uECC_word_t condition, uECC_word_t *val0, uECC_word_t *val1, uECC_word_t **out0, uECC_word_t **out1) {
+    uintptr_t mask = -(intptr_t)condition;
+#if defined(__GNUC__)
+    asm volatile("" : "+g"(mask));
+#endif
+    *out0 = (uECC_word_t *)(((uintptr_t)val0 & mask) | ((uintptr_t)val1 & ~mask));
+    *out1 = (uECC_word_t *)(((uintptr_t)val1 & mask) | ((uintptr_t)val0 & ~mask));
+}
+
 /* result may overlap point. */
 static void EccPoint_mult(uECC_word_t * result,
                           const uECC_word_t * point,
@@ -1513,6 +1522,7 @@ static void EccPoint_mult(uECC_word_t * result,
     bitcount_t i;
     uECC_word_t nb;
     wordcount_t num_words = curve->num_words;
+    uECC_word_t *x0, *x1, *y0, *y1;
 
     uECC_vli_set(Rx[1], point, num_words);
     uECC_vli_set(Ry[1], point + num_words, num_words);
@@ -1522,23 +1532,27 @@ static void EccPoint_mult(uECC_word_t * result,
 
     for (i = num_bits - 2; i > 0; --i) {
         nb = !uECC_vli_testBit(scalar, i);
-        XYcZ_addC(Rx[1 - nb], Ry[1 - nb], Rx[nb], Ry[nb], sub, curve);
-        XYcZ_add(Rx[nb], Ry[nb], Rx[1 - nb], Ry[1 - nb], sub, curve);
+        select_ptr(nb, Rx[0], Rx[1], &x0, &x1);
+        select_ptr(nb, Ry[0], Ry[1], &y0, &y1);
+        XYcZ_addC(x0, y0, x1, y1, sub, curve);
+        XYcZ_add(x1, y1, x0, y0, sub, curve);
     }
 
     nb = !uECC_vli_testBit(scalar, 0);
-    XYcZ_addC(Rx[1 - nb], Ry[1 - nb], Rx[nb], Ry[nb], sub, curve);
+    select_ptr(nb, Rx[0], Rx[1], &x0, &x1);
+    select_ptr(nb, Ry[0], Ry[1], &y0, &y1);
+    XYcZ_addC(x0, y0, x1, y1, sub, curve);
 
     /* Find final 1/Z value. */
     uECC_vli_modSub(z, Rx[1], Rx[0], curve->p, num_words); /* X1 - X0 */
-    uECC_vli_modMult_fast(z, z, Ry[1 - nb], curve);        /* Yb * (X1 - X0) */
+    uECC_vli_modMult_fast(z, z, y0, curve);        /* Yb * (X1 - X0) */
     uECC_vli_modMult_fast(z, z, point, curve);             /* xP * Yb * (X1 - X0) */
     uECC_vli_modInv(z, z, curve->p, num_words);            /* 1 / (xP * Yb * (X1 - X0)) */
     uECC_vli_modMult_fast(z, z, point + num_words, curve); /* yP / (xP * Yb * (X1 - X0)) */
-    uECC_vli_modMult_fast(z, z, Rx[1 - nb], curve);        /* Xb * yP / (xP * Yb * (X1 - X0)) */
+    uECC_vli_modMult_fast(z, z, x0, curve);        /* Xb * yP / (xP * Yb * (X1 - X0)) */
     /* End 1/Z calculation */
 
-    XYcZ_add(Rx[nb], Ry[nb], Rx[1 - nb], Ry[1 - nb], sub, curve);
+    XYcZ_add(x1, y1, x0, y0, sub, curve);
     apply_z(Rx[0], Ry[0], z, curve);
 
     uECC_vli_set(result, Rx[0], num_words);
