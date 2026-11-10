@@ -1,1202 +1,1054 @@
 /* Copyright 2015, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
-#ifndef _UECC_ASM_ARM_MULT_SQUARE_H_
-#define _UECC_ASM_ARM_MULT_SQUARE_H_
+#ifndef _UECC_ASM_ARM_MULT_SQUARE_UMAAL_H_
+#define _UECC_ASM_ARM_MULT_SQUARE_UMAAL_H_
 
-#define FAST_MULT_ASM_5                     \
-    "push   {r3} \n\t"                      \
-    "ldmia  r2!, {r3, r4, r5, r6, r7} \n\t" \
-    "push   {r2} \n\t"                      \
-                                            \
-    "ldr    r2, [r1], #4 \n\t"              \
-    "umull  r8, r9, r3, r2 \n\t"            \
-    "str    r8, [r0], #4 \n\t"              \
-    "mov    r10, #0 \n\t"                   \
-    "umaal  r9, r10, r4, r2 \n\t"           \
-    "mov    r11, #0 \n\t"                   \
-    "umaal  r10, r11, r5, r2 \n\t"          \
-    "mov    r12, #0 \n\t"                   \
-    "umaal  r11, r12, r6, r2 \n\t"          \
-    "mov    r14, #0 \n\t"                   \
-    "umaal  r12, r14, r7, r2 \n\t"          \
-                                            \
-    "ldr    r2, [r1], #4 \n\t"              \
-    "mov    r8, #0 \n\t"                    \
-    "umaal  r8, r9, r3, r2 \n\t"            \
-    "str    r8, [r0], #4 \n\t"              \
-    "umaal  r9, r10, r4, r2 \n\t"           \
-    "umaal  r10, r11, r5, r2 \n\t"          \
-    "umaal  r11, r12, r6, r2 \n\t"          \
-    "umaal  r12, r14, r7, r2 \n\t"          \
-                                            \
-    "ldr    r2, [r1], #4 \n\t"              \
-    "mov    r8, #0 \n\t"                    \
-    "umaal  r8, r9, r3, r2 \n\t"            \
-    "str    r8, [r0], #4 \n\t"              \
-    "umaal  r9, r10, r4, r2 \n\t"           \
-    "umaal  r10, r11, r5, r2 \n\t"          \
-    "umaal  r11, r12, r6, r2 \n\t"          \
-    "umaal  r12, r14, r7, r2 \n\t"          \
-                                            \
-    "ldr    r2, [r1], #4 \n\t"              \
-    "mov    r8, #0 \n\t"                    \
-    "umaal  r8, r9, r3, r2 \n\t"            \
-    "str    r8, [r0], #4 \n\t"              \
-    "umaal  r9, r10, r4, r2 \n\t"           \
-    "umaal  r10, r11, r5, r2 \n\t"          \
-    "umaal  r11, r12, r6, r2 \n\t"          \
-    "umaal  r12, r14, r7, r2 \n\t"          \
-                                            \
-    "ldr    r2, [r1], #4 \n\t"              \
-    "mov    r8, #0 \n\t"                    \
-    "umaal  r8, r9, r3, r2 \n\t"            \
-    "str    r8, [r0], #4 \n\t"              \
-    "umaal  r9, r10, r4, r2 \n\t"           \
-    "umaal  r10, r11, r5, r2 \n\t"          \
-    "umaal  r11, r12, r6, r2 \n\t"          \
-    "umaal  r12, r14, r7, r2 \n\t"          \
-                                            \
-    "str    r9, [r0], #4 \n\t"              \
-    "str    r10, [r0], #4 \n\t"             \
-    "str    r11, [r0], #4 \n\t"             \
-    "str    r12, [r0], #4 \n\t"             \
-    "str    r14, [r0], #4 \n\t"             \
-                                            \
-    "pop   {r2, r3} \n\t"
+/* ============================================================================
+ * Thumb-2 / ARM with UMAAL (Cortex-M4 / M7 / M33 / ARMv7E-M)
+ *
+ * Uses Multi-Pass Wide-Register UMAAL Row Accumulation for multiplication:
+ *   umaal RdLo, RdHi, Rn, Rm  computes  (RdHi:RdLo) = Rn * Rm + RdLo + RdHi
+ * in 1 cycle without reading or modifying CPSR flags.
+ * - nw = 5: 1-pass 5-column UMAAL row loop (zero intermediate memory spills).
+ * - nw = 6: 2-pass (4+2) UMAAL row split keeping all 6 partial words (result[4..9])
+ *           and a5 in registers across passes (zero intermediate memory spills).
+ * - nw = 7: 2-pass (5+2) UMAAL row split (only 1 intermediate word spilled).
+ * - nw = 8: 2-pass (5+3) UMAAL row split using dual-addend UMAAL in Pass 2 to
+ *           fold stored Pass-1 partial words with zero extra add instructions.
+ *
+ * For squaring:
+ * - Zero-spill UMAAL upper-triangle accumulation with interleaved early
+ *   finalization of low result pairs to free operand registers, followed by an
+ *   unbroken diagonal-square accumulation chain (umaal + umull/adcs).
+ * ============================================================================ */
 
-#define FAST_MULT_ASM_5_TO_6                 \
-    "cmp r3, #5 \n\t"                        \
-    "beq 1f \n\t"                            \
-                                             \
-    /* r4 = left high */                     \
-    "ldr r4, [r1] \n\t"                      \
-                                             \
-    "sub r0, #20 \n\t"                       \
-    "sub r1, #20 \n\t"                       \
-    "sub r2, #20 \n\t"                       \
-                                             \
-    /* Do right side */                      \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "mov r5, #0 \n\t"                        \
-    "ldr r6, [r0], #4 \n\t"                  \
-    "umaal  r5, r6, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r7, [r0], #4 \n\t"                  \
-    "umaal  r6, r7, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r8, [r0], #4 \n\t"                  \
-    "umaal  r7, r8, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r9, [r0], #4 \n\t"                  \
-    "umaal  r8, r9, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r10, [r0], #4 \n\t"                 \
-    "umaal  r9, r10, r4, r14 \n\t"           \
-    "sub r0, #20 \n\t"                       \
-                                             \
-    /* r4 = right high */                    \
-    "ldr r4, [r2], #4 \n\t"                  \
-                                             \
-    /* Do left side */                       \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "mov r12, #0 \n\t"                       \
-    "umaal  r12, r5, r4, r14 \n\t"           \
-    "str r12, [r0], #4 \n\t"                 \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r5, r6, r4, r14 \n\t"            \
-    "str r5, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r6, r7, r4, r14 \n\t"            \
-    "str r6, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r7, r8, r4, r14 \n\t"            \
-    "str r7, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"            \
-    "str r8, [r0], #4 \n\t"                  \
-                                             \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r9, r10, r4, r14 \n\t"           \
-    "stmia r0!, {r9, r10} \n\t"
+/* ---- Level 4 Standalone Multiplication Macros ---- */
 
-#define FAST_MULT_ASM_6                  \
-    "ldmia  r2!, {r4, r5, r6} \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "umull  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "mov    r10, #0 \n\t"                \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "mov    r11, #0 \n\t"                \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "str    r9, [r0], #4 \n\t"           \
-    "str    r10, [r0], #4 \n\t"          \
-    "str    r11, [r0], #4 \n\t"          \
-                                         \
-    "sub r0, #24 \n\t"                   \
-    "sub r1, #24 \n\t"                   \
-    "ldmia  r2!, {r4, r5, r6} \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "mov    r9, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "mov    r10, #0 \n\t"                \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "mov    r11, #0 \n\t"                \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "str    r9, [r0], #4 \n\t"           \
-    "str    r10, [r0], #4 \n\t"          \
-    "str    r11, [r0], #4 \n\t"
+/* nw = 5: 1-pass 5-column UMAAL row loop (zero intermediate memory spills) */
+#define FAST_MULT_ASM_5 \
+    "ldmia r2, {r3, r4, r5, r6, r7} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umull r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "stmia r0!, {r9, r10, r11, r12, lr} \n\t"
 
-#define FAST_MULT_ASM_6_TO_7                 \
-    "cmp r3, #6 \n\t"                        \
-    "beq 1f \n\t"                            \
-                                             \
-    /* r4 = left high */                     \
-    "ldr r4, [r1] \n\t"                      \
-                                             \
-    "sub r0, #24 \n\t"                       \
-    "sub r1, #24 \n\t"                       \
-    "sub r2, #24 \n\t"                       \
-                                             \
-    /* Do right side */                      \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "mov r5, #0 \n\t"                        \
-    "ldr r6, [r0], #4 \n\t"                  \
-    "umaal  r5, r6, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r7, [r0], #4 \n\t"                  \
-    "umaal  r6, r7, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r8, [r0], #4 \n\t"                  \
-    "umaal  r7, r8, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r9, [r0], #4 \n\t"                  \
-    "umaal  r8, r9, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r10, [r0], #4 \n\t"                 \
-    "umaal  r9, r10, r4, r14 \n\t"           \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r11, [r0], #4 \n\t"                 \
-    "umaal  r10, r11, r4, r14 \n\t"          \
-    "sub r0, #24 \n\t"                       \
-                                             \
-    /* r4 = right high */                    \
-    "ldr r4, [r2], #4 \n\t"                  \
-                                             \
-    /* Do left side */                       \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "mov r12, #0 \n\t"                       \
-    "umaal  r12, r5, r4, r14 \n\t"           \
-    "str r12, [r0], #4 \n\t"                 \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r5, r6, r4, r14 \n\t"            \
-    "str r5, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r6, r7, r4, r14 \n\t"            \
-    "str r6, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r7, r8, r4, r14 \n\t"            \
-    "str r7, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"            \
-    "str r8, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r9, r10, r4, r14 \n\t"           \
-    "str r9, [r0], #4 \n\t"                  \
-                                             \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r10, r11, r4, r14 \n\t"          \
-    "stmia r0!, {r10, r11} \n\t"
+/* nw = 6: 2-pass (4+2) UMAAL row split (zero intermediate memory spills) */
+#define FAST_MULT_ASM_6 \
+    "ldmia r2!, {r4, r5, r6, r7} \n\t" \
+    "ldr   r3, [r1], #4 \n\t" \
+    "umull r8, r9, r4, r3 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r5, r3 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r6, r3 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r7, r3 \n\t" \
+    "ldr   r3, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r4, r3 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r5, r3 \n\t" \
+    "umaal r10, r11, r6, r3 \n\t" \
+    "umaal r11, r12, r7, r3 \n\t" \
+    "ldr   r3, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r4, r3 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r5, r3 \n\t" \
+    "umaal r10, r11, r6, r3 \n\t" \
+    "umaal r11, r12, r7, r3 \n\t" \
+    "ldr   r3, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r4, r3 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r5, r3 \n\t" \
+    "umaal r10, r11, r6, r3 \n\t" \
+    "umaal r11, r12, r7, r3 \n\t" \
+    "ldr   r3, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r4, r3 \n\t" \
+    "umaal r9, r10, r5, r3 \n\t" \
+    "umaal r10, r11, r6, r3 \n\t" \
+    "umaal r11, r12, r7, r3 \n\t" \
+    "ldr   lr, [r1], #-20 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "umaal r9, r3, r4, lr \n\t" \
+    "umaal r10, r3, r5, lr \n\t" \
+    "umaal r11, r3, r6, lr \n\t" \
+    "umaal r12, r3, r7, lr \n\t" \
+    "ldmia r2, {r4, r5} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r6, #0 \n\t" \
+    "umaal r8, r6, r4, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r7, #0 \n\t" \
+    "umaal r9, r7, r4, r2 \n\t" \
+    "str   r9, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r10, r6, r4, r2 \n\t" \
+    "str   r10, [r0], #4 \n\t" \
+    "umaal r7, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r11, r7, r4, r2 \n\t" \
+    "str   r11, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r12, r6, r4, r2 \n\t" \
+    "str   r12, [r0], #4 \n\t" \
+    "umaal r7, r6, r5, r2 \n\t" \
+    "umaal r3, r7, r4, lr \n\t" \
+    "umaal r6, r7, r5, lr \n\t" \
+    "stmia r0!, {r3, r6, r7} \n\t"
 
-#define FAST_MULT_ASM_7                  \
-    "ldmia  r2!, {r4, r5, r6, r7} \n\t"  \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "umull  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "mov    r10, #0 \n\t"                \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "mov    r11, #0 \n\t"                \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "mov    r12, #0 \n\t"                \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "str    r9, [r0], #4 \n\t"           \
-    "str    r10, [r0], #4 \n\t"          \
-    "str    r11, [r0], #4 \n\t"          \
-    "str    r12, [r0], #4 \n\t"          \
-                                         \
-    "sub r0, #28 \n\t"                   \
-    "sub r1, #28 \n\t"                   \
-    "ldmia  r2!, {r4, r5, r6} \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "mov    r9, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "mov    r10, #0 \n\t"                \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "mov    r11, #0 \n\t"                \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-                                         \
-    "str    r9, [r0], #4 \n\t"           \
-    "str    r10, [r0], #4 \n\t"          \
-    "str    r11, [r0], #4 \n\t"
+/* nw = 7: 2-pass (5+2) UMAAL row split */
+#define FAST_MULT_ASM_7 \
+    "push  {r2} \n\t" \
+    "ldmia r2, {r3, r4, r5, r6, r7} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umull r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #-24 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r9, r8, r3, r2 \n\t" \
+    "umaal r10, r8, r4, r2 \n\t" \
+    "umaal r11, r8, r5, r2 \n\t" \
+    "umaal r12, r8, r6, r2 \n\t" \
+    "umaal lr, r8, r7, r2 \n\t" \
+    "pop   {r3} \n\t" \
+    "add   r3, r3, #20 \n\t" \
+    "ldmia r3, {r4, r5} \n\t" \
+    "ldr   r3, [r0] \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r6, #0 \n\t" \
+    "umaal r3, r6, r4, r2 \n\t" \
+    "str   r3, [r0], #4 \n\t" \
+    "umaal r9, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r7, #0 \n\t" \
+    "umaal r9, r7, r4, r2 \n\t" \
+    "str   r9, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r10, r6, r4, r2 \n\t" \
+    "str   r10, [r0], #4 \n\t" \
+    "umaal r7, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r11, r7, r4, r2 \n\t" \
+    "str   r11, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r12, r6, r4, r2 \n\t" \
+    "str   r12, [r0], #4 \n\t" \
+    "umaal r7, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal lr, r7, r4, r2 \n\t" \
+    "str   lr, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r8, r6, r4, r2 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "stmia r0!, {r6, r7} \n\t"
 
-#define FAST_MULT_ASM_7_TO_8                 \
-    "cmp r3, #7 \n\t"                        \
-    "beq 1f \n\t"                            \
-    "push {r3} \n\t"                         \
-                                             \
-    /* r4 = left high */                     \
-    "ldr r4, [r1] \n\t"                      \
-                                             \
-    "sub r0, #28 \n\t"                       \
-    "sub r1, #28 \n\t"                       \
-    "sub r2, #28 \n\t"                       \
-                                             \
-    /* Do right side */                      \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "mov r5, #0 \n\t"                        \
-    "ldr r6, [r0], #4 \n\t"                  \
-    "umaal  r5, r6, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r7, [r0], #4 \n\t"                  \
-    "umaal  r6, r7, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r8, [r0], #4 \n\t"                  \
-    "umaal  r7, r8, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r9, [r0], #4 \n\t"                  \
-    "umaal  r8, r9, r4, r14 \n\t"            \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r10, [r0], #4 \n\t"                 \
-    "umaal  r9, r10, r4, r14 \n\t"           \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r11, [r0], #4 \n\t"                 \
-    "umaal  r10, r11, r4, r14 \n\t"          \
-    "ldr r14, [r2], #4 \n\t"                 \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "umaal  r11, r12, r4, r14 \n\t"          \
-    "sub r0, #28 \n\t"                       \
-                                             \
-    /* r4 = right high */                    \
-    "ldr r4, [r2], #4 \n\t"                  \
-                                             \
-    /* Do left side */                       \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "mov r3, #0 \n\t"                        \
-    "umaal  r3, r5, r4, r14 \n\t"            \
-    "str r3, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r5, r6, r4, r14 \n\t"            \
-    "str r5, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r6, r7, r4, r14 \n\t"            \
-    "str r6, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r7, r8, r4, r14 \n\t"            \
-    "str r7, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"            \
-    "str r8, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r9, r10, r4, r14 \n\t"           \
-    "str r9, [r0], #4 \n\t"                  \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r10, r11, r4, r14 \n\t"          \
-    "str r10, [r0], #4 \n\t"                 \
-                                             \
-    "ldr r14, [r1], #4 \n\t"                 \
-    "umaal  r11, r12, r4, r14 \n\t"          \
-    "stmia r0!, {r11, r12} \n\t"             \
-    "pop {r3} \n\t"
+/* nw = 8: 2-pass (5+3) UMAAL row split with dual-addend UMAAL */
+#define FAST_MULT_ASM_8 \
+    "push  {r2} \n\t" \
+    "ldmia r2, {r3, r4, r5, r6, r7} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umull r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0, #0] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0, #4] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #-28 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0, #8] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "str   r9, [r0, #12] \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "pop   {r2} \n\t" \
+    "add   r2, r2, #20 \n\t" \
+    "ldmia r2, {r5, r6, r7} \n\t" \
+    "ldmia r0, {r3, r4, r8} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal r3, r9, r5, r2 \n\t" \
+    "str   r3, [r0], #4 \n\t" \
+    "umaal r4, r9, r6, r2 \n\t" \
+    "umaal r8, r9, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "umaal r4, r3, r5, r2 \n\t" \
+    "str   r4, [r0], #4 \n\t" \
+    "umaal r8, r3, r6, r2 \n\t" \
+    "umaal r9, r3, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r4, #0 \n\t" \
+    "umaal r8, r4, r5, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r4, r6, r2 \n\t" \
+    "umaal r3, r4, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "ldr   r8, [r0] \n\t" \
+    "umaal r9, r8, r5, r2 \n\t" \
+    "str   r9, [r0], #4 \n\t" \
+    "umaal r3, r8, r6, r2 \n\t" \
+    "umaal r4, r8, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r3, r10, r5, r2 \n\t" \
+    "str   r3, [r0], #4 \n\t" \
+    "umaal r4, r10, r6, r2 \n\t" \
+    "umaal r8, r10, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r4, r11, r5, r2 \n\t" \
+    "str   r4, [r0], #4 \n\t" \
+    "umaal r8, r11, r6, r2 \n\t" \
+    "umaal r10, r11, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r8, r12, r5, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r10, r12, r6, r2 \n\t" \
+    "umaal r11, r12, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r10, lr, r5, r2 \n\t" \
+    "umaal r11, lr, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "stmia r0!, {r10, r11, r12, lr} \n\t"
 
-#define FAST_MULT_ASM_8                  \
-    "ldmia  r2!, {r4, r5, r6, r7} \n\t"  \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "umull  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "mov    r10, #0 \n\t"                \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "mov    r11, #0 \n\t"                \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "mov    r12, #0 \n\t"                \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "mov    r8, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "str    r9, [r0], #4 \n\t"           \
-    "str    r10, [r0], #4 \n\t"          \
-    "str    r11, [r0], #4 \n\t"          \
-    "str    r12, [r0], #4 \n\t"          \
-                                         \
-    "sub r0, #32 \n\t"                   \
-    "sub r1, #32 \n\t"                   \
-    "ldmia  r2!, {r4, r5, r6, r7} \n\t"  \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "mov    r9, #0 \n\t"                 \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "mov    r10, #0 \n\t"                \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "mov    r11, #0 \n\t"                \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "mov    r12, #0 \n\t"                \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "ldr    r14, [r1], #4 \n\t"          \
-    "ldr    r8, [r0] \n\t"               \
-    "umaal  r8, r9, r4, r14 \n\t"        \
-    "str    r8, [r0], #4 \n\t"           \
-    "umaal  r9, r10, r5, r14 \n\t"       \
-    "umaal  r10, r11, r6, r14 \n\t"      \
-    "umaal  r11, r12, r7, r14 \n\t"      \
-                                         \
-    "str    r9, [r0], #4 \n\t"           \
-    "str    r10, [r0], #4 \n\t"          \
-    "str    r11, [r0], #4 \n\t"          \
-    "str    r12, [r0], #4 \n\t"
+/* ---- Level 3 Shared-Pass Multiplication Macro ---- */
+#define FAST_MULT_ASM_LEVEL3 \
+    "cmp   r3, #6 \n\t" \
+    "beq   60f \n\t" \
+    "push  {r2, r3} \n\t" \
+    "ldmia r2, {r3, r4, r5, r6, r7} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umull r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r8, [sp, #4] \n\t" \
+    "cmp   r8, #5 \n\t" \
+    "bne   70f \n\t" \
+    "stmia r0!, {r9, r10, r11, r12, lr} \n\t" \
+    "add   sp, sp, #8 \n\t" \
+    "b     1f \n\t" \
+    "70: \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0, #0] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r8, [sp, #4] \n\t" \
+    "cmp   r8, #7 \n\t" \
+    "beq   75f \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0, #4] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "ldr   r2, [r1], #-28 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r8, r9, r3, r2 \n\t" \
+    "str   r8, [r0, #8] \n\t" \
+    "umaal r9, r10, r4, r2 \n\t" \
+    "str   r9, [r0, #12] \n\t" \
+    "umaal r10, r11, r5, r2 \n\t" \
+    "umaal r11, r12, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "pop   {r2, r3} \n\t" \
+    "add   r2, r2, #20 \n\t" \
+    "ldmia r2, {r5, r6, r7} \n\t" \
+    "ldmia r0, {r3, r4, r8} \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal r3, r9, r5, r2 \n\t" \
+    "str   r3, [r0], #4 \n\t" \
+    "umaal r4, r9, r6, r2 \n\t" \
+    "umaal r8, r9, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "umaal r4, r3, r5, r2 \n\t" \
+    "str   r4, [r0], #4 \n\t" \
+    "umaal r8, r3, r6, r2 \n\t" \
+    "umaal r9, r3, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r4, #0 \n\t" \
+    "umaal r8, r4, r5, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r9, r4, r6, r2 \n\t" \
+    "umaal r3, r4, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "ldr   r8, [r0] \n\t" \
+    "umaal r9, r8, r5, r2 \n\t" \
+    "str   r9, [r0], #4 \n\t" \
+    "umaal r3, r8, r6, r2 \n\t" \
+    "umaal r4, r8, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r3, r10, r5, r2 \n\t" \
+    "str   r3, [r0], #4 \n\t" \
+    "umaal r4, r10, r6, r2 \n\t" \
+    "umaal r8, r10, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r4, r11, r5, r2 \n\t" \
+    "str   r4, [r0], #4 \n\t" \
+    "umaal r8, r11, r6, r2 \n\t" \
+    "umaal r10, r11, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r8, r12, r5, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "umaal r10, r12, r6, r2 \n\t" \
+    "umaal r11, r12, r7, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r10, lr, r5, r2 \n\t" \
+    "umaal r11, lr, r6, r2 \n\t" \
+    "umaal r12, lr, r7, r2 \n\t" \
+    "stmia r0!, {r10, r11, r12, lr} \n\t" \
+    "b     1f \n\t" \
+    "75: \n\t" \
+    "ldr   r2, [r1], #-24 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r9, r8, r3, r2 \n\t" \
+    "umaal r10, r8, r4, r2 \n\t" \
+    "umaal r11, r8, r5, r2 \n\t" \
+    "umaal r12, r8, r6, r2 \n\t" \
+    "umaal lr, r8, r7, r2 \n\t" \
+    "pop   {r3, r4} \n\t" \
+    "add   r3, r3, #20 \n\t" \
+    "ldmia r3, {r4, r5} \n\t" \
+    "ldr   r3, [r0] \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r6, #0 \n\t" \
+    "umaal r3, r6, r4, r2 \n\t" \
+    "str   r3, [r0], #4 \n\t" \
+    "umaal r9, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "movs  r7, #0 \n\t" \
+    "umaal r9, r7, r4, r2 \n\t" \
+    "str   r9, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r10, r6, r4, r2 \n\t" \
+    "str   r10, [r0], #4 \n\t" \
+    "umaal r7, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r11, r7, r4, r2 \n\t" \
+    "str   r11, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r12, r6, r4, r2 \n\t" \
+    "str   r12, [r0], #4 \n\t" \
+    "umaal r7, r6, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal lr, r7, r4, r2 \n\t" \
+    "str   lr, [r0], #4 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "ldr   r2, [r1], #4 \n\t" \
+    "umaal r8, r6, r4, r2 \n\t" \
+    "umaal r6, r7, r5, r2 \n\t" \
+    "str   r8, [r0], #4 \n\t" \
+    "stmia r0!, {r6, r7} \n\t" \
+    "b     1f \n\t" \
+    "60: \n\t" \
+    FAST_MULT_ASM_6
 
-#define FAST_SQUARE_ASM_5               \
-    "ldmia r1!, {r9,r10,r11,r12,r14} \n\t" \
-    "push {r1, r2} \n\t"                \
-                                        \
-    "umull r1, r2, r10, r9 \n\t"        \
-    "mov r3, #0 \n\t"                   \
-    "umaal r2, r3, r11, r9 \n\t"        \
-    "mov r4, #0 \n\t"                   \
-    "umaal r3, r4, r12, r9 \n\t"        \
-    "mov r5, #0 \n\t"                   \
-    "umaal r4, r5, r14, r9 \n\t"        \
-                                        \
-    "mov r6, #0 \n\t"                   \
-    "umaal r6, r3, r11, r10 \n\t"       \
-    "umaal r3, r4, r12, r10 \n\t"       \
-    "adds r1, r1, r1 \n\t"              \
-    "adcs r2, r2, r2 \n\t"              \
-    "adcs r6, r6, r6 \n\t"              \
-    "adcs r3, r3, r3 \n\t"              \
-                                        \
-    "umull r7, r8, r9, r9 \n\t"         \
-    /* Store carry in r9 */             \
-    "mov r9, #0 \n\t"                   \
-    "adc r9, r9, #0 \n\t"               \
-    "adds r8, r8, r1 \n\t"              \
-    "stmia r0!, {r7,r8} \n\t"           \
-                                        \
-    "umull r7, r8, r10, r10 \n\t"       \
-    "adcs r7, r7, r2 \n\t"              \
-    "adcs r8, r8, r6 \n\t"              \
-    "stmia r0!, {r7,r8} \n\t"           \
-                                        \
-    "umaal r4, r5, r14, r10 \n\t"       \
-    /* Store carry in r10 */            \
-    "mov r10, #0 \n\t"                  \
-    "adc r10, r10, #0 \n\t"             \
-                                        \
-    "mov r1, #0 \n\t"                   \
-    "umaal r1, r4, r12, r11 \n\t"       \
-    "umaal r4, r5, r14, r11 \n\t"       \
-                                        \
-    "mov r2, #0 \n\t"                   \
-    "umaal r2, r5, r14, r12 \n\t"       \
-    /* Load carry from r9 */            \
-    "lsrs r9, #1 \n\t"                  \
-    "adcs r1, r1, r1 \n\t"              \
-    "adcs r4, r4, r4 \n\t"              \
-    "adcs r2, r2, r2 \n\t"              \
-    "adcs r5, r5, r5 \n\t"              \
-    /* r9 is 0 now */                   \
-    "adc r9, r9, #0 \n\t"               \
-                                        \
-    /* Use carry from r10 */            \
-    "umaal r3, r10, r11, r11 \n\t"      \
-    "adds r10, r10, r1 \n\t"            \
-    "stmia r0!, {r3,r10} \n\t"          \
-                                        \
-    "umull r6, r10, r12, r12 \n\t"      \
-    "adcs r6, r6, r4 \n\t"              \
-    "adcs r10, r10, r2 \n\t"            \
-    "stmia r0!, {r6,r10} \n\t"          \
-                                        \
-    "umull r6, r10, r14, r14 \n\t"      \
-    "adcs r6, r6, r5 \n\t"              \
-    "adcs r10, r10, r9 \n\t"            \
-    "stmia r0!, {r6,r10} \n\t"          \
-    "pop {r1, r2} \n\t"
+/* ---- Level 4 Standalone Squaring Macros ---- */
 
-#define FAST_SQUARE_ASM_5_TO_6           \
-    "cmp r2, #5 \n\t"                    \
-    "beq 1f \n\t"                        \
-                                         \
-    "sub r0, #20 \n\t"                   \
-    "sub r1, #20 \n\t"                   \
-                                         \
-    /* Do off-center multiplication */   \
-    "ldmia r1!, {r5,r6,r7,r8,r9,r14} \n\t" \
-    "umull r3, r4, r5, r14 \n\t"         \
-    "mov r5, #0 \n\t"                    \
-    "umaal r4, r5, r6, r14 \n\t"         \
-    "mov r6, #0 \n\t"                    \
-    "umaal r5, r6, r7, r14 \n\t"         \
-    "mov r7, #0 \n\t"                    \
-    "umaal r6, r7, r8, r14 \n\t"         \
-    "mov r8, #0 \n\t"                    \
-    "umaal r7, r8, r9, r14 \n\t"         \
-                                         \
-    /* Multiply by 2 */                  \
-    "mov r9, #0 \n\t"                    \
-    "adds r3, r3, r3 \n\t"               \
-    "adcs r4, r4, r4 \n\t"               \
-    "adcs r5, r5, r5 \n\t"               \
-    "adcs r6, r6, r6 \n\t"               \
-    "adcs r7, r7, r7 \n\t"               \
-    "adcs r8, r8, r8 \n\t"               \
-    "adcs r9, r9, #0 \n\t"               \
-                                         \
-    /* Add into previous */              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adds r3, r3, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r4, r4, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r5, r5, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r6, r6, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r7, r7, r12 \n\t"              \
-    "adcs r8, r8, #0 \n\t"               \
-    "adcs r9, r9, #0 \n\t"               \
-    "sub r0, #20 \n\t"                   \
-                                         \
-    /* Perform center multiplication */  \
-    "umlal r8, r9, r14, r14 \n\t"        \
-    "stmia r0!, {r3,r4,r5,r6,r7,r8,r9} \n\t"
+#define FAST_SQUARE_ASM_5 \
+    "ldmia r1, {r2, r3, r4, r5, r6} \n\t" \
+    "umull r7, r8, r2, r3 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal r8, r9, r2, r4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r3, r4 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r9, r11, r2, r5 \n\t" \
+    "umaal r10, r11, r3, r5 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r4, r5 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r10, lr, r2, r6 \n\t" \
+    "umull r2, r1, r2, r2 \n\t" \
+    "str   r2, [r0], #4 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "adds  r7, r7, r7 \n\t" \
+    "adc   r2, r2, #0 \n\t" \
+    "adds  r7, r7, r1 \n\t" \
+    "str   r7, [r0], #4 \n\t" \
+    "adc   r1, r2, #0 \n\t" \
+    "umaal r11, lr, r3, r6 \n\t" \
+    "umaal r12, lr, r4, r6 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "umaal lr, r2, r5, r6 \n\t" \
+    "adds  r8, r8, r8 \n\t" \
+    "adcs  r9, r9, r9 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  lr, lr, lr \n\t" \
+    "adcs  r2, r2, r2 \n\t" \
+    "movs  r7, #0 \n\t" \
+    "adc   r7, r7, #0 \n\t" \
+    "umaal r8, r1, r3, r3 \n\t" \
+    "adds  r9, r9, r1 \n\t" \
+    "umull r1, r3, r4, r4 \n\t" \
+    "adcs  r10, r10, r1 \n\t" \
+    "adcs  r11, r11, r3 \n\t" \
+    "umull r1, r3, r5, r5 \n\t" \
+    "adcs  r12, r12, r1 \n\t" \
+    "adcs  lr, lr, r3 \n\t" \
+    "umull r1, r3, r6, r6 \n\t" \
+    "adcs  r2, r2, r1 \n\t" \
+    "adc   r3, r3, r7 \n\t" \
+    "stmia r0!, {r8, r9, r10, r11, r12, lr} \n\t" \
+    "stmia r0!, {r2, r3} \n\t"
 
-#define FAST_SQUARE_ASM_6               \
-    "ldmia r1!, {r8,r9,r10,r11,r12,r14} \n\t" \
-    "push {r1, r2} \n\t"                \
-                                        \
-    "umull r1, r2, r9, r8 \n\t"         \
-    "mov r3, #0 \n\t"                   \
-    "umaal r2, r3, r10, r8 \n\t"        \
-    "mov r4, #0 \n\t"                   \
-    "umaal r3, r4, r11, r8 \n\t"        \
-    "mov r5, #0 \n\t"                   \
-    "umaal r4, r5, r12, r8 \n\t"        \
-    "mov r6, #0 \n\t"                   \
-    "umaal r5, r6, r14, r8 \n\t"        \
-                                        \
-    "mov r7, #0 \n\t"                   \
-    "umaal r7, r3, r10, r9 \n\t"        \
-    "umaal r3, r4, r11, r9 \n\t"        \
-    "umaal r4, r5, r12, r9 \n\t"        \
-    "push {r4, r5} \n\t"                \
-    "adds r1, r1, r1 \n\t"              \
-    "adcs r2, r2, r2 \n\t"              \
-    "adcs r7, r7, r7 \n\t"              \
-    "adcs r3, r3, r3 \n\t"              \
-                                        \
-    "umull r4, r5, r8, r8 \n\t"         \
-    /* Store carry in r8 */             \
-    "mov r8, #0 \n\t"                   \
-    "adc r8, r8, #0 \n\t"               \
-    "adds r5, r5, r1 \n\t"              \
-    "stmia r0!, {r4,r5} \n\t"           \
-                                        \
-    "umull r4, r5, r9, r9 \n\t"         \
-    "adcs r4, r4, r2 \n\t"              \
-    "adcs r5, r5, r7 \n\t"              \
-    "stmia r0!, {r4,r5} \n\t"           \
-                                        \
-    "pop {r4, r5} \n\t"                 \
-    "umaal r5, r6, r14, r9 \n\t"        \
-    /* Store carry in r9 */             \
-    "mov r9, #0 \n\t"                   \
-    "adc r9, r9, #0 \n\t"               \
-                                        \
-    "mov r1, #0 \n\t"                   \
-    "umaal r1, r4, r11, r10 \n\t"       \
-    "umaal r4, r5, r12, r10 \n\t"       \
-    "umaal r5, r6, r14, r10 \n\t"       \
-                                        \
-    "mov r2, #0 \n\t"                   \
-    "umaal r2, r5, r12, r11 \n\t"       \
-    "umaal r5, r6, r14, r11 \n\t"       \
-                                        \
-    "mov r7, #0 \n\t"                   \
-    "umaal r7, r6, r14, r12 \n\t"       \
-                                        \
-    /* Load carry from r8 */            \
-    "lsrs r8, #1 \n\t"                  \
-    "adcs r1, r1, r1 \n\t"              \
-    "adcs r4, r4, r4 \n\t"              \
-    "adcs r2, r2, r2 \n\t"              \
-    "adcs r5, r5, r5 \n\t"              \
-    "adcs r7, r7, r7 \n\t"              \
-    "adcs r6, r6, r6 \n\t"              \
-    "adc r8, r8, #0 \n\t"               \
-                                        \
-    /* Use carry from r9 */             \
-    "umaal r3, r9, r10, r10 \n\t"       \
-    "adds r9, r9, r1 \n\t"              \
-    "stmia r0!, {r3,r9} \n\t"           \
-                                        \
-    "umull r9, r10, r11, r11 \n\t"      \
-    "adcs r9, r9, r4 \n\t"              \
-    "adcs r10, r10, r2 \n\t"            \
-    "stmia r0!, {r9,r10} \n\t"          \
-                                        \
-    "umull r9, r10, r12, r12 \n\t"      \
-    "adcs r9, r9, r5 \n\t"              \
-    "adcs r10, r10, r7 \n\t"            \
-    "stmia r0!, {r9,r10} \n\t"          \
-                                        \
-    "umull r9, r10, r14, r14 \n\t"      \
-    "adcs r9, r9, r6 \n\t"              \
-    "adcs r10, r10, r8 \n\t"            \
-    "stmia r0!, {r9,r10} \n\t"          \
-    "pop {r1, r2} \n\t"
+#define FAST_SQUARE_ASM_6 \
+    "ldmia r1, {r2, r3, r4, r5, r6, r7} \n\t" \
+    "umull r9, r10, r2, r3 \n\t" \
+    "umull r11, r12, r2, r2 \n\t" \
+    "movs  r1, #0 \n\t" \
+    "adds  r9, r9, r9 \n\t" \
+    "adc   r1, r1, #0 \n\t" \
+    "adds  r12, r12, r9 \n\t" \
+    "adc   r1, r1, #0 \n\t" \
+    "stmia r0!, {r11, r12} \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r2, r4 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "umaal r11, r8, r3, r4 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal r11, r9, r2, r5 \n\t" \
+    "adds  r10, r10, r10 \n\t" \
+    "umaal r10, r1, r3, r3 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "adc   r12, r12, #0 \n\t" \
+    "adds  r11, r11, r1 \n\t" \
+    "adc   r1, r12, #0 \n\t" \
+    "stmia r0!, {r10, r11} \n\t" \
+    "umaal r8, r9, r3, r5 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r9, r10, r4, r5 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r8,  r11, r2, r6 \n\t" \
+    "umaal r9,  r11, r3, r6 \n\t" \
+    "umaal r10, r11, r4, r6 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r5, r6 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r9,  lr, r2, r7 \n\t" \
+    "umaal r10, lr, r3, r7 \n\t" \
+    "umaal r11, lr, r4, r7 \n\t" \
+    "umaal r12, lr, r5, r7 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "umaal lr,  r2, r6, r7 \n\t" \
+    "adds  r8,  r8,  r8 \n\t" \
+    "adcs  r9,  r9,  r9 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  lr,  lr,  lr \n\t" \
+    "adcs  r2,  r2,  r2 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "adc   r3,  r3, #0 \n\t" \
+    "umaal r8,  r1, r4, r4 \n\t" \
+    "adds  r9,  r9, r1 \n\t" \
+    "umull r1,  r4, r5, r5 \n\t" \
+    "adcs  r10, r10, r1 \n\t" \
+    "adcs  r11, r11, r4 \n\t" \
+    "umull r1,  r4, r6, r6 \n\t" \
+    "adcs  r12, r12, r1 \n\t" \
+    "adcs  lr,  lr,  r4 \n\t" \
+    "umull r1,  r4, r7, r7 \n\t" \
+    "adcs  r2,  r2,  r1 \n\t" \
+    "adc   r3,  r3,  r4 \n\t" \
+    "stmia r0!, {r8, r9, r10, r11, r12, lr} \n\t" \
+    "stmia r0!, {r2, r3} \n\t"
 
-#define FAST_SQUARE_ASM_6_TO_7               \
-    "cmp r2, #6 \n\t"                        \
-    "beq 1f \n\t"                            \
-                                             \
-    "sub r0, #24 \n\t"                       \
-    "sub r1, #24 \n\t"                       \
-                                             \
-    /* Do off-center multiplication */       \
-    "ldmia r1!, {r5,r6,r7,r8,r9,r10,r14} \n\t" \
-    "umull r3, r4, r5, r14 \n\t"             \
-    "mov r5, #0 \n\t"                        \
-    "umaal r4, r5, r6, r14 \n\t"             \
-    "mov r6, #0 \n\t"                        \
-    "umaal r5, r6, r7, r14 \n\t"             \
-    "mov r7, #0 \n\t"                        \
-    "umaal r6, r7, r8, r14 \n\t"             \
-    "mov r8, #0 \n\t"                        \
-    "umaal r7, r8, r9, r14 \n\t"             \
-    "mov r9, #0 \n\t"                        \
-    "umaal r8, r9, r10, r14 \n\t"            \
-                                             \
-    /* Multiply by 2 */                      \
-    "mov r10, #0 \n\t"                       \
-    "adds r3, r3, r3 \n\t"                   \
-    "adcs r4, r4, r4 \n\t"                   \
-    "adcs r5, r5, r5 \n\t"                   \
-    "adcs r6, r6, r6 \n\t"                   \
-    "adcs r7, r7, r7 \n\t"                   \
-    "adcs r8, r8, r8 \n\t"                   \
-    "adcs r9, r9, r9 \n\t"                   \
-    "adcs r10, r10, #0 \n\t"                 \
-                                             \
-    /* Add into previous */                  \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "adds r3, r3, r12 \n\t"                  \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "adcs r4, r4, r12 \n\t"                  \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "adcs r5, r5, r12 \n\t"                  \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "adcs r6, r6, r12 \n\t"                  \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "adcs r7, r7, r12 \n\t"                  \
-    "ldr r12, [r0], #4 \n\t"                 \
-    "adcs r8, r8, r12 \n\t"                  \
-    "adcs r9, r9, #0 \n\t"                   \
-    "adcs r10, r10, #0 \n\t"                 \
-    "sub r0, #24 \n\t"                       \
-                                             \
-    /* Perform center multiplication */      \
-    "umlal r9, r10, r14, r14 \n\t"           \
-    "stmia r0!, {r3,r4,r5,r6,r7,r8,r9,r10} \n\t"
+#define FAST_SQUARE_ASM_7 \
+    "ldmia r1, {r2, r3, r4, r5, r6, r7, r8} \n\t" \
+    "umull r9, r10, r2, r3 \n\t" \
+    "umull r11, r12, r2, r2 \n\t" \
+    "movs  r1, #0 \n\t" \
+    "adds  r9, r9, r9 \n\t" \
+    "adc   r1, r1, #0 \n\t" \
+    "adds  r12, r12, r9 \n\t" \
+    "adc   r1, r1, #0 \n\t" \
+    "stmia r0!, {r11, r12} \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r2, r4 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r3, r4 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r11, lr, r2, r5 \n\t" \
+    "adds  r10, r10, r10 \n\t" \
+    "umaal r10, r1, r3, r3 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "adc   r9, r9, #0 \n\t" \
+    "adds  r11, r11, r1 \n\t" \
+    "adc   r1, r9, #0 \n\t" \
+    "stmia r0!, {r10, r11} \n\t" \
+    "umaal r12, lr, r3, r5 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal lr, r9, r4, r5 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r12, r10, r2, r6 \n\t" \
+    "umaal lr,  r10, r2, r7 \n\t" \
+    "umaal r9,  r10, r2, r8 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal lr,  r11, r3, r6 \n\t" \
+    "umaal r9,  r11, r3, r7 \n\t" \
+    "umaal r10, r11, r3, r8 \n\t" \
+    "adds  r12, r12, r12 \n\t" \
+    "umaal r12, r1, r4, r4 \n\t" \
+    "adcs  lr, lr, lr \n\t" \
+    "movs  r2, #0 \n\t" \
+    "adc   r2, r2, #0 \n\t" \
+    "adds  lr, lr, r1 \n\t" \
+    "adc   r1, r2, #0 \n\t" \
+    "stmia r0!, {r12, lr} \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r9,  r12, r4, r6 \n\t" \
+    "umaal r10, r12, r4, r7 \n\t" \
+    "umaal r11, r12, r4, r8 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r10, lr, r5, r6 \n\t" \
+    "umaal r11, lr, r5, r7 \n\t" \
+    "umaal r12, lr, r5, r8 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "umaal r12, r2, r6, r7 \n\t" \
+    "umaal lr,  r2, r6, r8 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "umaal r2,  r3, r7, r8 \n\t" \
+    "adds  r9,  r9,  r9 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  lr,  lr,  lr \n\t" \
+    "adcs  r2,  r2,  r2 \n\t" \
+    "adcs  r3,  r3,  r3 \n\t" \
+    "movs  r4, #0 \n\t" \
+    "adc   r4,  r4, #0 \n\t" \
+    "umaal r9,  r1, r5, r5 \n\t" \
+    "adds  r10, r10, r1 \n\t" \
+    "umull r1,  r5, r6, r6 \n\t" \
+    "adcs  r11, r11, r1 \n\t" \
+    "adcs  r12, r12, r5 \n\t" \
+    "umull r1,  r5, r7, r7 \n\t" \
+    "adcs  lr,  lr,  r1 \n\t" \
+    "adcs  r2,  r2,  r5 \n\t" \
+    "umull r1,  r5, r8, r8 \n\t" \
+    "adcs  r3,  r3,  r1 \n\t" \
+    "adc   r4,  r4,  r5 \n\t" \
+    "stmia r0!, {r9, r10, r11, r12, lr} \n\t" \
+    "stmia r0!, {r2, r3, r4} \n\t"
 
-#define FAST_SQUARE_ASM_7               \
-    "ldmia r1!, {r9,r10,r11,r12} \n\t"  \
-    "push {r2} \n\t"                    \
-                                        \
-    "umull r14, r2, r10, r9 \n\t"       \
-    "mov r3, #0 \n\t"                   \
-    "umaal r2, r3, r11, r9 \n\t"        \
-    "mov r4, #0 \n\t"                   \
-    "umaal r3, r4, r12, r9 \n\t"        \
-                                        \
-    "mov r5, #0 \n\t"                   \
-    "umaal r5, r3, r11, r10 \n\t"       \
-    "adds r14, r14, r14 \n\t"           \
-    "adcs r2, r2, r2 \n\t"              \
-    "adcs r5, r5, r5 \n\t"              \
-    /* Store carry in r7 */             \
-    "mov r7, #0 \n\t"                   \
-    "adc r7, r7, #0 \n\t"               \
-                                        \
-    "umull r6, r8, r9, r9 \n\t"         \
-    "adds r8, r8, r14 \n\t"             \
-    "stmia r0!, {r6,r8} \n\t"           \
-                                        \
-    "umull r6, r8, r10, r10 \n\t"       \
-    "adcs r6, r6, r2 \n\t"              \
-    "adcs r8, r8, r5 \n\t"              \
-    "stmia r0!, {r6,r8} \n\t"           \
-    /* Store carry in r8 */             \
-    "mov r8, #0 \n\t"                   \
-    "adc r8, r8, #0 \n\t"               \
-                                        \
-    "ldmia r1!, {r2, r6, r14} \n\t"     \
-    "push {r1} \n\t"                    \
-    "umaal r3, r4, r2, r9 \n\t"         \
-    "mov r5, #0 \n\t"                   \
-    "umaal r4, r5, r6, r9 \n\t"         \
-    "mov r1, #0 \n\t"                   \
-    "umaal r5, r1, r14, r9 \n\t"        \
-                                        \
-    "mov r9, #0 \n\t"                   \
-    "umaal r3, r9, r12, r10 \n\t"       \
-    "umaal r9, r4, r2, r10 \n\t"        \
-    "umaal r4, r5, r6, r10 \n\t"        \
-    "umaal r5, r1, r14, r10 \n\t"       \
-                                        \
-    "mov r10, #0 \n\t"                  \
-    "umaal r10, r9, r12, r11 \n\t"      \
-    "umaal r9, r4, r2, r11 \n\t"        \
-    "umaal r4, r5, r6, r11 \n\t"        \
-    "umaal r5, r1, r14, r11 \n\t"       \
-                                        \
-    /* Load carry from r7 */            \
-    "lsrs r7, #1 \n\t"                  \
-    "adcs r3, r3, r3 \n\t"              \
-    "adcs r10, r10, r10 \n\t"           \
-    "adcs r9, r9, r9 \n\t"              \
-    /* Store carry back in r7 */        \
-    "adc r7, r7, #0 \n\t"               \
-                                        \
-    /* Use carry from r8 */             \
-    "umaal r3, r8, r11, r11 \n\t"       \
-    "adds r8, r8, r10 \n\t"             \
-    "stmia r0!, {r3,r8} \n\t"           \
-    /* Store carry back in r8 */        \
-    "mov r8, #0 \n\t"                   \
-    "adc r8, r8, #0 \n\t"               \
-                                        \
-    "mov r3, #0 \n\t"                   \
-    "umaal r3, r4, r2, r12 \n\t"        \
-    "umaal r4, r5, r6, r12 \n\t"        \
-    "umaal r5, r1, r14, r12 \n\t"       \
-                                        \
-    "mov r10, #0 \n\t"                  \
-    "umaal r10, r5, r6, r2 \n\t"        \
-    "umaal r5, r1, r14, r2 \n\t"        \
-                                        \
-    "mov r11, #0 \n\t"                  \
-    "umaal r11, r1, r14, r6 \n\t"       \
-                                        \
-    /* Load carry from r7 */            \
-    "lsrs r7, #1 \n\t"                  \
-    "adcs r3, r3, r3 \n\t"              \
-    "adcs r4, r4, r4 \n\t"              \
-    "adcs r10, r10, r10 \n\t"           \
-    "adcs r5, r5, r5 \n\t"              \
-    "adcs r11, r11, r11 \n\t"           \
-    "adcs r1, r1, r1 \n\t"              \
-    "adc r7, r7, #0 \n\t"               \
-                                        \
-    /* Use carry from r8 */             \
-    "umaal r8, r9, r12, r12 \n\t"       \
-    "adds r9, r9, r3 \n\t"              \
-    "stmia r0!, {r8,r9} \n\t"           \
-                                        \
-    "umull r8, r9, r2, r2 \n\t"         \
-    "adcs r8, r8, r4 \n\t"              \
-    "adcs r9, r9, r10 \n\t"             \
-    "stmia r0!, {r8,r9} \n\t"           \
-                                        \
-    "umull r8, r9, r6, r6 \n\t"         \
-    "adcs r8, r8, r5 \n\t"              \
-    "adcs r9, r9, r11 \n\t"             \
-    "stmia r0!, {r8,r9} \n\t"           \
-                                        \
-    "umull r8, r9, r14, r14 \n\t"       \
-    "adcs r8, r8, r1 \n\t"              \
-    "adcs r9, r9, r7 \n\t"              \
-    "stmia r0!, {r8,r9} \n\t"           \
-    "pop {r1, r2} \n\t"
+#define FAST_SQUARE_ASM_8 \
+    "ldmia r1!, {r2, r3, r4, r5, r6, r7} \n\t" \
+    "umull r9, r10, r2, r3 \n\t" \
+    "umull r11, r12, r2, r2 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "adds  r9, r9, r9 \n\t" \
+    "adc   r8, r8, #0 \n\t" \
+    "adds  r12, r12, r9 \n\t" \
+    "adc   r8, r8, #0 \n\t" \
+    "stmia r0!, {r11, r12} \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r2, r4 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal r11, r9, r3, r4 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r2, r5 \n\t" \
+    "adds  r10, r10, r10 \n\t" \
+    "umaal r10, r8, r3, r3 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "adc   lr, lr, #0 \n\t" \
+    "adds  r11, r11, r8 \n\t" \
+    "adc   r8, lr, #0 \n\t" \
+    "stmia r0!, {r10, r11} \n\t" \
+    "umaal r9, r12, r3, r5 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r10, r12, r4, r5 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r9,  r11, r2, r6 \n\t" \
+    "umaal r10, r11, r3, r6 \n\t" \
+    "umaal r11, r12, r4, r6 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r12, lr, r5, r6 \n\t" \
+    "adds  r9,  r9,  r9 \n\t" \
+    "umaal r9,  r8,  r4, r4 \n\t" \
+    "str   r9,  [r0], #4 \n\t" \
+    "mov   r9,  #0 \n\t" \
+    "umaal r10, r9,  r2, r7 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "push  {r1} \n\t" \
+    "movs  r1,  #0 \n\t" \
+    "adc   r1,  r1,  #0 \n\t" \
+    "adds  r10, r10, r8 \n\t" \
+    "adc   r8,  r1,  #0 \n\t" \
+    "str   r10, [r0], #4 \n\t" \
+    "pop   {r1} \n\t" \
+    "ldmia r1,  {r1, r10} \n\t" \
+    "umaal r11, r9,  r2, r1 \n\t" \
+    "umaal r12, r9,  r2, r10 \n\t" \
+    "movs  r2,  #0 \n\t" \
+    "umaal r11, r2,  r3, r7 \n\t" \
+    "umaal r12, r2,  r3, r1 \n\t" \
+    "umaal lr,  r2,  r3, r10 \n\t" \
+    "movs  r3,  #0 \n\t" \
+    "umaal r12, r3,  r4, r7 \n\t" \
+    "umaal lr,  r9,  r4, r1 \n\t" \
+    "umaal r2,  r9,  r4, r10 \n\t" \
+    "adds  r11, r11, r11 \n\t" \
+    "umaal r11, r8,  r5, r5 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "movs  r4,  #0 \n\t" \
+    "adc   r4,  r4,  #0 \n\t" \
+    "adds  r12, r12, r8 \n\t" \
+    "adc   r8,  r4,  #0 \n\t" \
+    "stmia r0!, {r11, r12} \n\t" \
+    "umaal lr,  r3,  r5, r7 \n\t" \
+    "umaal r2,  r3,  r5, r1 \n\t" \
+    "umaal r9,  r3,  r5, r10 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r2,  r11, r6, r7 \n\t" \
+    "umaal r9,  r11, r6, r1 \n\t" \
+    "umaal r3,  r11, r6, r10 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r3,  r12, r7, r1 \n\t" \
+    "umaal r11, r12, r7, r10 \n\t" \
+    "movs  r4,  #0 \n\t" \
+    "umaal r12, r4,  r1, r10 \n\t" \
+    "adds  lr,  lr,  lr \n\t" \
+    "adcs  r2,  r2,  r2 \n\t" \
+    "adcs  r9,  r9,  r9 \n\t" \
+    "adcs  r3,  r3,  r3 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  r4,  r4,  r4 \n\t" \
+    "movs  r5,  #0 \n\t" \
+    "adc   r5,  r5,  #0 \n\t" \
+    "umaal lr,  r8,  r6, r6 \n\t" \
+    "adds  r2,  r2,  r8 \n\t" \
+    "umull r6,  r8,  r7, r7 \n\t" \
+    "adcs  r9,  r9,  r6 \n\t" \
+    "adcs  r3,  r3,  r8 \n\t" \
+    "umull r6,  r8,  r1, r1 \n\t" \
+    "adcs  r11, r11, r6 \n\t" \
+    "adcs  r12, r12, r8 \n\t" \
+    "umull r6,  r8,  r10, r10 \n\t" \
+    "adcs  r4,  r4,  r6 \n\t" \
+    "adc   r5,  r5,  r8 \n\t" \
+    "str   lr,  [r0], #4 \n\t" \
+    "stmia r0!, {r2, r9} \n\t" \
+    "stmia r0!, {r3, r11, r12} \n\t" \
+    "stmia r0!, {r4, r5} \n\t"
 
-#define FAST_SQUARE_ASM_7_TO_8           \
-    "cmp r2, #7 \n\t"                    \
-    "beq 1f \n\t"                        \
-                                         \
-    "sub r0, #28 \n\t"                   \
-    "sub r1, #28 \n\t"                   \
-                                         \
-    /* Do off-center multiplication */   \
-    "ldmia r1!, {r5,r6,r7,r8,r9,r10,r11,r14} \n\t" \
-    "umull r3, r4, r5, r14 \n\t"         \
-    "mov r5, #0 \n\t"                    \
-    "umaal r4, r5, r6, r14 \n\t"         \
-    "mov r6, #0 \n\t"                    \
-    "umaal r5, r6, r7, r14 \n\t"         \
-    "mov r7, #0 \n\t"                    \
-    "umaal r6, r7, r8, r14 \n\t"         \
-    "mov r8, #0 \n\t"                    \
-    "umaal r7, r8, r9, r14 \n\t"         \
-    "mov r9, #0 \n\t"                    \
-    "umaal r8, r9, r10, r14 \n\t"        \
-    "mov r10, #0 \n\t"                   \
-    "umaal r9, r10, r11, r14 \n\t"       \
-                                         \
-    /* Multiply by 2 */                  \
-    "mov r11, #0 \n\t"                   \
-    "adds r3, r3, r3 \n\t"               \
-    "adcs r4, r4, r4 \n\t"               \
-    "adcs r5, r5, r5 \n\t"               \
-    "adcs r6, r6, r6 \n\t"               \
-    "adcs r7, r7, r7 \n\t"               \
-    "adcs r8, r8, r8 \n\t"               \
-    "adcs r9, r9, r9 \n\t"               \
-    "adcs r10, r10, r10 \n\t"            \
-    "adcs r11, r11, #0 \n\t"             \
-                                         \
-    /* Add into previous */              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adds r3, r3, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r4, r4, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r5, r5, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r6, r6, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r7, r7, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r8, r8, r12 \n\t"              \
-    "ldr r12, [r0], #4 \n\t"             \
-    "adcs r9, r9, r12 \n\t"              \
-    "adcs r10, r10, #0 \n\t"             \
-    "adcs r11, r11, #0 \n\t"             \
-    "sub r0, #28 \n\t"                   \
-                                         \
-    /* Perform center multiplication */  \
-    "umlal r10, r11, r14, r14 \n\t"      \
-    "stmia r0!, {r3,r4,r5,r6,r7,r8,r9,r10,r11} \n\t"
+/* ---- Level 3 Shared-Phase Squaring Macro ---- */
+#define FAST_SQUARE_ASM_LEVEL3 \
+    "mov   r7, r2 \n\t" \
+    "ldmia r1!, {r2, r3, r4, r5, r6} \n\t" \
+    "umull r9, r10, r2, r3 \n\t" \
+    "umull r11, r12, r2, r2 \n\t" \
+    "movs  r8, #0 \n\t" \
+    "adds  r9, r9, r9 \n\t" \
+    "adc   r8, r8, #0 \n\t" \
+    "adds  r12, r12, r9 \n\t" \
+    "adc   r8, r8, #0 \n\t" \
+    "stmia r0!, {r11, r12} \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r10, r11, r2, r4 \n\t" \
+    "movs  r9, #0 \n\t" \
+    "umaal r11, r9, r3, r4 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r11, r12, r2, r5 \n\t" \
+    "adds  r10, r10, r10 \n\t" \
+    "umaal r10, r8, r3, r3 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "adc   lr, lr, #0 \n\t" \
+    "adds  r11, r11, r8 \n\t" \
+    "adc   r8, lr, #0 \n\t" \
+    "stmia r0!, {r10, r11} \n\t" \
+    "umaal r9, r12, r3, r5 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r10, r12, r4, r5 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r9,  r11, r2, r6 \n\t" \
+    "umaal r10, r11, r3, r6 \n\t" \
+    "umaal r11, r12, r4, r6 \n\t" \
+    "movs  lr, #0 \n\t" \
+    "umaal r12, lr, r5, r6 \n\t" \
+    "cmp   r7, #5 \n\t" \
+    "bne   60f \n\t" \
+    "adds  r9,  r9,  r9 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  lr,  lr,  lr \n\t" \
+    "movs  r2, #0 \n\t" \
+    "adc   r2,  r2, #0 \n\t" \
+    "umaal r9,  r8, r4, r4 \n\t" \
+    "adds  r10, r10, r8 \n\t" \
+    "umull r1,  r3, r5, r5 \n\t" \
+    "adcs  r11, r11, r1 \n\t" \
+    "adcs  r12, r12, r3 \n\t" \
+    "umull r1,  r3, r6, r6 \n\t" \
+    "adcs  lr,  lr,  r1 \n\t" \
+    "adc   r3,  r2,  r3 \n\t" \
+    "stmia r0!, {r9, r10, r11, r12, lr} \n\t" \
+    "str   r3, [r0] \n\t" \
+    "b     1f \n\t" \
+    "60: \n\t" \
+    "cmp   r7, #6 \n\t" \
+    "bne   70f \n\t" \
+    "ldr   r7, [r1] \n\t" \
+    "movs  r1, #0 \n\t" \
+    "umaal r10, r1, r2, r7 \n\t" \
+    "umaal r11, r1, r3, r7 \n\t" \
+    "umaal r12, r1, r4, r7 \n\t" \
+    "umaal lr,  r1, r5, r7 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "umaal r1,  r2, r6, r7 \n\t" \
+    "adds  r9,  r9,  r9 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  lr,  lr,  lr \n\t" \
+    "adcs  r1,  r1,  r1 \n\t" \
+    "adcs  r2,  r2,  r2 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "adc   r3,  r3, #0 \n\t" \
+    "umaal r9,  r8, r4, r4 \n\t" \
+    "adds  r10, r10, r8 \n\t" \
+    "umull r4,  r8, r5, r5 \n\t" \
+    "adcs  r11, r11, r4 \n\t" \
+    "adcs  r12, r12, r8 \n\t" \
+    "umull r4,  r8, r6, r6 \n\t" \
+    "adcs  lr,  lr,  r4 \n\t" \
+    "adcs  r1,  r1,  r8 \n\t" \
+    "umull r4,  r8, r7, r7 \n\t" \
+    "adcs  r2,  r2,  r4 \n\t" \
+    "adc   r3,  r3,  r8 \n\t" \
+    "stmia r0!, {r9, r10, r11, r12, lr} \n\t" \
+    "stmia r0!, {r1, r2, r3} \n\t" \
+    "b     1f \n\t" \
+    "70: \n\t" \
+    "cmp   r7, #7 \n\t" \
+    "bne   80f \n\t" \
+    "adds  r9,  r9,  r9 \n\t" \
+    "umaal r9,  r8, r4, r4 \n\t" \
+    "str   r9, [r0], #4 \n\t" \
+    "ldmia r1, {r1, r7} \n\t" \
+    "mov   r9, #0 \n\t" \
+    "umaal r10, r9, r2, r1 \n\t" \
+    "umaal r11, r9, r2, r7 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "adc   r2,  r2, #0 \n\t" \
+    "adds  r10, r10, r8 \n\t" \
+    "adc   r8,  r2, #0 \n\t" \
+    "str   r10, [r0], #4 \n\t" \
+    "movs  r10, #0 \n\t" \
+    "umaal r11, r10, r3, r1 \n\t" \
+    "umaal r12, r9,  r4, r1 \n\t" \
+    "umaal r12, r10, r3, r7 \n\t" \
+    "umaal lr,  r9,  r5, r1 \n\t" \
+    "umaal lr,  r10, r4, r7 \n\t" \
+    "umaal r9,  r10, r6, r1 \n\t" \
+    "movs  r2, #0 \n\t" \
+    "umaal r9,  r2,  r5, r7 \n\t" \
+    "umaal r10, r2,  r6, r7 \n\t" \
+    "movs  r3, #0 \n\t" \
+    "umaal r2,  r3,  r1, r7 \n\t" \
+    "adds  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  lr,  lr,  lr \n\t" \
+    "adcs  r9,  r9,  r9 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "adcs  r2,  r2,  r2 \n\t" \
+    "adcs  r3,  r3,  r3 \n\t" \
+    "movs  r4, #0 \n\t" \
+    "adc   r4,  r4, #0 \n\t" \
+    "umaal r11, r8, r5, r5 \n\t" \
+    "adds  r12, r12, r8 \n\t" \
+    "umull r5,  r8, r6, r6 \n\t" \
+    "adcs  lr,  lr,  r5 \n\t" \
+    "adcs  r9,  r9,  r8 \n\t" \
+    "umull r5,  r8, r1, r1 \n\t" \
+    "adcs  r10, r10, r5 \n\t" \
+    "adcs  r2,  r2,  r8 \n\t" \
+    "umull r5,  r8, r7, r7 \n\t" \
+    "adcs  r3,  r3,  r5 \n\t" \
+    "adc   r4,  r4,  r8 \n\t" \
+    "stmia r0!, {r11, r12, lr} \n\t" \
+    "stmia r0!, {r9, r10} \n\t" \
+    "stmia r0!, {r2, r3, r4} \n\t" \
+    "b     1f \n\t" \
+    "80: \n\t" \
+    "ldr   r7, [r1], #4 \n\t" \
+    "adds  r9,  r9,  r9 \n\t" \
+    "umaal r9,  r8,  r4, r4 \n\t" \
+    "str   r9,  [r0], #4 \n\t" \
+    "mov   r9,  #0 \n\t" \
+    "umaal r10, r9,  r2, r7 \n\t" \
+    "adcs  r10, r10, r10 \n\t" \
+    "push  {r1} \n\t" \
+    "movs  r1,  #0 \n\t" \
+    "adc   r1,  r1,  #0 \n\t" \
+    "adds  r10, r10, r8 \n\t" \
+    "adc   r8,  r1,  #0 \n\t" \
+    "str   r10, [r0], #4 \n\t" \
+    "pop   {r1} \n\t" \
+    "ldmia r1,  {r1, r10} \n\t" \
+    "umaal r11, r9,  r2, r1 \n\t" \
+    "umaal r12, r9,  r2, r10 \n\t" \
+    "movs  r2,  #0 \n\t" \
+    "umaal r11, r2,  r3, r7 \n\t" \
+    "umaal r12, r2,  r3, r1 \n\t" \
+    "umaal lr,  r2,  r3, r10 \n\t" \
+    "movs  r3,  #0 \n\t" \
+    "umaal r12, r3,  r4, r7 \n\t" \
+    "umaal lr,  r9,  r4, r1 \n\t" \
+    "umaal r2,  r9,  r4, r10 \n\t" \
+    "adds  r11, r11, r11 \n\t" \
+    "umaal r11, r8,  r5, r5 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "movs  r4,  #0 \n\t" \
+    "adc   r4,  r4,  #0 \n\t" \
+    "adds  r12, r12, r8 \n\t" \
+    "adc   r8,  r4,  #0 \n\t" \
+    "stmia r0!, {r11, r12} \n\t" \
+    "umaal lr,  r3,  r5, r7 \n\t" \
+    "umaal r2,  r3,  r5, r1 \n\t" \
+    "umaal r9,  r3,  r5, r10 \n\t" \
+    "movs  r11, #0 \n\t" \
+    "umaal r2,  r11, r6, r7 \n\t" \
+    "umaal r9,  r11, r6, r1 \n\t" \
+    "umaal r3,  r11, r6, r10 \n\t" \
+    "movs  r12, #0 \n\t" \
+    "umaal r3,  r12, r7, r1 \n\t" \
+    "umaal r11, r12, r7, r10 \n\t" \
+    "movs  r4,  #0 \n\t" \
+    "umaal r12, r4,  r1, r10 \n\t" \
+    "adds  lr,  lr,  lr \n\t" \
+    "adcs  r2,  r2,  r2 \n\t" \
+    "adcs  r9,  r9,  r9 \n\t" \
+    "adcs  r3,  r3,  r3 \n\t" \
+    "adcs  r11, r11, r11 \n\t" \
+    "adcs  r12, r12, r12 \n\t" \
+    "adcs  r4,  r4,  r4 \n\t" \
+    "movs  r5,  #0 \n\t" \
+    "adc   r5,  r5,  #0 \n\t" \
+    "umaal lr,  r8,  r6, r6 \n\t" \
+    "adds  r2,  r2,  r8 \n\t" \
+    "umull r6,  r8,  r7, r7 \n\t" \
+    "adcs  r9,  r9,  r6 \n\t" \
+    "adcs  r3,  r3,  r8 \n\t" \
+    "umull r6,  r8,  r1, r1 \n\t" \
+    "adcs  r11, r11, r6 \n\t" \
+    "adcs  r12, r12, r8 \n\t" \
+    "umull r6,  r8,  r10, r10 \n\t" \
+    "adcs  r4,  r4,  r6 \n\t" \
+    "adc   r5,  r5,  r8 \n\t" \
+    "str   lr,  [r0], #4 \n\t" \
+    "stmia r0!, {r2, r9} \n\t" \
+    "stmia r0!, {r3, r11, r12} \n\t" \
+    "stmia r0!, {r4, r5} \n\t"
 
-#define FAST_SQUARE_ASM_8               \
-    "ldmia r1!, {r10,r11,r12,r14} \n\t" \
-    "push {r2} \n\t"                    \
-                                        \
-    "umull r2, r3, r11, r10 \n\t"       \
-    "mov r4, #0 \n\t"                   \
-    "umaal r3, r4, r12, r10 \n\t"       \
-    "mov r5, #0 \n\t"                   \
-    "umaal r4, r5, r14, r10 \n\t"       \
-                                        \
-    "mov r6, #0 \n\t"                   \
-    "umaal r6, r4, r12, r11 \n\t"       \
-    "adds r2, r2, r2 \n\t"              \
-    "adcs r3, r3, r3 \n\t"              \
-    "adcs r6, r6, r6 \n\t"              \
-    /* Store carry in r7 */             \
-    "mov r7, #0 \n\t"                   \
-    "adc r7, r7, #0 \n\t"               \
-                                        \
-    "umull r8, r9, r10, r10 \n\t"       \
-    "adds r9, r9, r2 \n\t"              \
-    "stmia r0!, {r8,r9} \n\t"           \
-                                        \
-    "umull r8, r9, r11, r11 \n\t"       \
-    "adcs r8, r8, r3 \n\t"              \
-    "adcs r9, r9, r6 \n\t"              \
-    "stmia r0!, {r8,r9} \n\t"           \
-    /* Store carry in r8 */             \
-    "mov r8, #0 \n\t"                   \
-    "adc r8, r8, #0 \n\t"               \
-                                        \
-    "ldmia r1!, {r2, r3} \n\t"          \
-    "push {r1} \n\t"                    \
-    "umaal r4, r5, r2, r10 \n\t"        \
-    "mov r6, #0 \n\t"                   \
-    "umaal r5, r6, r3, r10 \n\t"        \
-                                        \
-    "mov r9, #0 \n\t"                   \
-    "umaal r9, r4, r14, r11 \n\t"       \
-    "umaal r4, r5, r2, r11 \n\t"        \
-                                        \
-    "mov r1, #0 \n\t"                   \
-    "umaal r1, r4, r14, r12 \n\t"       \
-                                        \
-    /* Load carry from r7 */            \
-    "lsrs r7, #1 \n\t"                  \
-    "adcs r9, r9, r9 \n\t"              \
-    "adcs r1, r1, r1 \n\t"              \
-    /* Store carry back in r7 */        \
-    "adc r7, r7, #0 \n\t"               \
-                                        \
-    /* Use carry from r8 */             \
-    "umaal r8, r9, r12, r12 \n\t"       \
-    "adds r9, r9, r1  \n\t"             \
-    "stmia r0!, {r8,r9} \n\t"           \
-    /* Store carry back in r8 */        \
-    "mov r8, #0 \n\t"                   \
-    "adc r8, r8, #0 \n\t"               \
-                                        \
-    "pop {r1} \n\t"                     \
-    /* TODO could fix up r1 value on stack here */      \
-    /* and leave the value on the stack (rather */      \
-    /* than popping) if supporting curves > 256 bits */ \
-    "ldr r9, [r1], #4 \n\t"             \
-    "ldr r1, [r1] \n\t"                 \
-                                        \
-    "push {r7} \n\t"                    \
-    "umaal r5, r6, r9, r10 \n\t"        \
-    "mov r7, #0 \n\t"                   \
-    "umaal r6, r7, r1, r10 \n\t"        \
-    /* Carry now stored in r10 */       \
-    "pop {r10} \n\t"                    \
-                                        \
-    "umaal r4, r5, r3, r11 \n\t"        \
-    "umaal r5, r6, r9, r11 \n\t"        \
-    "umaal r6, r7, r1, r11 \n\t"        \
-                                        \
-    "mov r11, #0 \n\t"                  \
-    "umaal r11, r4, r2, r12 \n\t"       \
-    "umaal r4, r5, r3, r12 \n\t"        \
-    "umaal r5, r6, r9, r12 \n\t"        \
-    "umaal r6, r7, r1, r12 \n\t"        \
-                                        \
-    "mov r12, #0 \n\t"                  \
-    "umaal r12, r4, r2, r14 \n\t"       \
-    "umaal r4, r5, r3, r14 \n\t"        \
-    "umaal r5, r6, r9, r14 \n\t"        \
-    "umaal r6, r7, r1, r14 \n\t"        \
-                                        \
-    /* Load carry from r10 */           \
-    "lsrs r10, #1 \n\t"                 \
-    "adcs r11, r11, r11 \n\t"           \
-    "adcs r12, r12, r12 \n\t"           \
-    "adc r10, r10, #0 \n\t"             \
-                                        \
-    /* Use carry from r8 */             \
-    "umaal r8, r11, r14, r14 \n\t"      \
-    "adds r11, r11, r12 \n\t"           \
-    "stmia r0!, {r8,r11} \n\t"          \
-    /* Store carry back in r8 */        \
-    "mov r8, #0 \n\t"                   \
-    "adc r8, r8, #0 \n\t"               \
-                                        \
-    "mov r11, #0 \n\t"                  \
-    "umaal r11, r5, r3, r2 \n\t"        \
-    "umaal r5, r6, r9, r2 \n\t"         \
-    "umaal r6, r7, r1, r2 \n\t"         \
-                                        \
-    "mov r12, #0 \n\t"                  \
-    "umaal r12, r6, r9, r3 \n\t"        \
-    "umaal r6, r7, r1, r3 \n\t"         \
-                                        \
-    "mov r14, #0 \n\t"                  \
-    "umaal r14, r7, r1, r9 \n\t"        \
-                                        \
-    /* Load carry from r10 */           \
-    "lsrs r10, #1 \n\t"                 \
-    "adcs r4, r4, r4 \n\t"              \
-    "adcs r11, r11, r11 \n\t"           \
-    "adcs r5, r5, r5 \n\t"              \
-    "adcs r12, r12, r12 \n\t"           \
-    "adcs r6, r6, r6 \n\t"              \
-    "adcs r14, r14, r14 \n\t"           \
-    "adcs r7, r7, r7 \n\t"              \
-    "adc r10, r10, #0 \n\t"             \
-                                        \
-    /* Use carry from r8 */             \
-    "umaal r4, r8, r2, r2 \n\t"         \
-    "adds r8, r8, r11 \n\t"             \
-    "stmia r0!, {r4,r8} \n\t"           \
-                                        \
-    "umull r4, r8, r3, r3 \n\t"         \
-    "adcs r4, r4, r5 \n\t"              \
-    "adcs r8, r8, r12 \n\t"             \
-    "stmia r0!, {r4,r8} \n\t"           \
-                                        \
-    "umull r4, r8, r9, r9 \n\t"         \
-    "adcs r4, r4, r6 \n\t"              \
-    "adcs r8, r8, r14 \n\t"             \
-    "stmia r0!, {r4,r8} \n\t"           \
-                                        \
-    "umull r4, r8, r1, r1 \n\t"         \
-    "adcs r4, r4, r7 \n\t"              \
-    "adcs r8, r8, r10 \n\t"             \
-    "stmia r0!, {r4,r8} \n\t"           \
-    /* TODO pop {r1, r2} if supporting curves > 256 bits */ \
-    "pop {r2} \n\t"
-
-#endif /* _UECC_ASM_ARM_MULT_SQUARE_H_ */
+#endif /* _UECC_ASM_ARM_MULT_SQUARE_UMAAL_H_ */

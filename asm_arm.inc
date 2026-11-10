@@ -177,37 +177,11 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
     
     __asm__ volatile (
         ".syntax unified \n\t"
-#if (uECC_MIN_WORDS == 5)
-        FAST_MULT_ASM_5
-    #if (uECC_MAX_WORDS > 5)
-        FAST_MULT_ASM_5_TO_6
-    #endif
-    #if (uECC_MAX_WORDS > 6)
-        FAST_MULT_ASM_6_TO_7
-    #endif
-    #if (uECC_MAX_WORDS > 7)
-        FAST_MULT_ASM_7_TO_8
-    #endif
-#elif (uECC_MIN_WORDS == 6)
-        FAST_MULT_ASM_6
-    #if (uECC_MAX_WORDS > 6)
-        FAST_MULT_ASM_6_TO_7
-    #endif
-    #if (uECC_MAX_WORDS > 7)
-        FAST_MULT_ASM_7_TO_8
-    #endif
-#elif (uECC_MIN_WORDS == 7)
-        FAST_MULT_ASM_7
-    #if (uECC_MAX_WORDS > 7)
-        FAST_MULT_ASM_7_TO_8
-    #endif
-#elif (uECC_MIN_WORDS == 8)
-        FAST_MULT_ASM_8
-#endif
+        FAST_MULT_ASM_LEVEL3
         "1: \n\t"
         RESUME_SYNTAX
-        : "+r" (r0), "+r" (r1), "+r" (r2)
-        : "r" (r3)
+        : "+r" (r0), "+r" (r1), "+r" (r2), "+r" (r3)
+        :
         : "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
     );
 }
@@ -223,38 +197,11 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     
     __asm__ volatile (
         ".syntax unified \n\t"
-#if (uECC_MIN_WORDS == 5)
-        FAST_SQUARE_ASM_5
-    #if (uECC_MAX_WORDS > 5)
-        FAST_SQUARE_ASM_5_TO_6
-    #endif
-    #if (uECC_MAX_WORDS > 6)
-        FAST_SQUARE_ASM_6_TO_7
-    #endif
-    #if (uECC_MAX_WORDS > 7)
-        FAST_SQUARE_ASM_7_TO_8
-    #endif
-#elif (uECC_MIN_WORDS == 6)
-        FAST_SQUARE_ASM_6
-    #if (uECC_MAX_WORDS > 6)
-        FAST_SQUARE_ASM_6_TO_7
-    #endif
-    #if (uECC_MAX_WORDS > 7)
-        FAST_SQUARE_ASM_7_TO_8
-    #endif
-#elif (uECC_MIN_WORDS == 7)
-        FAST_SQUARE_ASM_7
-    #if (uECC_MAX_WORDS > 7)
-        FAST_SQUARE_ASM_7_TO_8
-    #endif
-#elif (uECC_MIN_WORDS == 8)
-        FAST_SQUARE_ASM_8
-#endif
-
+        FAST_SQUARE_ASM_LEVEL3
         "1: \n\t"
         RESUME_SYNTAX
-        : "+r" (r0), "+r" (r1)
-        : "r" (r2)
+        : "+r" (r0), "+r" (r1), "+r" (r2)
+        :
         : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
     );
 }
@@ -267,59 +214,68 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
                                 const uint32_t *left,
                                 const uint32_t *right,
                                 wordcount_t num_words) {
-    register uint32_t *r0 __asm__("r0") = result;
-    register const uint32_t *r1 __asm__("r1") = left;
-    register const uint32_t *r2 __asm__("r2") = right;
-    register uint32_t r3 __asm__("r3") = num_words;
-    
 #if uECC_SUPPORTS_secp160r1
     if (num_words == 5) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_MULT_ASM_5
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1), "+r" (r2)
-            : "r" (r3)
-            : "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
 #endif
-#if uECC_SUPPORTS_secp192r1
+    /* Note: secp160r1 has a 161-bit curve order n (num_n_words == 6 on 32-bit platforms),
+       so ECDSA signing and verification on secp160r1 invoke uECC_vli_mult with num_words == 6. */
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
     if (num_words == 6) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_MULT_ASM_6
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1), "+r" (r2)
-            : "r" (r3)
-            : "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
 #endif
 #if uECC_SUPPORTS_secp224r1
     if (num_words == 7) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_MULT_ASM_7
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1), "+r" (r2)
-            : "r" (r3)
-            : "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
 #endif
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
     if (num_words == 8) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_MULT_ASM_8
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1), "+r" (r2)
-            : "r" (r3)
-            : "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
@@ -331,58 +287,62 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   wordcount_t num_words) {
-    register uint32_t *r0 __asm__("r0") = result;
-    register const uint32_t *r1 __asm__("r1") = left;
-    register uint32_t r2 __asm__("r2") = num_words;
-    
 #if uECC_SUPPORTS_secp160r1
     if (num_words == 5) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_SQUARE_ASM_5
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1)
-            : "r" (r2)
-            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
 #endif
-#if uECC_SUPPORTS_secp192r1
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
     if (num_words == 6) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_SQUARE_ASM_6
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1)
-            : "r" (r2)
-            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
 #endif
 #if uECC_SUPPORTS_secp224r1
     if (num_words == 7) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_SQUARE_ASM_7
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1)
-            : "r" (r2)
-            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
 #endif
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
     if (num_words == 8) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
         __asm__ volatile (
             ".syntax unified \n\t"
             FAST_SQUARE_ASM_8
             RESUME_SYNTAX
             : "+r" (r0), "+r" (r1)
-            : "r" (r2)
-            : "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            :
+            : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
         );
         return;
     }
@@ -392,6 +352,342 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 #endif /* uECC_SQUARE_FUNC */
 
 #endif /* (uECC_OPTIMIZATION_LEVEL > 3) */
+
+#else /* uECC_PLATFORM == uECC_arm_thumb */
+
+#if (uECC_OPTIMIZATION_LEVEL == 3)
+
+/* Compact Word-Row Loop multiplication for Thumb-1 (ARMv6-M / Cortex-M0):
+   Hoists splitting left[i] into 16-bit halfwords (a_lo in r8, a_hi in r9) out
+   of the inner loop and uses a carry-preserving 4-muls schedule inside the
+   inner loop without high-register accumulator spills. */
+uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
+                                const uECC_word_t *left,
+                                const uECC_word_t *right,
+                                wordcount_t num_words) {
+    uint32_t r4, r5, r6, r7;
+
+    __asm__ volatile (
+        ".syntax unified \n\t"
+        "lsls %[r3], %[r3], #2 \n\t"        /* r3 = num_words * 4 */
+        "mov  r12, %[r2] \n\t"              /* r12 = right_base */
+        "adds %[r2], %[r2], %[r3] \n\t"     /* r2 = right_end */
+        "mov  r10, %[r2] \n\t"              /* r10 = right_end */
+        "adds %[r3], %[r1], %[r3] \n\t"
+        "mov  r11, %[r3] \n\t"              /* r11 = left_end */
+
+        /* Pre-zero result[0 .. num_words - 1] */
+        "movs %[r4], #0 \n\t"
+        "movs %[r5], %[r0] \n\t"
+        "mov  %[r6], r12 \n\t"
+        "1: \n\t"
+        "stmia %[r5]!, {%[r4]} \n\t"
+        "adds %[r6], #4 \n\t"
+        "cmp  %[r6], r10 \n\t"
+        "bne  1b \n\t"
+
+        /* Outer loop over left[i] */
+        "2: \n\t"
+        "ldmia %[r1]!, {%[r3]} \n\t"        /* r3 = left[i] */
+        "uxth %[r4], %[r3] \n\t"
+        "mov  r8, %[r4] \n\t"               /* r8 = a_lo */
+        "lsrs %[r4], %[r3], #16 \n\t"
+        "mov  r9, %[r4] \n\t"               /* r9 = a_hi */
+
+        "mov  %[r2], r12 \n\t"              /* r2 = right */
+        "movs %[r4], #0 \n\t"               /* r4 = carry = 0 */
+
+        /* Inner loop over right[j] */
+        "3: \n\t"
+        "ldmia %[r2]!, {%[r5]} \n\t"        /* r5 = right[j] */
+        "ldr  %[r3], [%[r0]] \n\t"          /* r3 = result[i + j] */
+        "uxth %[r6], %[r5] \n\t"            /* r6 = b_lo */
+        "lsrs %[r5], %[r5], #16 \n\t"       /* r5 = b_hi */
+
+        "adds %[r3], %[r3], %[r4] \n\t"     /* r3 = result[i + j] + carry (C = C_1) */
+        "mov  %[r4], r9 \n\t"               /* r4 = a_hi (C = C_1) */
+        "muls %[r4], %[r5] \n\t"            /* r4 = a_hi * b_hi (C = C_1) */
+        "movs %[r7], #0 \n\t"               /* r7 = 0 (C = C_1) */
+        "adcs %[r4], %[r7] \n\t"            /* r4 = a_hi * b_hi + C_1 */
+
+        "mov  %[r7], r8 \n\t"               /* r7 = a_lo */
+        "muls %[r5], %[r7] \n\t"            /* r5 = b_hi * a_lo */
+        "muls %[r7], %[r6] \n\t"            /* r7 = a_lo * b_lo */
+        "adds %[r3], %[r3], %[r7] \n\t"     /* r3 += a_lo * b_lo (C = C_2) */
+
+        "mov  %[r7], r9 \n\t"               /* r7 = a_hi (C = C_2) */
+        "muls %[r6], %[r7] \n\t"            /* r6 = b_lo * a_hi (C = C_2) */
+        "movs %[r7], #0 \n\t"               /* r7 = 0 (C = C_2) */
+        "adcs %[r4], %[r7] \n\t"            /* r4 += C_2 */
+
+        "adds %[r5], %[r5], %[r6] \n\t"     /* r5 = mid1 + mid2 (C = C_3) */
+        "adcs %[r7], %[r7] \n\t"            /* r7 = C_3 (0 or 1) */
+        "lsls %[r7], %[r7], #16 \n\t"       /* r7 = C_3 << 16 */
+        "lsrs %[r6], %[r5], #16 \n\t"       /* r6 = mid >> 16 */
+        "lsls %[r5], %[r5], #16 \n\t"       /* r5 = mid << 16 */
+
+        "adds %[r3], %[r3], %[r5] \n\t"     /* r3 += mid << 16 (C = C_4) */
+        "stmia %[r0]!, {%[r3]} \n\t"        /* store result[i + j] */
+        "adcs %[r4], %[r6] \n\t"            /* r4 += (mid >> 16) + C_4 */
+        "adds %[r4], %[r4], %[r7] \n\t"     /* r4 += C_3 << 16 */
+
+        "cmp  %[r2], r10 \n\t"
+        "bne  3b \n\t"
+
+        "str  %[r4], [%[r0]] \n\t"          /* result[i + num_words] = carry */
+        "mov  %[r3], r10 \n\t"
+        "mov  %[r4], r12 \n\t"
+        "subs %[r3], %[r3], %[r4] \n\t"     /* r3 = num_words * 4 */
+        "subs %[r3], #4 \n\t"               /* r3 = (num_words - 1) * 4 */
+        "subs %[r0], %[r0], %[r3] \n\t"     /* r0 = &result[i + 1] */
+
+        "cmp  %[r1], r11 \n\t"
+        "bne  2b \n\t"
+        RESUME_SYNTAX
+        : [r0] "+l" (result), [r1] "+l" (left), [r2] "+l" (right), [r3] "+l" (num_words),
+          [r4] "=&l" (r4), [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
+        :
+        : "r8", "r9", "r10", "r11", "r12", "cc", "memory"
+    );
+}
+#define asm_mult 1
+
+#else /* (uECC_OPTIMIZATION_LEVEL > 3) */
+
+#include "asm_arm_mult_square.inc"
+
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1 || uECC_SUPPORTS_secp224r1)
+static __attribute__((naked, noinline, used))
+void uECC_vli_mul3_thumb1(void) __asm__("uECC_vli_mul3_thumb1");
+static __attribute__((naked, noinline, used))
+void uECC_vli_mul3_thumb1(void) {
+    __asm__ volatile (
+        ".syntax unified \n\t"
+        FAST_MULT_THUMB1_MUL3_BODY
+        RESUME_SYNTAX
+    );
+}
+#endif
+
+#if (uECC_SUPPORTS_secp224r1 || uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+static __attribute__((naked, noinline, used))
+void uECC_vli_mul4_thumb1(void) __asm__("uECC_vli_mul4_thumb1");
+static __attribute__((naked, noinline, used))
+void uECC_vli_mul4_thumb1(void) {
+    __asm__ volatile (
+        ".syntax unified \n\t"
+        FAST_MULT_THUMB1_MUL4_BODY
+        RESUME_SYNTAX
+    );
+}
+#endif
+
+uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
+                                const uECC_word_t *left,
+                                const uECC_word_t *right,
+                                wordcount_t num_words) {
+#if uECC_SUPPORTS_secp160r1
+    if (num_words == 5) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
+        __asm__ volatile (
+            ".syntax unified \n\t"
+            FAST_MULT_THUMB1_ASM_5
+            RESUME_SYNTAX
+            : "+l" (r0), "+l" (r1), "+l" (r2)
+            :
+            : "r3", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+        );
+        return;
+    }
+#endif
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
+    if (num_words == 6) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
+        __asm__ volatile (
+            ".syntax unified \n\t"
+            FAST_MULT_THUMB1_ASM_6
+            RESUME_SYNTAX
+            : "+l" (r0), "+l" (r1), "+l" (r2)
+            :
+            : "r3", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+        );
+        return;
+    }
+#endif
+#if uECC_SUPPORTS_secp224r1
+    if (num_words == 7) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
+        __asm__ volatile (
+            ".syntax unified \n\t"
+            FAST_MULT_THUMB1_ASM_7
+            RESUME_SYNTAX
+            : "+l" (r0), "+l" (r1), "+l" (r2)
+            :
+            : "r3", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+        );
+        return;
+    }
+#endif
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+    if (num_words == 8) {
+        register uint32_t *r0 __asm__("r0") = result;
+        register const uint32_t *r1 __asm__("r1") = left;
+        register const uint32_t *r2 __asm__("r2") = right;
+        __asm__ volatile (
+            ".syntax unified \n\t"
+            FAST_MULT_THUMB1_ASM_8
+            RESUME_SYNTAX
+            : "+l" (r0), "+l" (r1), "+l" (r2)
+            :
+            : "r3", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+        );
+        return;
+    }
+#endif
+}
+#define asm_mult 1
+
+#endif /* (uECC_OPTIMIZATION_LEVEL == 3) */
+
+#if uECC_SQUARE_FUNC
+/* Compact Word-Row Loop squaring for Thumb-1 (used for both Level 3 and Level 4):
+   Phase 1 accumulates the upper triangle (0 <= i < j < num_words) via word-row
+   scanning; Phase 2 doubles the upper triangle in a single pass while adding
+   the 3-muls diagonal squares left[i]^2. */
+uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
+                                  const uECC_word_t *left,
+                                  wordcount_t num_words) {
+    uint32_t r3, r4, r5, r6, r7;
+
+    __asm__ volatile (
+        ".syntax unified \n\t"
+        "mov  r10, %[r0] \n\t"              /* r10 = result_base */
+        "mov  r11, %[r1] \n\t"              /* r11 = left_base */
+        "lsls %[r2], %[r2], #2 \n\t"        /* r2 = num_words * 4 */
+        "adds %[r3], %[r1], %[r2] \n\t"
+        "mov  r12, %[r3] \n\t"              /* r12 = left_end */
+
+        /* Pre-zero result[0 .. 2*num_words - 1] */
+        "movs %[r4], #0 \n\t"
+        "movs %[r5], %[r0] \n\t"
+        "lsls %[r6], %[r2], #1 \n\t"        /* r6 = num_words * 8 */
+        "adds %[r6], %[r0], %[r6] \n\t"     /* r6 = result_end */
+        "1: \n\t"
+        "stmia %[r5]!, {%[r4]} \n\t"
+        "cmp  %[r5], %[r6] \n\t"
+        "bne  1b \n\t"
+
+        "adds %[r0], #4 \n\t"               /* r0 = &result[1] (for i = 0, j = 1) */
+
+        /* Outer loop: i = 0 .. num_words - 2 */
+        "2: \n\t"
+        "ldmia %[r1]!, {%[r3]} \n\t"        /* r3 = left[i], r1 = &left[i + 1] */
+        "cmp  %[r1], r12 \n\t"
+        "beq  4f \n\t"                      /* if i == num_words - 1, done with upper triangle */
+
+        "uxth %[r4], %[r3] \n\t"
+        "mov  r8, %[r4] \n\t"               /* r8 = a_lo */
+        "lsrs %[r4], %[r3], #16 \n\t"
+        "mov  r9, %[r4] \n\t"               /* r9 = a_hi */
+
+        "movs %[r2], %[r1] \n\t"            /* r2 = &left[i + 1] (j = i + 1) */
+        "movs %[r4], #0 \n\t"               /* r4 = carry = 0 */
+
+        /* Inner loop: j = i + 1 .. num_words - 1 */
+        "3: \n\t"
+        "ldmia %[r2]!, {%[r5]} \n\t"        /* r5 = left[j] */
+        "ldr  %[r3], [%[r0]] \n\t"          /* r3 = result[i + j] */
+        "uxth %[r6], %[r5] \n\t"            /* r6 = b_lo */
+        "lsrs %[r5], %[r5], #16 \n\t"       /* r5 = b_hi */
+
+        "adds %[r3], %[r3], %[r4] \n\t"     /* r3 = result[i + j] + carry (C = C_1) */
+        "mov  %[r4], r9 \n\t"               /* r4 = a_hi (C = C_1) */
+        "muls %[r4], %[r5] \n\t"            /* r4 = a_hi * b_hi (C = C_1) */
+        "movs %[r7], #0 \n\t"               /* r7 = 0 (C = C_1) */
+        "adcs %[r4], %[r7] \n\t"            /* r4 = a_hi * b_hi + C_1 */
+
+        "mov  %[r7], r8 \n\t"               /* r7 = a_lo */
+        "muls %[r5], %[r7] \n\t"            /* r5 = b_hi * a_lo */
+        "muls %[r7], %[r6] \n\t"            /* r7 = a_lo * b_lo */
+        "adds %[r3], %[r3], %[r7] \n\t"     /* r3 += a_lo * b_lo (C = C_2) */
+
+        "mov  %[r7], r9 \n\t"               /* r7 = a_hi (C = C_2) */
+        "muls %[r6], %[r7] \n\t"            /* r6 = b_lo * a_hi (C = C_2) */
+        "movs %[r7], #0 \n\t"               /* r7 = 0 (C = C_2) */
+        "adcs %[r4], %[r7] \n\t"            /* r4 += C_2 */
+
+        "adds %[r5], %[r5], %[r6] \n\t"     /* r5 = mid1 + mid2 (C = C_3) */
+        "adcs %[r7], %[r7] \n\t"            /* r7 = C_3 */
+        "lsls %[r7], %[r7], #16 \n\t"       /* r7 = C_3 << 16 */
+        "lsrs %[r6], %[r5], #16 \n\t"       /* r6 = mid >> 16 */
+        "lsls %[r5], %[r5], #16 \n\t"       /* r5 = mid << 16 */
+
+        "adds %[r3], %[r3], %[r5] \n\t"     /* r3 += mid << 16 (C = C_4) */
+        "stmia %[r0]!, {%[r3]} \n\t"        /* store result[i + j] */
+        "adcs %[r4], %[r6] \n\t"            /* r4 += (mid >> 16) + C_4 */
+        "adds %[r4], %[r4], %[r7] \n\t"     /* r4 += C_3 << 16 */
+
+        "cmp  %[r2], r12 \n\t"
+        "bne  3b \n\t"
+
+        "str  %[r4], [%[r0]] \n\t"          /* result[i + num_words] = carry */
+        "subs %[r2], %[r2], %[r1] \n\t"
+        "subs %[r0], %[r0], %[r2] \n\t"
+        "adds %[r0], #8 \n\t"               /* r0 = &result[2*(i + 1) + 1] */
+        "b    2b \n\t"
+
+        /* Phase 2: Double upper triangle and add diagonal squares left[i]^2 */
+        "4: \n\t"
+        "mov  %[r0], r10 \n\t"              /* r0 = result_base */
+        "mov  %[r1], r11 \n\t"              /* r1 = left_base */
+        "movs %[r6], #0 \n\t"               /* r6 = carry in {0, 1, 2} */
+
+        "5: \n\t"
+        "ldmia %[r1]!, {%[r3]} \n\t"        /* r3 = left[i] */
+        "uxth %[r2], %[r3] \n\t"            /* r2 = a_lo */
+        "lsrs %[r3], %[r3], #16 \n\t"       /* r3 = a_hi */
+        "movs %[r4], %[r2] \n\t"
+        "muls %[r4], %[r3] \n\t"            /* r4 = a_lo * a_hi */
+        "muls %[r2], %[r2] \n\t"            /* r2 = a_lo^2 (d0) */
+        "muls %[r3], %[r3] \n\t"            /* r3 = a_hi^2 (d1) */
+        "lsrs %[r5], %[r4], #15 \n\t"       /* r5 = (a_lo * a_hi) >> 15 */
+        "lsls %[r4], %[r4], #17 \n\t"       /* r4 = (a_lo * a_hi) << 17 */
+        "adds %[r2], %[r2], %[r4] \n\t"     /* d0 += (a_lo * a_hi) << 17 */
+        "adcs %[r3], %[r5] \n\t"            /* d1 += ((a_lo * a_hi) >> 15) + C */
+
+        "adds %[r2], %[r2], %[r6] \n\t"     /* d0 += carry_in */
+        "movs %[r6], #0 \n\t"               /* r6 = 0 (C unchanged) */
+        "adcs %[r3], %[r6] \n\t"            /* d1 += C */
+
+        "ldr  %[r4], [%[r0], #0] \n\t"      /* r4 = u0 */
+        "ldr  %[r5], [%[r0], #4] \n\t"      /* r5 = u1 */
+        "adds %[r4], %[r4], %[r4] \n\t"     /* 2 * u0 */
+        "adcs %[r5], %[r5] \n\t"            /* 2 * u1 + C */
+        "adcs %[r6], %[r6] \n\t"            /* r6 = C (0 or 1) */
+
+        "adds %[r2], %[r2], %[r4] \n\t"     /* r2 = d0 + 2 * u0 */
+        "adcs %[r3], %[r5] \n\t"            /* r3 = d1 + 2 * u1 + C */
+        "movs %[r7], #0 \n\t"
+        "adcs %[r6], %[r7] \n\t"            /* r6 += C (carry_out in {0, 1, 2}) */
+
+        "stmia %[r0]!, {%[r2], %[r3]} \n\t" /* store result[2*i] and result[2*i + 1] */
+        "cmp  %[r1], r12 \n\t"
+        "bne  5b \n\t"
+        RESUME_SYNTAX
+        : [r0] "+l" (result), [r1] "+l" (left), [r2] "+l" (num_words),
+          [r3] "=&l" (r3), [r4] "=&l" (r4), [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
+        :
+        : "r8", "r9", "r10", "r11", "r12", "cc", "memory"
+    );
+}
+#define asm_square 1
+#endif /* uECC_SQUARE_FUNC */
 
 #endif /* uECC_PLATFORM != uECC_arm_thumb */
 
