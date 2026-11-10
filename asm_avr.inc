@@ -25,6 +25,14 @@
     #define IJMP "ijmp \n\t"
 #endif
 
+/* Multi-curve builds at optimization level >= 3 exceed rjmp's +/-4 KB reach
+   across curve blocks; use 4-byte jmp when supported by the target MCU. */
+#if __AVR_HAVE_JMP_CALL__
+    #define uECC_JMP "jmp "
+#else
+    #define uECC_JMP "rjmp "
+#endif
+
 #if (uECC_OPTIMIZATION_LEVEL >= 2)
 
 uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
@@ -42,9 +50,11 @@ uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
         "1: \n\t"
         : "+x" (v)
         : [num] "r" (num_words)
-        :
+    /* Keep the clobber ':' inside the #if so single-curve builds
+       (uECC_MAX_WORDS == uECC_MIN_WORDS) do not leave an empty clobber list,
+       which older avr-gcc versions reject. */
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-          "r30", "r31", "cc"
+        : "r30", "r31", "cc"
     #endif
     );
 }
@@ -142,6 +152,11 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         IJMP
         REPEATM(uECC_MAX_WORDS, ADD_RJPM_TABLE)
+    #else
+        /* When uECC_MAX_WORDS == uECC_MIN_WORDS (single-curve builds for
+           192/224/256-bit), ADD_RJPM_TABLE is omitted, so Z (r30:r31) must be
+           explicitly initialized to result here before st z+ runs. */
+        "movw r30, %A[result] \n\t"
     #endif
 
         REPEATM(uECC_MAX_WORDS, ADD_RJPM_DEST)
@@ -189,6 +204,10 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         IJMP
         REPEATM(uECC_MAX_WORDS, SUB_RJPM_TABLE)
+    #else
+        /* Initialize Z (r30:r31) to result when SUB_RJPM_TABLE is omitted in
+           single-curve builds (uECC_MAX_WORDS == uECC_MIN_WORDS). */
+        "movw r30, %A[result] \n\t"
     #endif
 
         REPEATM(uECC_MAX_WORDS, SUB_RJPM_DEST)
@@ -207,6 +226,33 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 
 #if (uECC_OPTIMIZATION_LEVEL >= 3)
 
+/* High-speed constant-time AVR multiplication and squaring:
+ *
+ * Multiplication (uECC_vli_mult):
+ *   - 160-bit (20 bytes): Fully unrolled 2-level branch-free subtractive
+ *     Karatsuba (FAST_MULT_ASM_20), using direct 2's-complement M' accumulation
+ *     at the 40-bit leaf level to avoid conditional negation of leaf products.
+ *     When num_words == 21 (used by ECDSA modMult modulo secp160r1's 161-bit
+ *     order n), FAST_MULT_ASM_20_EXT_21 appends the 21st border row/column so
+ *     exact 21x21 multiplication is performed without reading past 21-byte
+ *     inputs or overflowing 42-byte product buffers.
+ *   - 192, 224, and 256-bit (24, 28, and 32 bytes): 1-level branch-free
+ *     subtractive Karatsuba (FAST_MULT_ASM_24/28/32) calling a shared unrolled
+ *     half-width leaf subroutine (FAST_MULT_LEAF_24/28/32) three times via
+ *     rcall, trading ~2% of fully unrolled Karatsuba speed for a 55-65% Flash
+ *     size reduction over unrolled schoolbook/Karatsuba code.
+ *
+ * Squaring (uECC_vli_square, when uECC_SQUARE_FUNC is enabled):
+ *   - 160-bit (20 bytes, plus 21-byte border extension) and 192-bit (24 bytes):
+ *     MOVW-aligned sliding-window squarer (FAST_SQUARE_ASM_20/24), shifting the
+ *     operand window by 2 bytes at a time via single-cycle MOVW instructions
+ *     while computing off-diagonal cross-products once, doubling, and adding
+ *     diagonal squares.
+ *   - 224 and 256-bit (28 and 32 bytes): 1-level branch-free Karatsuba squarer
+ *     (FAST_SQUARE_ASM_28/32) using A^2 = A_l^2 + 2^8k(A_l^2 + A_h^2 -
+ *     |A_l - A_h|^2) + 2^16k A_h^2 with three rcalls to a half-width
+ *     MOVW-aligned leaf squarer (FAST_SQUARE_LEAF_28/32).
+ */
 #include "asm_avr_mult_square.inc"
 
 __attribute((noinline))
@@ -218,45 +264,102 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
     register wordcount_t r18 __asm__("r18") = num_words;
 
     __asm__ volatile (
+        /* Dispatch by word count when multiple curve sizes are enabled.
+           Note: for secp160r1 alone, uECC_MIN_WORDS is 20 and uECC_MAX_WORDS
+           is 21 (for curve->n), so other curves are present iff
+           uECC_MAX_WORDS > 21. Conditional branches stay within this short
+           header while uECC_JMP spans across multi-KB curve blocks. */
+#if uECC_SUPPORTS_secp160r1 && (uECC_MAX_WORDS > 21)
+        "cpi r18, 22 \n\t"
+        "brlo 20f \n\t"
+#endif
+#if uECC_SUPPORTS_secp192r1 && ((uECC_MIN_WORDS < 24) || (uECC_MAX_WORDS > 24))
+    #if (uECC_MIN_WORDS == 24)
+        "cpi r18, 24 \n\t"
+        "breq 24f \n\t"
+    #else
+        #if (uECC_MAX_WORDS > 24)
+        "cpi r18, 24 \n\t"
+        "brne 19f \n\t"
+        #endif
+        uECC_JMP "24f \n\t"
+        "19: \n\t"
+    #endif
+#endif
+#if uECC_SUPPORTS_secp224r1 && ((uECC_MIN_WORDS < 28) || (uECC_MAX_WORDS > 28))
+    #if (uECC_MIN_WORDS == 28)
+        "cpi r18, 28 \n\t"
+        "breq 28f \n\t"
+    #else
+        #if (uECC_MAX_WORDS > 28)
+        "cpi r18, 28 \n\t"
+        "brne 27f \n\t"
+        #endif
+        uECC_JMP "28f \n\t"
+        "27: \n\t"
+    #endif
+#endif
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1) && (uECC_MIN_WORDS < 32)
+        uECC_JMP "32f \n\t"
+#endif
+
+#if uECC_SUPPORTS_secp160r1
+        "20: \n\t"
+        /* secp160r1 field ops pass num_words == 20, whereas ECDSA modMult
+           modulo curve->n (161 bits) passes num_words == 21. Previously,
+           num_words == 21 fell through into the 24-byte multiplier, reading 3
+           uninitialized stack bytes and writing 48 bytes into a 42-byte
+           product buffer. Save X/Y/Z when r18 == 21 and extend the 20x20
+           product with the 21st border byte via FAST_MULT_ASM_20_EXT_21. */
+        "cpi r18, 21 \n\t"
+        "brne 80f \n\t"
+        "push r26 \n\t"
+        "push r27 \n\t"
+        "push r28 \n\t"
+        "push r29 \n\t"
+        "push r30 \n\t"
+        "push r31 \n\t"
+        "80: \n\t"
         "push r18 \n\t"
-#if (uECC_MIN_WORDS == 20)
         FAST_MULT_ASM_20
         "pop r18 \n\t"
-    #if (uECC_MAX_WORDS > 20)
-        FAST_MULT_ASM_20_TO_24
+        "cpi r18, 21 \n\t"
+        "breq 84f \n\t"
+        uECC_JMP "99f \n\t"
+        "84: \n\t"
+        FAST_MULT_ASM_20_EXT_21
+    #if (uECC_MAX_WORDS > 21)
+        uECC_JMP "99f \n\t"
     #endif
-    #if (uECC_MAX_WORDS > 24)
-        FAST_MULT_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_MULT_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 24)
-        FAST_MULT_ASM_24
-        "pop r18 \n\t"
-    #if (uECC_MAX_WORDS > 24)
-        FAST_MULT_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_MULT_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 28)
-        FAST_MULT_ASM_28
-        "pop r18 \n\t"
-    #if (uECC_MAX_WORDS > 28)
-        FAST_MULT_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 32)
-        FAST_MULT_ASM_32
-        "pop r18 \n\t"
 #endif
-        "2: \n\t"
+        /* Each 1-level Karatsuba block jumps to 99f right before its adjacent
+           leaf subroutine so rcall inside FAST_MULT_ASM_N stays well within
+           rcall's +/-4 KB displacement without executing the leaf on fallthrough. */
+#if uECC_SUPPORTS_secp192r1
+        "24: \n\t"
+        FAST_MULT_ASM_24
+        uECC_JMP "99f \n\t"
+        FAST_MULT_LEAF_24
+#endif
+#if uECC_SUPPORTS_secp224r1
+        "28: \n\t"
+        FAST_MULT_ASM_28
+        uECC_JMP "99f \n\t"
+        FAST_MULT_LEAF_28
+#endif
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        "32: \n\t"
+        FAST_MULT_ASM_32
+        uECC_JMP "99f \n\t"
+        FAST_MULT_LEAF_32
+#endif
+        "99: \n\t"
         "eor r1, r1 \n\t"
-        : "+x" (left), "+y" (right), "+z" (result)
-        : "r" (r18)
+        : "+x" (left), "+y" (right), "+z" (result), "+r" (r18)
+        :
         : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
           "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r19", "r20",
-          "r21", "r22", "r23", "r24", "r25", "cc"
+          "r21", "r22", "r23", "r24", "r25", "cc", "memory"
     );
 }
 #define asm_mult 1
@@ -270,45 +373,92 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     register wordcount_t r20 __asm__("r20") = num_words;
 
     __asm__ volatile (
+        /* Multi-curve size dispatch (same structure as uECC_vli_mult). */
+#if uECC_SUPPORTS_secp160r1 && (uECC_MAX_WORDS > 21)
+        "cpi r20, 22 \n\t"
+        "brlo 20f \n\t"
+#endif
+#if uECC_SUPPORTS_secp192r1 && ((uECC_MIN_WORDS < 24) || (uECC_MAX_WORDS > 24))
+    #if (uECC_MIN_WORDS == 24)
+        "cpi r20, 24 \n\t"
+        "breq 24f \n\t"
+    #else
+        #if (uECC_MAX_WORDS > 24)
+        "cpi r20, 24 \n\t"
+        "brne 19f \n\t"
+        #endif
+        uECC_JMP "24f \n\t"
+        "19: \n\t"
+    #endif
+#endif
+#if uECC_SUPPORTS_secp224r1 && ((uECC_MIN_WORDS < 28) || (uECC_MAX_WORDS > 28))
+    #if (uECC_MIN_WORDS == 28)
+        "cpi r20, 28 \n\t"
+        "breq 28f \n\t"
+    #else
+        #if (uECC_MAX_WORDS > 28)
+        "cpi r20, 28 \n\t"
+        "brne 27f \n\t"
+        #endif
+        uECC_JMP "28f \n\t"
+        "27: \n\t"
+    #endif
+#endif
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1) && (uECC_MIN_WORDS < 32)
+        uECC_JMP "32f \n\t"
+#endif
+
+#if uECC_SUPPORTS_secp160r1
+        "20: \n\t"
+        /* Support both 20-byte field elements and 21-byte secp160r1 scalars
+           (if uECC_vli_square / uECC_vli_modSquare is called with 21 words). */
+        "cpi r20, 21 \n\t"
+        "brne 80f \n\t"
+        "push r26 \n\t"
+        "push r27 \n\t"
+        "push r30 \n\t"
+        "push r31 \n\t"
+        "80: \n\t"
         "push r20 \n\t"
-#if (uECC_MIN_WORDS == 20)
         FAST_SQUARE_ASM_20
         "pop r20 \n\t"
-    #if (uECC_MAX_WORDS > 20)
-        FAST_SQUARE_ASM_20_TO_24
+        "cpi r20, 21 \n\t"
+        "breq 84f \n\t"
+        uECC_JMP "99f \n\t"
+        "84: \n\t"
+        FAST_SQUARE_ASM_20_EXT_21
+    #if (uECC_MAX_WORDS > 21)
+        uECC_JMP "99f \n\t"
     #endif
-    #if (uECC_MAX_WORDS > 24)
-        FAST_SQUARE_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_SQUARE_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 24)
-        FAST_SQUARE_ASM_24
-        "pop r20 \n\t"
-    #if (uECC_MAX_WORDS > 24)
-        FAST_SQUARE_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_SQUARE_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 28)
-        FAST_SQUARE_ASM_28
-        "pop r20 \n\t"
-    #if (uECC_MAX_WORDS > 28)
-        FAST_SQUARE_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 32)
-        FAST_SQUARE_ASM_32
-        "pop r20 \n\t"
 #endif
-        "2: \n\t"
+#if uECC_SUPPORTS_secp192r1
+        "24: \n\t"
+        FAST_SQUARE_ASM_24
+    #if (uECC_MAX_WORDS > 24)
+        uECC_JMP "99f \n\t"
+    #endif
+#endif
+        /* 224-bit and 256-bit 1-level Karatsuba squarers place their shared
+           half-width leaf squarer immediately after the exit jump. */
+#if uECC_SUPPORTS_secp224r1
+        "28: \n\t"
+        FAST_SQUARE_ASM_28
+        uECC_JMP "99f \n\t"
+        FAST_SQUARE_LEAF_28
+#endif
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        "32: \n\t"
+        FAST_SQUARE_ASM_32
+        uECC_JMP "99f \n\t"
+        FAST_SQUARE_LEAF_32
+#endif
+        "99: \n\t"
         "eor r1, r1 \n\t"
-        : "+x" (left), "+z" (result)
-        : "r" (r20)
+        : "+x" (left), "+z" (result), "+r" (r20)
+        :
         : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
           "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
-          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc"
+          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
     );
 }
 #define asm_square 1
