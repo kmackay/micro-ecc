@@ -45,7 +45,9 @@
 
 /* Constant-time fully unrolled add/sub. The only branches depend on the public
    curve size (num_words); no branch depends on VLI data or carry/borrow. The
-   final carry/borrow is extracted branch-free with sbcs/adds (or sbcs/rsbs). */
+   final carry/borrow is extracted branch-free with sbcs/adds (or sbcs/rsbs).
+   The smallest supported size (uECC_MIN_WORDS) is handled unconditionally as
+   the last case, so every path writes the result (no -Wmaybe-uninitialized). */
 
 #if (uECC_PLATFORM == uECC_arm_thumb)
 
@@ -109,34 +111,45 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       wordcount_t num_words) {
     register uint32_t carry __asm__("r3");
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-    if (num_words == 8) {
+#if (uECC_MIN_WORDS < 8)
+    if (num_words == 8)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
                    ARM_THUMB1_ADD_PAIR_NEXT ARM_THUMB1_ADD_PAIR_NEXT ARM_T1_CARRY, carry);
         return carry;
     }
 #endif
 #if uECC_SUPPORTS_secp224r1
-    if (num_words == 7) {
+#if (uECC_MIN_WORDS < 7)
+    if (num_words == 7)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
                    ARM_THUMB1_ADD_PAIR_NEXT ARM_THUMB1_ADD_LAST1 ARM_T1_CARRY, carry);
         return carry;
     }
 #endif
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
-    if (num_words == 6) {
+#if (uECC_MIN_WORDS < 6)
+    if (num_words == 6)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
                    ARM_THUMB1_ADD_PAIR_NEXT ARM_T1_CARRY, carry);
         return carry;
     }
 #endif
 #if uECC_SUPPORTS_secp160r1
-    if (num_words == 5) {
+#if (uECC_MIN_WORDS < 5)
+    if (num_words == 5)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
                    ARM_THUMB1_ADD_LAST1 ARM_T1_CARRY, carry);
         return carry;
     }
 #endif
-    return 0;
 }
 #define asm_add 1
 
@@ -146,34 +159,45 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       wordcount_t num_words) {
     register uint32_t borrow __asm__("r3");
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-    if (num_words == 8) {
+#if (uECC_MIN_WORDS < 8)
+    if (num_words == 8)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
                    ARM_THUMB1_SUB_PAIR_NEXT ARM_THUMB1_SUB_PAIR_NEXT ARM_T1_BORROW, borrow);
         return borrow;
     }
 #endif
 #if uECC_SUPPORTS_secp224r1
-    if (num_words == 7) {
+#if (uECC_MIN_WORDS < 7)
+    if (num_words == 7)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
                    ARM_THUMB1_SUB_PAIR_NEXT ARM_THUMB1_SUB_LAST1 ARM_T1_BORROW, borrow);
         return borrow;
     }
 #endif
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
-    if (num_words == 6) {
+#if (uECC_MIN_WORDS < 6)
+    if (num_words == 6)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
                    ARM_THUMB1_SUB_PAIR_NEXT ARM_T1_BORROW, borrow);
         return borrow;
     }
 #endif
 #if uECC_SUPPORTS_secp160r1
-    if (num_words == 5) {
+#if (uECC_MIN_WORDS < 5)
+    if (num_words == 5)
+#endif
+    {
         ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
                    ARM_THUMB1_SUB_LAST1 ARM_T1_BORROW, borrow);
         return borrow;
     }
 #endif
-    return 0;
 }
 #define asm_sub 1
 
@@ -258,30 +282,41 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       wordcount_t num_words) {
     register uint32_t carry __asm__("r3");
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-    if (num_words == 8) {
+#if (uECC_MIN_WORDS < 8)
+    if (num_words == 8)
+#endif
+    {
         ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL4("adcs") ARM_T2_CARRY, carry);
         return carry;
     }
 #endif
 #if uECC_SUPPORTS_secp224r1
-    if (num_words == 7) {
+#if (uECC_MIN_WORDS < 7)
+    if (num_words == 7)
+#endif
+    {
         ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL3("adcs") ARM_T2_CARRY, carry);
         return carry;
     }
 #endif
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
-    if (num_words == 6) {
+#if (uECC_MIN_WORDS < 6)
+    if (num_words == 6)
+#endif
+    {
         ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL2("adcs") ARM_T2_CARRY, carry);
         return carry;
     }
 #endif
 #if uECC_SUPPORTS_secp160r1
-    if (num_words == 5) {
+#if (uECC_MIN_WORDS < 5)
+    if (num_words == 5)
+#endif
+    {
         ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL1("adcs") ARM_T2_CARRY, carry);
         return carry;
     }
 #endif
-    return 0;
 }
 #define asm_add 1
 
@@ -292,30 +327,41 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       wordcount_t num_words) {
     register uint32_t borrow __asm__("r3");
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-    if (num_words == 8) {
+#if (uECC_MIN_WORDS < 8)
+    if (num_words == 8)
+#endif
+    {
         ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL4("sbcs") ARM_T2_BORROW, borrow);
         return borrow;
     }
 #endif
 #if uECC_SUPPORTS_secp224r1
-    if (num_words == 7) {
+#if (uECC_MIN_WORDS < 7)
+    if (num_words == 7)
+#endif
+    {
         ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL3("sbcs") ARM_T2_BORROW, borrow);
         return borrow;
     }
 #endif
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
-    if (num_words == 6) {
+#if (uECC_MIN_WORDS < 6)
+    if (num_words == 6)
+#endif
+    {
         ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL2("sbcs") ARM_T2_BORROW, borrow);
         return borrow;
     }
 #endif
 #if uECC_SUPPORTS_secp160r1
-    if (num_words == 5) {
+#if (uECC_MIN_WORDS < 5)
+    if (num_words == 5)
+#endif
+    {
         ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL1("sbcs") ARM_T2_BORROW, borrow);
         return borrow;
     }
 #endif
-    return 0;
 }
 #define asm_sub 1
 
@@ -732,7 +778,17 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   wordcount_t num_words) {
-    uint32_t r3, r4, r5, r6, r7;
+    /* Operands are pinned to their namesake registers so that the register
+       list of "stmia %[r0]!, {%[r2], %[r3]}" below is always in ascending
+       order (stmia stores the lowest-numbered register first). */
+    register uECC_word_t *r0 __asm__("r0") = result;
+    register const uECC_word_t *r1 __asm__("r1") = left;
+    register uint32_t r2 __asm__("r2") = num_words;
+    register uint32_t r3 __asm__("r3");
+    register uint32_t r4 __asm__("r4");
+    register uint32_t r5 __asm__("r5");
+    register uint32_t r6 __asm__("r6");
+    register uint32_t r7 __asm__("r7");
 
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -849,7 +905,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "cmp  %[r1], r12 \n\t"
         "bne  5b \n\t"
         RESUME_SYNTAX
-        : [r0] "+l" (result), [r1] "+l" (left), [r2] "+l" (num_words),
+        : [r0] "+l" (r0), [r1] "+l" (r1), [r2] "+l" (r2),
           [r3] "=&l" (r3), [r4] "=&l" (r4), [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
         :
         : "r8", "r9", "r10", "r11", "r12", "cc", "memory"
@@ -861,6 +917,13 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 #endif /* uECC_PLATFORM != uECC_arm_thumb */
 
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 3) */
+
+/* Fast reductions: at levels >= 3 for all ARM platforms, and at all levels
+   for Thumb-1 (where the assembly is both smaller and faster than C). */
+#if (uECC_OPTIMIZATION_LEVEL >= 3) || \
+    ((uECC_OPTIMIZATION_LEVEL > 0) && (uECC_PLATFORM == uECC_arm_thumb))
+#include "asm_arm_mmod.inc"
+#endif
 
 /* ---- "Small" implementations ---- */
 
