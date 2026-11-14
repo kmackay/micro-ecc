@@ -150,7 +150,17 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
 } while (0)
 #endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 4) */
 
-#if (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1)
+#if (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1) && \
+    ((uECC_SUPPORTS_secp160r1 && !asm_mmod_fast_secp160r1) || \
+     (uECC_SUPPORTS_secp192r1 && !asm_mmod_fast_secp192r1) || \
+     (uECC_SUPPORTS_secp224r1 && !asm_mmod_fast_secp224r1) || \
+     (uECC_SUPPORTS_secp256r1 && !asm_mmod_fast_secp256r1) || \
+     (uECC_SUPPORTS_secp256k1 && !asm_mmod_fast_secp256k1))
+/* vli_mmod_columns8 and vli_mmod_fold_select8 are only used by the NIST
+   (secp192r1 / secp224r1 / secp256r1) C reductions. */
+#define uECC_MMOD8_NIST_C ((uECC_SUPPORTS_secp192r1 && !asm_mmod_fast_secp192r1) || \
+                           (uECC_SUPPORTS_secp224r1 && !asm_mmod_fast_secp224r1) || \
+                           (uECC_SUPPORTS_secp256r1 && !asm_mmod_fast_secp256r1))
 /* 8-bit constant-time fast reductions. All shifts in the NIST reductions are
    whole 32-bit words, so the reduction can be computed one byte column at a
    time with a 16-bit accumulator: byte b of the result receives byte (b & 3)
@@ -160,6 +170,7 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
    (0..7) or subtract (0x80 | word), terminated by 0xFF; words with
    coefficient 2 or 3 are listed 2 or 3 times. Returns the (small, signed)
    carry out of the top byte. */
+#if uECC_MMOD8_NIST_C
 static int16_t vli_mmod_columns8(uint8_t *result,
                                  const uint8_t *product,
                                  const uint8_t *terms,
@@ -191,6 +202,7 @@ static int16_t vli_mmod_columns8(uint8_t *result,
     }
     return carry;
 }
+#endif /* uECC_MMOD8_NIST_C */
 
 /* Adds p (c2 < 0), subtracts p (c2 > 0, or c2 == 0 and r >= p) or adds 0.
    r + c2 * 2^N is in (-p, 2p), c2 in {-1, 0, 1}; cmp is the borrow of r - p
@@ -215,6 +227,7 @@ static void vli_mmod_select8(uint8_t *r, int8_t c2, int8_t cmp, const uint8_t *p
 
 /* r += c * d, where d = sum(digits[w] * 2^(32 w)) with digits in {-1, 0, 1},
    then the final reduction (see vli_mmod_select8). */
+#if uECC_MMOD8_NIST_C
 static void vli_mmod_fold_select8(uint8_t *r, int16_t c, const int8_t *digits,
                                   const uint8_t *p, wordcount_t num_bytes) {
     int16_t acc = 0;
@@ -237,7 +250,9 @@ static void vli_mmod_fold_select8(uint8_t *r, int16_t c, const int8_t *digits,
     }
     vli_mmod_select8(r, (int8_t)acc, (int8_t)cmp, p, num_bytes);
 }
-#endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1) */
+#endif /* uECC_MMOD8_NIST_C */
+#undef uECC_MMOD8_NIST_C
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1) && C reduction needed */
 
 #if uECC_SUPPORTS_secp160r1
 
