@@ -150,6 +150,95 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
 } while (0)
 #endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 4) */
 
+#if (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1)
+/* 8-bit constant-time fast reductions. All shifts in the NIST reductions are
+   whole 32-bit words, so the reduction can be computed one byte column at a
+   time with a 16-bit accumulator: byte b of the result receives byte (b & 3)
+   of each 32-bit source word listed for its word column (b >> 2). */
+
+/* terms: for each 32-bit result word, the list of source words to add
+   (0..7) or subtract (0x80 | word), terminated by 0xFF; words with
+   coefficient 2 or 3 are listed 2 or 3 times. Returns the (small, signed)
+   carry out of the top byte. */
+static int16_t vli_mmod_columns8(uint8_t *result,
+                                 const uint8_t *product,
+                                 const uint8_t *terms,
+                                 wordcount_t num_bytes) {
+    int16_t carry = 0;
+    wordcount_t w;
+    for (w = 0; w < num_bytes; w += 4) {
+        int16_t a0 = product[w] + carry;
+        int16_t a1 = product[w + 1];
+        int16_t a2 = product[w + 2];
+        int16_t a3 = product[w + 3];
+        uint8_t e;
+        while ((e = *terms++) != 0xFF) {
+            const uint8_t *src = product + num_bytes + 4 * (e & 0x7F);
+            if (e & 0x80) {
+                a0 -= src[0]; a1 -= src[1]; a2 -= src[2]; a3 -= src[3];
+            } else {
+                a0 += src[0]; a1 += src[1]; a2 += src[2]; a3 += src[3];
+            }
+        }
+        result[w] = (uint8_t)a0;
+        a1 += a0 >> 8;
+        result[w + 1] = (uint8_t)a1;
+        a2 += a1 >> 8;
+        result[w + 2] = (uint8_t)a2;
+        a3 += a2 >> 8;
+        result[w + 3] = (uint8_t)a3;
+        carry = a3 >> 8;
+    }
+    return carry;
+}
+
+/* Adds p (c2 < 0), subtracts p (c2 > 0, or c2 == 0 and r >= p) or adds 0.
+   r + c2 * 2^N is in (-p, 2p), c2 in {-1, 0, 1}; cmp is the borrow of r - p
+   (0 or -1), computed by the caller during its last pass over r. */
+static void vli_mmod_select8(uint8_t *r, int8_t c2, int8_t cmp, const uint8_t *p,
+                             wordcount_t num_bytes) {
+    uint16_t sum;
+    uint8_t ge, neg, pos, m, s;
+    wordcount_t b;
+    ge = ~(uint8_t)cmp;                      /* 0xFF if r >= p */
+    neg = 0 - ((uint8_t)c2 >> 7);
+    pos = 0 - ((uint8_t)(0 - (uint8_t)c2) >> 7);
+    s = pos | (~(neg | pos) & ge);           /* subtract p */
+    m = neg | s;
+    sum = s & 1;                             /* r + ~p + 1 = r - p */
+    for (b = 0; b < num_bytes; ++b) {
+        sum += r[b] + (uint8_t)((p[b] & m) ^ s);
+        r[b] = (uint8_t)sum;
+        sum >>= 8;
+    }
+}
+
+/* r += c * d, where d = sum(digits[w] * 2^(32 w)) with digits in {-1, 0, 1},
+   then the final reduction (see vli_mmod_select8). */
+static void vli_mmod_fold_select8(uint8_t *r, int16_t c, const int8_t *digits,
+                                  const uint8_t *p, wordcount_t num_bytes) {
+    int16_t acc = 0;
+    int16_t cmp = 0;
+    wordcount_t b;
+    for (b = 0; b < num_bytes; ++b) {
+        acc += r[b];
+        if ((b & 3) == 0) {
+            int8_t d = digits[b >> 2];
+            if (d > 0) {
+                acc += c;
+            } else if (d < 0) {
+                acc -= c;
+            }
+        }
+        r[b] = (uint8_t)acc;
+        acc >>= 8;
+        cmp += (int16_t)r[b] - p[b];
+        cmp >>= 8;
+    }
+    vli_mmod_select8(r, (int8_t)acc, (int8_t)cmp, p, num_bytes);
+}
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1) */
+
 #if uECC_SUPPORTS_secp160r1
 
 #if (uECC_OPTIMIZATION_LEVEL > 0)
@@ -193,7 +282,7 @@ uECC_Curve uECC_secp160r1(void) { return &curve_secp160r1; }
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354
     
     Note that this only works if log2(omega) < log2(p) / 2 */
-#if (uECC_WORD_SIZE != 4)
+#if (uECC_WORD_SIZE == 8)
 static void omega_mult_secp160r1(uECC_word_t *result, const uECC_word_t *right);
 #endif
 #if uECC_WORD_SIZE == 8
@@ -266,49 +355,55 @@ static void vli_mmod_fast_secp160r1(uint32_t *result, uint32_t *product) {
 
     MMOD_FINISH(mmod_fold_secp160r1, result, c);
 }
-#else
-static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
-    uECC_word_t tmp[2 * num_words_secp160r1];
-    uECC_word_t carry;
-    
-    uECC_vli_clear(tmp, num_words_secp160r1);
-    uECC_vli_clear(tmp + num_words_secp160r1, num_words_secp160r1);
+#else /* uECC_WORD_SIZE == 1 */
+/* Byte i of x * 2^7 (x has n bytes, i in [0, n]). */
+#define SHL7_SECP160R1(x, i, n) \
+    ((uint8_t)(((i) < (n) ? (x)[i] << 7 : 0) | ((i) > 0 ? (x)[(i) - 1] >> 1 : 0)))
 
-    omega_mult_secp160r1(tmp, product + num_words_secp160r1); /* (Rq, q) = q * c */
-    
-    carry = uECC_vli_add(result, product, tmp, num_words_secp160r1); /* (C, r) = r + q */
-    uECC_vli_clear(product, num_words_secp160r1);
-    omega_mult_secp160r1(product, tmp + num_words_secp160r1); /* Rq*c */
-    carry += uECC_vli_add(result, result, product, num_words_secp160r1); /* (C1, r) = r + Rq*c */
+static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
+    const uint8_t *hi = product + 20;
+    const uint8_t *p = curve_secp160r1.p;
+    uint8_t c[4];
+    uint16_t acc = 0;
+    int16_t cmp = 0;
+    uint8_t b;
 
-    while (carry > 0) {
-        --carry;
-        uECC_vli_sub(result, result, curve_secp160r1.p, num_words_secp160r1);
+    /* result = lo + hi + hi * 2^31 (2^160 = 2^31 + 1 (mod p)); carry -> c */
+    for (b = 0; b < 3; ++b) {
+        acc += product[b] + hi[b];
+        result[b] = (uint8_t)acc;
+        acc >>= 8;
     }
-    if (uECC_vli_cmp_unsafe(result, curve_secp160r1.p, num_words_secp160r1) > 0) {
-        uECC_vli_sub(result, result, curve_secp160r1.p, num_words_secp160r1);
+    for (b = 3; b < 20; ++b) {
+        acc += product[b] + hi[b] + SHL7_SECP160R1(hi, b - 3, 20);
+        result[b] = (uint8_t)acc;
+        acc >>= 8;
     }
+    for (b = 20; b < 24; ++b) {
+        acc += SHL7_SECP160R1(hi, b - 3, 20);
+        c[b - 20] = (uint8_t)acc;
+        acc >>= 8;
+    }
+
+    /* fold the carry the same way, and compare with p */
+    acc = 0;
+    for (b = 0; b < 20; ++b) {
+        acc += result[b];
+        if (b < 4) {
+            acc += c[b];
+        }
+        if (b >= 3 && b < 8) {
+            acc += SHL7_SECP160R1(c, b - 3, 4);
+        }
+        result[b] = (uint8_t)acc;
+        acc >>= 8;
+        cmp += (int16_t)result[b] - p[b];
+        cmp >>= 8;
+    }
+    vli_mmod_select8(result, (int8_t)acc, (int8_t)cmp, p, 20);
 }
 #endif
 
-#if uECC_WORD_SIZE == 1
-static void omega_mult_secp160r1(uint8_t *result, const uint8_t *right) {
-    uint8_t carry;
-    uint8_t i;
-    
-    /* Multiply by (2^31 + 1). */
-    uECC_vli_set(result + 4, right, num_words_secp160r1); /* 2^32 */
-    uECC_vli_rshift1(result + 4, num_words_secp160r1); /* 2^31 */
-    result[3] = right[0] << 7; /* get last bit from shift */
-    
-    carry = uECC_vli_add(result, result, right, num_words_secp160r1); /* 2^31 + 1 */
-    for (i = num_words_secp160r1; carry; ++i) {
-        uint16_t sum = (uint16_t)result[i] + carry;
-        result[i] = (uint8_t)sum;
-        carry = sum >> 8;
-    }
-}
-#endif /* uECC_WORD_SIZE */
 #endif /* (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp160r1) */
 
 #endif /* uECC_SUPPORTS_secp160r1 */
@@ -356,35 +451,16 @@ uECC_Curve uECC_secp192r1(void) { return &curve_secp192r1; }
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
 #if uECC_WORD_SIZE == 1
 static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
-    uint8_t tmp[num_words_secp192r1];
-    uint8_t carry;
-    
-    uECC_vli_set(result, product, num_words_secp192r1);
-    
-    uECC_vli_set(tmp, &product[24], num_words_secp192r1);
-    carry = uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
-    tmp[0] = tmp[1] = tmp[2] = tmp[3] = tmp[4] = tmp[5] = tmp[6] = tmp[7] = 0;
-    tmp[8] = product[24]; tmp[9] = product[25]; tmp[10] = product[26]; tmp[11] = product[27];
-    tmp[12] = product[28]; tmp[13] = product[29]; tmp[14] = product[30]; tmp[15] = product[31];
-    tmp[16] = product[32]; tmp[17] = product[33]; tmp[18] = product[34]; tmp[19] = product[35];
-    tmp[20] = product[36]; tmp[21] = product[37]; tmp[22] = product[38]; tmp[23] = product[39];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
-    tmp[0] = tmp[8] = product[40];
-    tmp[1] = tmp[9] = product[41];
-    tmp[2] = tmp[10] = product[42];
-    tmp[3] = tmp[11] = product[43];
-    tmp[4] = tmp[12] = product[44];
-    tmp[5] = tmp[13] = product[45];
-    tmp[6] = tmp[14] = product[46];
-    tmp[7] = tmp[15] = product[47];
-    tmp[16] = tmp[17] = tmp[18] = tmp[19] = tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
-    while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
-        carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
-    }
+    static const uint8_t terms[] = {
+        0, 4, 0xFF,
+        1, 5, 0xFF,
+        2, 0, 4, 0xFF,
+        3, 1, 5, 0xFF,
+        4, 2, 0xFF,
+        5, 3, 0xFF };
+    static const int8_t digits[] = { 1, 0, 1, 0, 0, 0 }; /* 2^192 = 2^64 + 1 */
+    int16_t c = vli_mmod_columns8(result, product, terms, num_words_secp192r1);
+    vli_mmod_fold_select8(result, c, digits, curve_secp192r1.p, num_words_secp192r1);
 }
 #elif uECC_WORD_SIZE == 4
 /* r += c * (2^64 + 1), where 2^192 = 2^64 + 1 (mod p). Returns the carry. */
@@ -619,58 +695,17 @@ static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
 #if uECC_WORD_SIZE == 1
 static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
-    uint8_t tmp[num_words_secp224r1];
-    int8_t carry;
-
-    /* t */
-    uECC_vli_set(result, product, num_words_secp224r1);
-
-    /* s1 */
-    tmp[0] = tmp[1] = tmp[2] = tmp[3] = 0;
-    tmp[4] = tmp[5] = tmp[6] = tmp[7] = 0;
-    tmp[8] = tmp[9] = tmp[10] = tmp[11] = 0;
-    tmp[12] = product[28]; tmp[13] = product[29]; tmp[14] = product[30]; tmp[15] = product[31];
-    tmp[16] = product[32]; tmp[17] = product[33]; tmp[18] = product[34]; tmp[19] = product[35];
-    tmp[20] = product[36]; tmp[21] = product[37]; tmp[22] = product[38]; tmp[23] = product[39];
-    tmp[24] = product[40]; tmp[25] = product[41]; tmp[26] = product[42]; tmp[27] = product[43];
-    carry = uECC_vli_add(result, result, tmp, num_words_secp224r1);
-
-    /* s2 */
-    tmp[12] = product[44]; tmp[13] = product[45]; tmp[14] = product[46]; tmp[15] = product[47];
-    tmp[16] = product[48]; tmp[17] = product[49]; tmp[18] = product[50]; tmp[19] = product[51];
-    tmp[20] = product[52]; tmp[21] = product[53]; tmp[22] = product[54]; tmp[23] = product[55];
-    tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
-    carry += uECC_vli_add(result, result, tmp, num_words_secp224r1);
-
-    /* d1 */
-    tmp[0]  = product[28]; tmp[1]  = product[29]; tmp[2]  = product[30]; tmp[3]  = product[31];
-    tmp[4]  = product[32]; tmp[5]  = product[33]; tmp[6]  = product[34]; tmp[7]  = product[35];
-    tmp[8]  = product[36]; tmp[9]  = product[37]; tmp[10] = product[38]; tmp[11] = product[39];
-    tmp[12] = product[40]; tmp[13] = product[41]; tmp[14] = product[42]; tmp[15] = product[43];
-    tmp[16] = product[44]; tmp[17] = product[45]; tmp[18] = product[46]; tmp[19] = product[47];
-    tmp[20] = product[48]; tmp[21] = product[49]; tmp[22] = product[50]; tmp[23] = product[51];
-    tmp[24] = product[52]; tmp[25] = product[53]; tmp[26] = product[54]; tmp[27] = product[55];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
-
-    /* d2 */
-    tmp[0]  = product[44]; tmp[1]  = product[45]; tmp[2]  = product[46]; tmp[3]  = product[47];
-    tmp[4]  = product[48]; tmp[5]  = product[49]; tmp[6]  = product[50]; tmp[7]  = product[51];
-    tmp[8]  = product[52]; tmp[9]  = product[53]; tmp[10] = product[54]; tmp[11] = product[55];
-    tmp[12] = tmp[13] = tmp[14] = tmp[15] = 0;
-    tmp[16] = tmp[17] = tmp[18] = tmp[19] = 0;
-    tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
-    tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp224r1);
-
-    if (carry < 0) {
-        do {
-            carry += uECC_vli_add(result, result, curve_secp224r1.p, num_words_secp224r1);
-        } while (carry < 0);
-    } else {
-        while (carry || uECC_vli_cmp_unsafe(curve_secp224r1.p, result, num_words_secp224r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp224r1.p, num_words_secp224r1);
-        }
-    }
+    static const uint8_t terms[] = {
+        0x80 | 0, 0x80 | 4, 0xFF,
+        0x80 | 1, 0x80 | 5, 0xFF,
+        0x80 | 2, 0x80 | 6, 0xFF,
+        0, 4, 0x80 | 3, 0xFF,
+        1, 5, 0x80 | 4, 0xFF,
+        2, 6, 0x80 | 5, 0xFF,
+        3, 0x80 | 6, 0xFF };
+    static const int8_t digits[] = { -1, 0, 0, 1, 0, 0, 0 }; /* 2^224 = 2^96 - 1 */
+    int16_t c = vli_mmod_columns8(result, product, terms, num_words_secp224r1);
+    vli_mmod_fold_select8(result, c, digits, curve_secp224r1.p, num_words_secp224r1);
 }
 #elif uECC_WORD_SIZE == 4
 /* r += c * (2^96 - 1), where 2^224 = 2^96 - 1 (mod p). Returns the carry. */
@@ -812,108 +847,19 @@ uECC_Curve uECC_secp256r1(void) { return &curve_secp256r1; }
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
 #if uECC_WORD_SIZE == 1
 static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
-    uint8_t tmp[num_words_secp256r1];
-    int8_t carry;
-    
-    /* t */
-    uECC_vli_set(result, product, num_words_secp256r1);
-    
-    /* s1 */
-    tmp[0] = tmp[1] = tmp[2] = tmp[3] = 0;
-    tmp[4] = tmp[5] = tmp[6] = tmp[7] = 0;
-    tmp[8] = tmp[9] = tmp[10] = tmp[11] = 0;
-    tmp[12] = product[44]; tmp[13] = product[45]; tmp[14] = product[46]; tmp[15] = product[47];
-    tmp[16] = product[48]; tmp[17] = product[49]; tmp[18] = product[50]; tmp[19] = product[51];
-    tmp[20] = product[52]; tmp[21] = product[53]; tmp[22] = product[54]; tmp[23] = product[55];
-    tmp[24] = product[56]; tmp[25] = product[57]; tmp[26] = product[58]; tmp[27] = product[59];
-    tmp[28] = product[60]; tmp[29] = product[61]; tmp[30] = product[62]; tmp[31] = product[63];
-    carry = uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
-    /* s2 */
-    tmp[12] = product[48]; tmp[13] = product[49]; tmp[14] = product[50]; tmp[15] = product[51];
-    tmp[16] = product[52]; tmp[17] = product[53]; tmp[18] = product[54]; tmp[19] = product[55];
-    tmp[20] = product[56]; tmp[21] = product[57]; tmp[22] = product[58]; tmp[23] = product[59];
-    tmp[24] = product[60]; tmp[25] = product[61]; tmp[26] = product[62]; tmp[27] = product[63];
-    tmp[28] = tmp[29] = tmp[30] = tmp[31] = 0;
-    carry += uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
-    /* s3 */
-    tmp[0] = product[32]; tmp[1] = product[33]; tmp[2] = product[34]; tmp[3] = product[35];
-    tmp[4] = product[36]; tmp[5] = product[37]; tmp[6] = product[38]; tmp[7] = product[39];
-    tmp[8] = product[40]; tmp[9] = product[41]; tmp[10] = product[42]; tmp[11] = product[43];
-    tmp[12] = tmp[13] = tmp[14] = tmp[15] = 0;
-    tmp[16] = tmp[17] = tmp[18] = tmp[19] = 0;
-    tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
-    tmp[24] = product[56]; tmp[25] = product[57]; tmp[26] = product[58]; tmp[27] = product[59];
-    tmp[28] = product[60]; tmp[29] = product[61]; tmp[30] = product[62]; tmp[31] = product[63];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
-    /* s4 */
-    tmp[0] = product[36]; tmp[1] = product[37]; tmp[2] = product[38]; tmp[3] = product[39];
-    tmp[4] = product[40]; tmp[5] = product[41]; tmp[6] = product[42]; tmp[7] = product[43];
-    tmp[8] = product[44]; tmp[9] = product[45]; tmp[10] = product[46]; tmp[11] = product[47];
-    tmp[12] = product[52]; tmp[13] = product[53]; tmp[14] = product[54]; tmp[15] = product[55];
-    tmp[16] = product[56]; tmp[17] = product[57]; tmp[18] = product[58]; tmp[19] = product[59];
-    tmp[20] = product[60]; tmp[21] = product[61]; tmp[22] = product[62]; tmp[23] = product[63];
-    tmp[24] = product[52]; tmp[25] = product[53]; tmp[26] = product[54]; tmp[27] = product[55];
-    tmp[28] = product[32]; tmp[29] = product[33]; tmp[30] = product[34]; tmp[31] = product[35];
-    carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
-    /* d1 */
-    tmp[0] = product[44]; tmp[1] = product[45]; tmp[2] = product[46]; tmp[3] = product[47];
-    tmp[4] = product[48]; tmp[5] = product[49]; tmp[6] = product[50]; tmp[7] = product[51];
-    tmp[8] = product[52]; tmp[9] = product[53]; tmp[10] = product[54]; tmp[11] = product[55];
-    tmp[12] = tmp[13] = tmp[14] = tmp[15] = 0;
-    tmp[16] = tmp[17] = tmp[18] = tmp[19] = 0;
-    tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
-    tmp[24] = product[32]; tmp[25] = product[33]; tmp[26] = product[34]; tmp[27] = product[35];
-    tmp[28] = product[40]; tmp[29] = product[41]; tmp[30] = product[42]; tmp[31] = product[43];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
-    /* d2 */
-    tmp[0] = product[48]; tmp[1] = product[49]; tmp[2] = product[50]; tmp[3] = product[51];
-    tmp[4] = product[52]; tmp[5] = product[53]; tmp[6] = product[54]; tmp[7] = product[55];
-    tmp[8] = product[56]; tmp[9] = product[57]; tmp[10] = product[58]; tmp[11] = product[59];
-    tmp[12] = product[60]; tmp[13] = product[61]; tmp[14] = product[62]; tmp[15] = product[63];
-    tmp[16] = tmp[17] = tmp[18] = tmp[19] = 0;
-    tmp[20] = tmp[21] = tmp[22] = tmp[23] = 0;
-    tmp[24] = product[36]; tmp[25] = product[37]; tmp[26] = product[38]; tmp[27] = product[39];
-    tmp[28] = product[44]; tmp[29] = product[45]; tmp[30] = product[46]; tmp[31] = product[47];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
-    /* d3 */
-    tmp[0] = product[52]; tmp[1] = product[53]; tmp[2] = product[54]; tmp[3] = product[55];
-    tmp[4] = product[56]; tmp[5] = product[57]; tmp[6] = product[58]; tmp[7] = product[59];
-    tmp[8] = product[60]; tmp[9] = product[61]; tmp[10] = product[62]; tmp[11] = product[63];
-    tmp[12] = product[32]; tmp[13] = product[33]; tmp[14] = product[34]; tmp[15] = product[35];
-    tmp[16] = product[36]; tmp[17] = product[37]; tmp[18] = product[38]; tmp[19] = product[39];
-    tmp[20] = product[40]; tmp[21] = product[41]; tmp[22] = product[42]; tmp[23] = product[43];
-    tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
-    tmp[28] = product[48]; tmp[29] = product[49]; tmp[30] = product[50]; tmp[31] = product[51];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
-    /* d4 */
-    tmp[0] = product[56]; tmp[1] = product[57]; tmp[2] = product[58]; tmp[3] = product[59];
-    tmp[4] = product[60]; tmp[5] = product[61]; tmp[6] = product[62]; tmp[7] = product[63];
-    tmp[8] = tmp[9] = tmp[10] = tmp[11] = 0;
-    tmp[12] = product[36]; tmp[13] = product[37]; tmp[14] = product[38]; tmp[15] = product[39];
-    tmp[16] = product[40]; tmp[17] = product[41]; tmp[18] = product[42]; tmp[19] = product[43];
-    tmp[20] = product[44]; tmp[21] = product[45]; tmp[22] = product[46]; tmp[23] = product[47];
-    tmp[24] = tmp[25] = tmp[26] = tmp[27] = 0;
-    tmp[28] = product[52]; tmp[29] = product[53]; tmp[30] = product[54]; tmp[31] = product[55];
-    carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
-    if (carry < 0) {
-        do {
-            carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
-        } while (carry < 0);
-    } else {
-        while (carry || uECC_vli_cmp_unsafe(curve_secp256r1.p, result, num_words_secp256r1) != 1) {
-            carry -= uECC_vli_sub(result, result, curve_secp256r1.p, num_words_secp256r1);
-        }
-    }
+    static const uint8_t terms[] = {
+        0, 1, 0x80 | 3, 0x80 | 4, 0x80 | 5, 0x80 | 6, 0xFF,
+        1, 2, 0x80 | 4, 0x80 | 5, 0x80 | 6, 0x80 | 7, 0xFF,
+        2, 3, 0x80 | 5, 0x80 | 6, 0x80 | 7, 0xFF,
+        3, 3, 4, 4, 5, 0x80 | 7, 0x80 | 0, 0x80 | 1, 0xFF,
+        4, 4, 5, 5, 6, 0x80 | 1, 0x80 | 2, 0xFF,
+        5, 5, 6, 6, 7, 0x80 | 2, 0x80 | 3, 0xFF,
+        6, 6, 6, 7, 7, 5, 0x80 | 0, 0x80 | 1, 0xFF,
+        7, 7, 7, 0, 0x80 | 2, 0x80 | 3, 0x80 | 4, 0x80 | 5, 0xFF };
+    /* 2^256 = 2^224 - 2^192 - 2^96 + 1 */
+    static const int8_t digits[] = { 1, 0, 0, -1, 0, 0, -1, 1 };
+    int16_t c = vli_mmod_columns8(result, product, terms, num_words_secp256r1);
+    vli_mmod_fold_select8(result, c, digits, curve_secp256r1.p, num_words_secp256r1);
 }
 #elif uECC_WORD_SIZE == 4
 /* r += c * (2^224 - 2^192 - 2^96 + 1), where 2^256 = 2^224 - 2^192 - 2^96 + 1
@@ -1179,6 +1125,52 @@ static void vli_mmod_fast_secp256k1(uint32_t *result, uint32_t *product) {
 
     MMOD_FINISH(mmod_fold_secp256k1, result, c);
 }
+#elif (uECC_WORD_SIZE == 1)
+/* Byte i of x * 977 + x * 2^32 terms that land in column i (x has n bytes). */
+#define OMEGA_SECP256K1(x, i, n) \
+    (((i) < (n) ? (x)[i] * (uint16_t)0xD1 : 0) + \
+     ((i) >= 1 && (i) - 1 < (n) ? (x)[(i) - 1] * (uint16_t)0x03 : 0) + \
+     ((i) >= 4 && (i) - 4 < (n) ? (x)[(i) - 4] : 0))
+
+static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
+    const uint8_t *hi = product + 32;
+    const uint8_t *p = curve_secp256k1.p;
+    uint8_t c[5];
+    uint16_t acc = 0;
+    int16_t cmp = 0;
+    uint8_t b;
+
+    /* result = lo + hi * 977 + hi * 2^32 (2^256 = 2^32 + 977 (mod p)) */
+    for (b = 0; b < 4; ++b) {
+        acc += product[b] + OMEGA_SECP256K1(hi, b, 32);
+        result[b] = (uint8_t)acc;
+        acc >>= 8;
+    }
+    for (b = 4; b < 32; ++b) {
+        acc += product[b] + hi[b] * (uint16_t)0xD1 + hi[b - 1] * (uint16_t)0x03 + hi[b - 4];
+        result[b] = (uint8_t)acc;
+        acc >>= 8;
+    }
+    for (b = 32; b < 37; ++b) {
+        acc += OMEGA_SECP256K1(hi, b, 32);
+        c[b - 32] = (uint8_t)acc;
+        acc >>= 8;
+    }
+
+    /* fold the carry the same way, and compare with p */
+    acc = 0;
+    for (b = 0; b < 32; ++b) {
+        acc += result[b];
+        if (b < 9) {
+            acc += OMEGA_SECP256K1(c, b, 5);
+        }
+        result[b] = (uint8_t)acc;
+        acc >>= 8;
+        cmp += (int16_t)result[b] - p[b];
+        cmp >>= 8;
+    }
+    vli_mmod_select8(result, (int8_t)acc, (int8_t)cmp, p, 32);
+}
 #else
 static void omega_mult_secp256k1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
@@ -1204,37 +1196,7 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     }
 }
 
-#if uECC_WORD_SIZE == 1
-static void omega_mult_secp256k1(uint8_t * result, const uint8_t * right) {
-    /* Multiply by (2^32 + 2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
-    uECC_word_t r0 = 0;
-    uECC_word_t r1 = 0;
-    uECC_word_t r2 = 0;
-    wordcount_t k;
-    
-    /* Multiply by (2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
-    muladd(0xD1, right[0], &r0, &r1, &r2);
-    result[0] = r0;
-    r0 = r1;
-    r1 = r2;
-    /* r2 is still 0 */
-    
-    for (k = 1; k < num_words_secp256k1; ++k) {
-        muladd(0x03, right[k - 1], &r0, &r1, &r2);
-        muladd(0xD1, right[k], &r0, &r1, &r2);
-        result[k] = r0;
-        r0 = r1;
-        r1 = r2;
-        r2 = 0;
-    }
-    muladd(0x03, right[num_words_secp256k1 - 1], &r0, &r1, &r2);
-    result[num_words_secp256k1] = r0;
-    result[num_words_secp256k1 + 1] = r1;
-    /* add the 2^32 multiple */
-    result[4 + num_words_secp256k1] =
-        uECC_vli_add(result + 4, result + 4, right, num_words_secp256k1); 
-}
-#else
+#if uECC_WORD_SIZE == 8
 static void omega_mult_secp256k1(uint64_t * result, const uint64_t * right) {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
