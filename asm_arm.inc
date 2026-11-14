@@ -367,6 +367,8 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 
 #endif /* uECC_PLATFORM == uECC_arm_thumb */
 
+#include "asm_arm_rshift.inc"
+
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 2) */
 
 #if (uECC_OPTIMIZATION_LEVEL >= 3)
