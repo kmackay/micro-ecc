@@ -121,17 +121,19 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
 }
 #define asm_rshift1 1
 
-#define ADD_RJPM_TABLE(N)       \
-    "movw r30, %A[result] \n\t" \
-    "rjmp add_%=_" #N " \n\t"
+#define AVR_ADD_FIRST_BYTE \
+    "ld %[clb], x+ \n\t"   \
+    "ld %[rb], y+ \n\t"    \
+    "add %[clb], %[rb] \n\t" \
+    "st z+, %[clb] \n\t"
 
-#define ADD_RJPM_DEST(N)     \
-    "add_%=_" #N ":"         \
-    "ld %[clb], x+ \n\t"     \
-    "ld %[rb], y+ \n\t"      \
+#define AVR_ADC_BYTE \
+    "ld %[clb], x+ \n\t"   \
+    "ld %[rb], y+ \n\t"    \
     "adc %[clb], %[rb] \n\t" \
     "st z+, %[clb] \n\t"
 
+__attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
@@ -141,49 +143,100 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     uint8_t right_byte;
 
     __asm__ volatile (
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "ldi r30, pm_lo8(add_%=_" STR(uECC_MAX_WORDS) ") \n\t"
-        "ldi r31, pm_hi8(add_%=_" STR(uECC_MAX_WORDS) ") \n\t"
-        "sub r30, %[num] \n\t"
-        "sbc r31, __zero_reg__ \n\t"
-    #endif
-
-        "clc \n\t"
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        IJMP
-        REPEATM(uECC_MAX_WORDS, ADD_RJPM_TABLE)
+    #if (uECC_MAX_WORDS == uECC_MIN_WORDS)
+        AVR_ADD_FIRST_BYTE
+        REPEAT(DEC(uECC_MAX_WORDS), AVR_ADC_BYTE)
+    #elif (uECC_MIN_WORDS == 20) && (uECC_MAX_WORDS == 21)
+        AVR_ADD_FIRST_BYTE
+        REPEAT(19, AVR_ADC_BYTE)
+        "sbrs %[num], 0 \n\t"
+        "rjmp done_%= \n\t"
+        AVR_ADC_BYTE
+        "done_%=: \n\t"
+    #elif (uECC_MIN_WORDS == 20) && (uECC_MAX_WORDS == 32)
+        AVR_ADD_FIRST_BYTE
+        REPEAT(19, AVR_ADC_BYTE)
+        "sbrc %[num], 5 \n\t"
+        "rjmp at_20_%= \n\t"
+        "sbrs %[num], 3 \n\t"
+        "rjmp disp_20_21_%= \n\t"
+        "sbrc %[num], 2 \n\t"
+        "rjmp at_24_%= \n\t"
+        "rjmp at_28_%= \n\t"
+        "disp_20_21_%=: \n\t"
+        "sbrs %[num], 0 \n\t"
+        "rjmp done_%= \n\t"
+        "rjmp at_31_%= \n\t"
+        "at_20_%=: \n\t"
+        REPEAT(4, AVR_ADC_BYTE)
+        "at_24_%=: \n\t"
+        REPEAT(4, AVR_ADC_BYTE)
+        "at_28_%=: \n\t"
+        REPEAT(3, AVR_ADC_BYTE)
+        "at_31_%=: \n\t"
+        AVR_ADC_BYTE
+        "done_%=: \n\t"
     #else
-        /* When uECC_MAX_WORDS == uECC_MIN_WORDS (single-curve builds for
-           192/224/256-bit), ADD_RJPM_TABLE is omitted, so Z (r30:r31) must be
-           explicitly initialized to result here before st z+ runs. */
-        "movw r30, %A[result] \n\t"
+        "subi %[num], " STR(uECC_MIN_WORDS) " \n\t"
+        AVR_ADD_FIRST_BYTE
+        REPEAT(DEC(uECC_MIN_WORDS), AVR_ADC_BYTE)
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 8
+        "sbrs %[num], 3 \n\t"
+        "rjmp add_skip8_%= \n\t"
+        REPEAT(8, AVR_ADC_BYTE)
+        "add_skip8_%=: \n\t"
+        #endif
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 4
+        "sbrs %[num], 2 \n\t"
+        "rjmp add_skip4_%= \n\t"
+        REPEAT(4, AVR_ADC_BYTE)
+        "add_skip4_%=: \n\t"
+        #endif
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 2
+        "sbrs %[num], 1 \n\t"
+        "rjmp add_skip2_%= \n\t"
+        REPEAT(2, AVR_ADC_BYTE)
+        "add_skip2_%=: \n\t"
+        #endif
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 1
+        "sbrs %[num], 0 \n\t"
+        "rjmp add_skip1_%= \n\t"
+        AVR_ADC_BYTE
+        "add_skip1_%=: \n\t"
+        #endif
     #endif
-
-        REPEATM(uECC_MAX_WORDS, ADD_RJPM_DEST)
 
         "mov %[clb], __zero_reg__ \n\t"
         "adc %[clb], %[clb] \n\t" /* Store carry bit. */
 
-        : "+x" (left), "+y" (right),
+        : "+z" (r), "+x" (left), "+y" (right),
           [clb] "=&r" (carry), [rb] "=&r" (right_byte)
-        : [result] "r" (r), [num] "r" ((uint8_t)(num_words * 2))
-        : "r30", "r31", "cc"
+    #if (uECC_MAX_WORDS == uECC_MIN_WORDS) || \
+        ((uECC_MIN_WORDS == 20) && ((uECC_MAX_WORDS == 21) || (uECC_MAX_WORDS == 32)))
+        : [num] "r" (num_words)
+    #else
+        , [num] "+d" (num_words)
+        :
+    #endif
+        : "cc"
     );
     return carry;
 }
 #define asm_add 1
 
-#define SUB_RJPM_TABLE(N)       \
-    "movw r30, %A[result] \n\t" \
-    "rjmp sub_%=_" #N " \n\t"
+#define AVR_SUB_FIRST_BYTE \
+    "ld %[clb], x+ \n\t"   \
+    "ld %[rb], y+ \n\t"    \
+    "sub %[clb], %[rb] \n\t" \
+    "st z+, %[clb] \n\t"
 
-#define SUB_RJPM_DEST(N)     \
-    "sub_%=_" #N ":"         \
-    "ld %[clb], x+ \n\t"     \
-    "ld %[rb], y+ \n\t"      \
+#define AVR_SBC_BYTE \
+    "ld %[clb], x+ \n\t"   \
+    "ld %[rb], y+ \n\t"    \
     "sbc %[clb], %[rb] \n\t" \
     "st z+, %[clb] \n\t"
 
+__attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
@@ -193,32 +246,82 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     uint8_t right_byte;
 
     __asm__ volatile (
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "ldi r30, pm_lo8(sub_%=_" STR(uECC_MAX_WORDS) ") \n\t"
-        "ldi r31, pm_hi8(sub_%=_" STR(uECC_MAX_WORDS) ") \n\t"
-        "sub r30, %[num] \n\t"
-        "sbc r31, __zero_reg__ \n\t"
-    #endif
-
-        "clc \n\t"
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        IJMP
-        REPEATM(uECC_MAX_WORDS, SUB_RJPM_TABLE)
+    #if (uECC_MAX_WORDS == uECC_MIN_WORDS)
+        AVR_SUB_FIRST_BYTE
+        REPEAT(DEC(uECC_MAX_WORDS), AVR_SBC_BYTE)
+    #elif (uECC_MIN_WORDS == 20) && (uECC_MAX_WORDS == 21)
+        AVR_SUB_FIRST_BYTE
+        REPEAT(19, AVR_SBC_BYTE)
+        "sbrs %[num], 0 \n\t"
+        "rjmp done_%= \n\t"
+        AVR_SBC_BYTE
+        "done_%=: \n\t"
+    #elif (uECC_MIN_WORDS == 20) && (uECC_MAX_WORDS == 32)
+        AVR_SUB_FIRST_BYTE
+        REPEAT(19, AVR_SBC_BYTE)
+        "sbrc %[num], 5 \n\t"
+        "rjmp at_20_%= \n\t"
+        "sbrs %[num], 3 \n\t"
+        "rjmp disp_20_21_%= \n\t"
+        "sbrc %[num], 2 \n\t"
+        "rjmp at_24_%= \n\t"
+        "rjmp at_28_%= \n\t"
+        "disp_20_21_%=: \n\t"
+        "sbrs %[num], 0 \n\t"
+        "rjmp done_%= \n\t"
+        "rjmp at_31_%= \n\t"
+        "at_20_%=: \n\t"
+        REPEAT(4, AVR_SBC_BYTE)
+        "at_24_%=: \n\t"
+        REPEAT(4, AVR_SBC_BYTE)
+        "at_28_%=: \n\t"
+        REPEAT(3, AVR_SBC_BYTE)
+        "at_31_%=: \n\t"
+        AVR_SBC_BYTE
+        "done_%=: \n\t"
     #else
-        /* Initialize Z (r30:r31) to result when SUB_RJPM_TABLE is omitted in
-           single-curve builds (uECC_MAX_WORDS == uECC_MIN_WORDS). */
-        "movw r30, %A[result] \n\t"
+        "subi %[num], " STR(uECC_MIN_WORDS) " \n\t"
+        AVR_SUB_FIRST_BYTE
+        REPEAT(DEC(uECC_MIN_WORDS), AVR_SBC_BYTE)
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 8
+        "sbrs %[num], 3 \n\t"
+        "rjmp sub_skip8_%= \n\t"
+        REPEAT(8, AVR_SBC_BYTE)
+        "sub_skip8_%=: \n\t"
+        #endif
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 4
+        "sbrs %[num], 2 \n\t"
+        "rjmp sub_skip4_%= \n\t"
+        REPEAT(4, AVR_SBC_BYTE)
+        "sub_skip4_%=: \n\t"
+        #endif
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 2
+        "sbrs %[num], 1 \n\t"
+        "rjmp sub_skip2_%= \n\t"
+        REPEAT(2, AVR_SBC_BYTE)
+        "sub_skip2_%=: \n\t"
+        #endif
+        #if (uECC_MAX_WORDS - uECC_MIN_WORDS) >= 1
+        "sbrs %[num], 0 \n\t"
+        "rjmp sub_skip1_%= \n\t"
+        AVR_SBC_BYTE
+        "sub_skip1_%=: \n\t"
+        #endif
     #endif
-
-        REPEATM(uECC_MAX_WORDS, SUB_RJPM_DEST)
 
         "mov %[clb], __zero_reg__ \n\t"
         "adc %[clb], %[clb] \n\t" /* Store carry bit. */
 
-        : "+x" (left), "+y" (right),
+        : "+z" (r), "+x" (left), "+y" (right),
           [clb] "=&r" (carry), [rb] "=&r" (right_byte)
-        : [result] "r" (r), [num] "r" ((uint8_t)(num_words * 2))
-        : "r30", "r31", "cc"
+    #if (uECC_MAX_WORDS == uECC_MIN_WORDS) || \
+        ((uECC_MIN_WORDS == 20) && ((uECC_MAX_WORDS == 21) || (uECC_MAX_WORDS == 32)))
+        : [num] "r" (num_words)
+    #else
+        , [num] "+d" (num_words)
+        :
+    #endif
+        : "cc"
     );
     return carry;
 }
@@ -984,12 +1087,12 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
 /* ---- "Small" implementations ---- */
 
 #if !asm_add
+__attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
     volatile uECC_word_t *r = result;
-    uint8_t carry = 0;
     uint8_t left_byte;
     uint8_t right_byte;
 
@@ -1004,25 +1107,26 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "dec %[i] \n\t"
         "brne 1b \n\t"
 
-        "adc %[carry], %[carry] \n\t" /* Store carry bit. */
+        "mov %[left], __zero_reg__ \n\t"
+        "adc %[left], %[left] \n\t" /* Store carry bit. */
 
         : "+z" (r), "+x" (left), "+y" (right), [i] "+r" (num_words),
-            [carry] "+r" (carry), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
+          [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
         : "cc"
     );
-    return carry;
+    return left_byte;
 }
 #define asm_add 1
 #endif
 
 #if !asm_sub
+__attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
     volatile uECC_word_t *r = result;
-    uint8_t borrow = 0;
     uint8_t left_byte;
     uint8_t right_byte;
 
@@ -1037,14 +1141,15 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "dec %[i] \n\t"
         "brne 1b \n\t"
 
-        "adc %[borrow], %[borrow] \n\t" /* Store carry bit in borrow. */
+        "mov %[left], __zero_reg__ \n\t"
+        "adc %[left], %[left] \n\t" /* Store carry bit in borrow. */
 
         : "+z" (r), "+x" (left), "+y" (right), [i] "+r" (num_words),
-            [borrow] "+r" (borrow), [left] "=&r" (left_byte), [right] "=&r" (right_byte)
+          [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
         : "cc"
     );
-    return borrow;
+    return left_byte;
 }
 #define asm_sub 1
 #endif

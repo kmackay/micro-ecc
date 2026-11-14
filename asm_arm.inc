@@ -43,57 +43,100 @@
 
 #if (uECC_OPTIMIZATION_LEVEL >= 2)
 
+/* Constant-time fully unrolled add/sub. The only branches depend on the public
+   curve size (num_words); no branch depends on VLI data or carry/borrow. The
+   final carry/borrow is extracted branch-free with sbcs/adds (or sbcs/rsbs). */
+
+#if (uECC_PLATFORM == uECC_arm_thumb)
+
+#define ARM_THUMB1_ADD_PAIR_FIRST \
+    "ldmia %[lptr]!, {r3, r4} \n\t" \
+    "ldmia %[rptr]!, {r5, r6} \n\t" \
+    "adds  r3, r5 \n\t" \
+    "adcs  r4, r6 \n\t" \
+    "stmia %[dptr]!, {r3, r4} \n\t"
+
+#define ARM_THUMB1_ADD_PAIR_NEXT \
+    "ldmia %[lptr]!, {r3, r4} \n\t" \
+    "ldmia %[rptr]!, {r5, r6} \n\t" \
+    "adcs  r3, r5 \n\t" \
+    "adcs  r4, r6 \n\t" \
+    "stmia %[dptr]!, {r3, r4} \n\t"
+
+#define ARM_THUMB1_ADD_LAST1 \
+    "ldr   r3, [%[lptr]] \n\t" \
+    "ldr   r5, [%[rptr]] \n\t" \
+    "adcs  r3, r5 \n\t" \
+    "str   r3, [%[dptr]] \n\t"
+
+#define ARM_THUMB1_SUB_PAIR_FIRST \
+    "ldmia %[lptr]!, {r3, r4} \n\t" \
+    "ldmia %[rptr]!, {r5, r6} \n\t" \
+    "subs  r3, r5 \n\t" \
+    "sbcs  r4, r6 \n\t" \
+    "stmia %[dptr]!, {r3, r4} \n\t"
+
+#define ARM_THUMB1_SUB_PAIR_NEXT \
+    "ldmia %[lptr]!, {r3, r4} \n\t" \
+    "ldmia %[rptr]!, {r5, r6} \n\t" \
+    "sbcs  r3, r5 \n\t" \
+    "sbcs  r4, r6 \n\t" \
+    "stmia %[dptr]!, {r3, r4} \n\t"
+
+#define ARM_THUMB1_SUB_LAST1 \
+    "ldr   r3, [%[lptr]] \n\t" \
+    "ldr   r5, [%[rptr]] \n\t" \
+    "sbcs  r3, r5 \n\t" \
+    "str   r3, [%[dptr]] \n\t"
+
+#define ARM_T1_ASM(BODY, OUT) \
+    __asm__ volatile ( \
+        ".syntax unified \n\t" \
+        BODY \
+        RESUME_SYNTAX \
+        : [dptr] "+&l" (result), [lptr] "+&l" (left), [rptr] "+&l" (right), \
+          [out] "=&l" (OUT) \
+        : \
+        : "r4", "r5", "r6", "cc", "memory" \
+    )
+
+#define ARM_T1_CARRY  "sbcs  r3, r3 \n\t" "adds  r3, #1 \n\t"
+#define ARM_T1_BORROW "sbcs  r3, r3 \n\t" "rsbs  r3, r3, #0 \n\t"
+
 uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-#if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-  #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
-    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 2 + 1;
-  #else /* ARM */
-    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 4;
-  #endif
+    register uint32_t carry __asm__("r3");
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+    if (num_words == 8) {
+        ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
+                   ARM_THUMB1_ADD_PAIR_NEXT ARM_THUMB1_ADD_PAIR_NEXT ARM_T1_CARRY, carry);
+        return carry;
+    }
 #endif
-    uint32_t carry;
-    uint32_t left_word;
-    uint32_t right_word;
-    
-    __asm__ volatile (
-        ".syntax unified \n\t"
-        "movs %[carry], #0 \n\t"
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "adr %[left], 1f \n\t"
-        ".align 4 \n\t"
-        "adds %[jump], %[left] \n\t"
-    #endif
-        
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "adds %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "bx %[jump] \n\t"
-    #endif
-        "1: \n\t"
-        REPEAT(DEC(uECC_MAX_WORDS),
-            "ldmia %[lptr]!, {%[left]} \n\t"
-            "ldmia %[rptr]!, {%[right]} \n\t"
-            "adcs %[left], %[right] \n\t"
-            "stmia %[dptr]!, {%[left]} \n\t")
-        
-        "adcs %[carry], %[carry] \n\t"
-        RESUME_SYNTAX
-        : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-          [jump] REG_RW_LO (jump),
-    #endif
-          [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
-          [right] REG_WRITE_LO (right_word)
-        :
-        : "cc", "memory"
-    );
-    return carry;
+#if uECC_SUPPORTS_secp224r1
+    if (num_words == 7) {
+        ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
+                   ARM_THUMB1_ADD_PAIR_NEXT ARM_THUMB1_ADD_LAST1 ARM_T1_CARRY, carry);
+        return carry;
+    }
+#endif
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
+    if (num_words == 6) {
+        ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
+                   ARM_THUMB1_ADD_PAIR_NEXT ARM_T1_CARRY, carry);
+        return carry;
+    }
+#endif
+#if uECC_SUPPORTS_secp160r1
+    if (num_words == 5) {
+        ARM_T1_ASM(ARM_THUMB1_ADD_PAIR_FIRST ARM_THUMB1_ADD_PAIR_NEXT
+                   ARM_THUMB1_ADD_LAST1 ARM_T1_CARRY, carry);
+        return carry;
+    }
+#endif
+    return 0;
 }
 #define asm_add 1
 
@@ -101,56 +144,182 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-#if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-  #if (uECC_PLATFORM == uECC_arm_thumb) || (uECC_PLATFORM == uECC_arm_thumb2)
-    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 2 + 1;
-  #else /* ARM */
-    uint32_t jump = (uECC_MAX_WORDS - num_words) * 4 * 4;
-  #endif
+    register uint32_t borrow __asm__("r3");
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+    if (num_words == 8) {
+        ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
+                   ARM_THUMB1_SUB_PAIR_NEXT ARM_THUMB1_SUB_PAIR_NEXT ARM_T1_BORROW, borrow);
+        return borrow;
+    }
 #endif
-    uint32_t carry;
-    uint32_t left_word;
-    uint32_t right_word;
-    
-    __asm__ volatile (
-        ".syntax unified \n\t"
-        "movs %[carry], #0 \n\t"
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "adr %[left], 1f \n\t"
-        ".align 4 \n\t"
-        "adds %[jump], %[left] \n\t"
-    #endif
-        
-        "ldmia %[lptr]!, {%[left]} \n\t"
-        "ldmia %[rptr]!, {%[right]} \n\t"
-        "subs %[left], %[right] \n\t"
-        "stmia %[dptr]!, {%[left]} \n\t"
-        
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        "bx %[jump] \n\t"
-    #endif
-        "1: \n\t"
-        REPEAT(DEC(uECC_MAX_WORDS),
-            "ldmia %[lptr]!, {%[left]} \n\t"
-            "ldmia %[rptr]!, {%[right]} \n\t"
-            "sbcs %[left], %[right] \n\t"
-            "stmia %[dptr]!, {%[left]} \n\t")
-        
-        "adcs %[carry], %[carry] \n\t"
-        RESUME_SYNTAX
-        : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right),
-    #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-          [jump] REG_RW_LO (jump),
-    #endif
-          [carry] REG_WRITE_LO (carry), [left] REG_WRITE_LO (left_word),
-          [right] REG_WRITE_LO (right_word)
-        :
-        : "cc", "memory"
-    );
-    return !carry; /* Note that on ARM, carry flag set means "no borrow" when subtracting
-                      (for some reason...) */
+#if uECC_SUPPORTS_secp224r1
+    if (num_words == 7) {
+        ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
+                   ARM_THUMB1_SUB_PAIR_NEXT ARM_THUMB1_SUB_LAST1 ARM_T1_BORROW, borrow);
+        return borrow;
+    }
+#endif
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
+    if (num_words == 6) {
+        ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
+                   ARM_THUMB1_SUB_PAIR_NEXT ARM_T1_BORROW, borrow);
+        return borrow;
+    }
+#endif
+#if uECC_SUPPORTS_secp160r1
+    if (num_words == 5) {
+        ARM_T1_ASM(ARM_THUMB1_SUB_PAIR_FIRST ARM_THUMB1_SUB_PAIR_NEXT
+                   ARM_THUMB1_SUB_LAST1 ARM_T1_BORROW, borrow);
+        return borrow;
+    }
+#endif
+    return 0;
 }
 #define asm_sub 1
+
+#else /* Thumb-2 or 32-bit ARM */
+
+/* At level 4, let the compiler inline add/sub into callers with a constant
+   num_words (e.g. vli_mmod_fast_*) for speed; below level 4, keep a single
+   out-of-line copy to save ~2.3 KB of flash. */
+#if (uECC_OPTIMIZATION_LEVEL >= 4)
+    #define ARM_ADDSUB_ATTR
+#else
+    #define ARM_ADDSUB_ATTR __attribute__((noinline))
+#endif
+
+#define ARM_ADD_HEAD4 \
+    "ldmia %[lptr]!, {r3, r4, r5, r6} \n\t" \
+    "ldmia %[rptr]!, {r8, r9, r10, r12} \n\t" \
+    "adds  r3, r3, r8 \n\t" \
+    "adcs  r4, r4, r9 \n\t" \
+    "adcs  r5, r5, r10 \n\t" \
+    "adcs  r6, r6, r12 \n\t" \
+    "stmia %[dptr]!, {r3, r4, r5, r6} \n\t"
+
+#define ARM_SUB_HEAD4 \
+    "ldmia %[lptr]!, {r3, r4, r5, r6} \n\t" \
+    "ldmia %[rptr]!, {r8, r9, r10, r12} \n\t" \
+    "subs  r3, r3, r8 \n\t" \
+    "sbcs  r4, r4, r9 \n\t" \
+    "sbcs  r5, r5, r10 \n\t" \
+    "sbcs  r6, r6, r12 \n\t" \
+    "stmia %[dptr]!, {r3, r4, r5, r6} \n\t"
+
+/* Tail of N words (N = 1..4) after the 4-word head, with op = adcs or sbcs. */
+#define ARM_TAIL4(op) \
+    "ldmia %[lptr], {r3, r4, r5, r6} \n\t" \
+    "ldmia %[rptr], {r8, r9, r10, r12} \n\t" \
+    op "  r3, r3, r8 \n\t" \
+    op "  r4, r4, r9 \n\t" \
+    op "  r5, r5, r10 \n\t" \
+    op "  r6, r6, r12 \n\t" \
+    "stmia %[dptr], {r3, r4, r5, r6} \n\t"
+
+#define ARM_TAIL3(op) \
+    "ldmia %[lptr], {r3, r4, r5} \n\t" \
+    "ldmia %[rptr], {r8, r9, r10} \n\t" \
+    op "  r3, r3, r8 \n\t" \
+    op "  r4, r4, r9 \n\t" \
+    op "  r5, r5, r10 \n\t" \
+    "stmia %[dptr], {r3, r4, r5} \n\t"
+
+#define ARM_TAIL2(op) \
+    "ldmia %[lptr], {r3, r4} \n\t" \
+    "ldmia %[rptr], {r5, r6} \n\t" \
+    op "  r3, r3, r5 \n\t" \
+    op "  r4, r4, r6 \n\t" \
+    "stmia %[dptr], {r3, r4} \n\t"
+
+#define ARM_TAIL1(op) \
+    "ldr   r3, [%[lptr]] \n\t" \
+    "ldr   r4, [%[rptr]] \n\t" \
+    op "  r3, r3, r4 \n\t" \
+    "str   r3, [%[dptr]] \n\t"
+
+#define ARM_T2_ASM(BODY, OUT) \
+    __asm__ volatile ( \
+        ".syntax unified \n\t" \
+        BODY \
+        RESUME_SYNTAX \
+        : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right), \
+          [out] "=&l" (OUT) \
+        : \
+        : "r4", "r5", "r6", "r8", "r9", "r10", "r12", "cc", "memory" \
+    )
+
+#define ARM_T2_CARRY  "sbcs  r3, r3, r3 \n\t" "adds  r3, r3, #1 \n\t"
+#define ARM_T2_BORROW "sbcs  r3, r3, r3 \n\t" "rsbs  r3, r3, #0 \n\t"
+
+ARM_ADDSUB_ATTR
+uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
+    register uint32_t carry __asm__("r3");
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+    if (num_words == 8) {
+        ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL4("adcs") ARM_T2_CARRY, carry);
+        return carry;
+    }
+#endif
+#if uECC_SUPPORTS_secp224r1
+    if (num_words == 7) {
+        ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL3("adcs") ARM_T2_CARRY, carry);
+        return carry;
+    }
+#endif
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
+    if (num_words == 6) {
+        ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL2("adcs") ARM_T2_CARRY, carry);
+        return carry;
+    }
+#endif
+#if uECC_SUPPORTS_secp160r1
+    if (num_words == 5) {
+        ARM_T2_ASM(ARM_ADD_HEAD4 ARM_TAIL1("adcs") ARM_T2_CARRY, carry);
+        return carry;
+    }
+#endif
+    return 0;
+}
+#define asm_add 1
+
+ARM_ADDSUB_ATTR
+uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
+                                      const uECC_word_t *left,
+                                      const uECC_word_t *right,
+                                      wordcount_t num_words) {
+    register uint32_t borrow __asm__("r3");
+#if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+    if (num_words == 8) {
+        ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL4("sbcs") ARM_T2_BORROW, borrow);
+        return borrow;
+    }
+#endif
+#if uECC_SUPPORTS_secp224r1
+    if (num_words == 7) {
+        ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL3("sbcs") ARM_T2_BORROW, borrow);
+        return borrow;
+    }
+#endif
+#if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
+    if (num_words == 6) {
+        ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL2("sbcs") ARM_T2_BORROW, borrow);
+        return borrow;
+    }
+#endif
+#if uECC_SUPPORTS_secp160r1
+    if (num_words == 5) {
+        ARM_T2_ASM(ARM_SUB_HEAD4 ARM_TAIL1("sbcs") ARM_T2_BORROW, borrow);
+        return borrow;
+    }
+#endif
+    return 0;
+}
+#define asm_sub 1
+
+#endif /* uECC_PLATFORM == uECC_arm_thumb */
 
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 2) */
 
@@ -700,6 +869,32 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
+#if (uECC_PLATFORM != uECC_arm_thumb)
+    const uECC_word_t *left_end = left + num_words;
+    uint32_t left_word;
+    uint32_t right_word;
+
+    __asm__ volatile (
+        ".syntax unified \n\t"
+        "movs %[left], #0 \n\t"
+        "lsrs %[left], %[left], #1 \n\t"          /* Clear carry flag (C = 0). */
+        "1: \n\t"
+        "ldmia %[lptr]!, {%[left]} \n\t"          /* Load left word. */
+        "ldmia %[rptr]!, {%[right]} \n\t"         /* Load right word. */
+        "adcs %[left], %[left], %[right] \n\t"    /* Add with carry. */
+        "stmia %[dptr]!, {%[left]} \n\t"          /* Store result word. */
+        "teq %[lptr], %[lend] \n\t"               /* Compare pointer (preserves C). */
+        "bne 1b \n\t"
+        "sbcs %[left], %[left], %[left] \n\t"
+        "adds %[left], %[left], #1 \n\t"          /* left = carry (0 or 1). */
+        RESUME_SYNTAX
+        : [dptr] REG_RW (result), [lptr] REG_RW (left), [rptr] REG_RW (right),
+          [left] REG_WRITE (left_word), [right] REG_WRITE (right_word)
+        : [lend] "r" (left_end)
+        : "cc", "memory"
+    );
+    return left_word;
+#else
     uint32_t carry = 0;
     uint32_t left_word;
     uint32_t right_word;
@@ -723,6 +918,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         : "cc", "memory"
     );
     return carry;
+#endif
 }
 #define asm_add 1
 #endif
@@ -732,6 +928,31 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
+#if (uECC_PLATFORM != uECC_arm_thumb)
+    const uECC_word_t *left_end = left + num_words;
+    uint32_t left_word;
+    uint32_t right_word;
+
+    __asm__ volatile (
+        ".syntax unified \n\t"
+        "cmp %[lptr], %[lptr] \n\t"               /* Set carry flag (C = 1, no borrow). */
+        "1: \n\t"
+        "ldmia %[lptr]!, {%[left]} \n\t"          /* Load left word. */
+        "ldmia %[rptr]!, {%[right]} \n\t"         /* Load right word. */
+        "sbcs %[left], %[left], %[right] \n\t"    /* Subtract with borrow. */
+        "stmia %[dptr]!, {%[left]} \n\t"          /* Store result word. */
+        "teq %[lptr], %[lend] \n\t"               /* Compare pointer (preserves C). */
+        "bne 1b \n\t"
+        "sbcs %[left], %[left], %[left] \n\t"
+        "rsbs %[left], %[left], #0 \n\t"          /* left = borrow (0 or 1). */
+        RESUME_SYNTAX
+        : [dptr] REG_RW (result), [lptr] REG_RW (left), [rptr] REG_RW (right),
+          [left] REG_WRITE (left_word), [right] REG_WRITE (right_word)
+        : [lend] "r" (left_end)
+        : "cc", "memory"
+    );
+    return left_word;
+#else
     uint32_t carry = 1; /* carry = 1 initially (means don't borrow) */
     uint32_t left_word;
     uint32_t right_word;
@@ -755,6 +976,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         : "cc", "memory"
     );
     return !carry;
+#endif
 }
 #define asm_sub 1
 #endif
