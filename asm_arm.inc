@@ -1400,4 +1400,8 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 #endif
 #endif /* uECC_SQUARE_FUNC */
 
+#if (uECC_SAFEGCD == 1) && (uECC_PLATFORM != uECC_arm_thumb)
+#include "asm_arm_safegcd.inc"
+#endif
+
 #endif /* _UECC_ASM_ARM_H_ */

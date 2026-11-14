@@ -830,4 +830,67 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 #define asm_square 1
 #endif /* uECC_SQUARE_FUNC && !asm_square */
 
+
+#if (uECC_SAFEGCD == 2)
+/* Helpers for the 14-bit safegcd inversion (see uECC_vli_modInv in uECC.c). */
+
+/* acc += a * b, for int32_t acc and int16_t a, b (signed 16x16->32-bit product
+   from four 8x8 multiplies). mulsu / muls set C to bit 15 of their product, which
+   sign-extends the cross products into the top byte. */
+#define S14_MAC(acc, a, b) \
+    do { \
+        uint8_t zero_; \
+        __asm__ ( \
+            "clr %1 \n\t"  /* r1 holds product bytes, so use our own zero */ \
+            "mul %A2, %A3 \n\t" \
+            "add %A0, r0 \n\t" \
+            "adc %B0, r1 \n\t" \
+            "adc %C0, %1 \n\t" \
+            "adc %D0, %1 \n\t" \
+            "mulsu %B2, %A3 \n\t" \
+            "sbc %D0, %1 \n\t" \
+            "add %B0, r0 \n\t" \
+            "adc %C0, r1 \n\t" \
+            "adc %D0, %1 \n\t" \
+            "mulsu %B3, %A2 \n\t" \
+            "sbc %D0, %1 \n\t" \
+            "add %B0, r0 \n\t" \
+            "adc %C0, r1 \n\t" \
+            "adc %D0, %1 \n\t" \
+            "muls %B2, %B3 \n\t" \
+            "add %C0, r0 \n\t" \
+            "adc %D0, r1 \n\t" \
+            "clr __zero_reg__ \n\t" \
+            : "+r" (acc), "=&r" (zero_) \
+            : "a" ((int16_t)(a)), "a" ((int16_t)(b)) \
+            : "r0", "cc"); \
+    } while (0)
+
+/* acc >>= 14 (arithmetic), via a 2-bit left shift and a 2-byte move. */
+#define S14_SHR(acc) \
+    do { \
+        uint8_t sign_; \
+        __asm__ ( \
+            "mov %1, %D0 \n\t" \
+            "lsl %1 \n\t" \
+            "sbc %1, %1 \n\t" \
+            "lsl %B0 \n\t" \
+            "rol %C0 \n\t" \
+            "rol %D0 \n\t" \
+            "rol %1 \n\t" \
+            "lsl %B0 \n\t" \
+            "rol %C0 \n\t" \
+            "rol %D0 \n\t" \
+            "rol %1 \n\t" \
+            "mov %A0, %C0 \n\t" \
+            "mov %B0, %D0 \n\t" \
+            "mov %C0, %1 \n\t" \
+            "lsl %1 \n\t" \
+            "sbc %D0, %D0 \n\t" \
+            : "+r" (acc), "=&r" (sign_) \
+            : \
+            : "cc"); \
+    } while (0)
+#endif /* uECC_SAFEGCD == 2 */
+
 #endif /* _UECC_ASM_AVR_H_ */

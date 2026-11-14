@@ -88,6 +88,22 @@
 
 #include "platform-specific.inc"
 
+/* uECC_SAFEGCD - Selects the uECC_vli_modInv() implementation:
+   0 - binary extended Euclidean algorithm (variable-time).
+   1 - constant-time safegcd with signed 30-bit limbs (needs a fast 32x32->64-bit
+       multiply; not supported with avr-gcc).
+   2 - constant-time safegcd with signed 14-bit limbs (only 16x16->32-bit
+       multiplies). Slower than option 0 on 8-bit platforms and Thumb-1
+       (Cortex-M0), but constant-time.
+   The default is 1, except on 8-bit platforms and Thumb-1 where it is 0. */
+#ifndef uECC_SAFEGCD
+    #if (uECC_WORD_SIZE == 1) || (uECC_PLATFORM == uECC_arm_thumb)
+        #define uECC_SAFEGCD 0
+    #else
+        #define uECC_SAFEGCD 1
+    #endif
+#endif
+
 #if (uECC_WORD_SIZE == 1)
     #if uECC_SUPPORTS_secp160r1
         #define uECC_MAX_WORDS 21 /* Due to the size of curve_n. */
@@ -564,6 +580,7 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
     }
 }
 
+#if uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0)
 /* Computes result = product % mod, where product is 2N words long. */
 /* Currently only designed to work for curve_p or curve_n. */
 uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
@@ -607,7 +624,113 @@ uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
     }
     uECC_vli_set(result, v[index], num_words);
 }
+#endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) */
 
+/* ---- Montgomery multiplication (used for the arithmetic mod n in ECDSA) ---- */
+
+/* Returns the low word of a * b + c + *carry, and sets *carry to the high word. */
+static uECC_word_t vli_mac(uECC_word_t a, uECC_word_t b, uECC_word_t c, uECC_word_t *carry) {
+#if (uECC_WORD_SIZE == 8) && !SUPPORTS_INT128
+    uECC_word_t r0 = c, r1 = 0, r2 = 0;
+    muladd(a, b, &r0, &r1, &r2);
+    r0 += *carry;
+    *carry = r1 + (r0 < *carry);
+    return r0;
+#else
+    uECC_dword_t p = (uECC_dword_t)a * b + c + *carry;
+    *carry = (uECC_word_t)(p >> uECC_WORD_BITS);
+    return (uECC_word_t)p;
+#endif
+}
+
+/* Returns -1 / mod[0] (mod 2^uECC_WORD_BITS), by Newton iteration (mod[0] is its own
+   inverse mod 8, and each step doubles the number of correct bits). */
+static uECC_word_t vli_montInv(const uECC_word_t *mod) {
+    uECC_word_t inv = mod[0];
+    uECC_word_t i;
+    for (i = 0; i < 5; ++i) {
+        inv *= 2 - mod[0] * inv;
+    }
+    return 0 - inv;
+}
+
+/* t = (t + m * mod) / 2^uECC_WORD_BITS for t of num_words + 1 words, where
+   m = t[0] * inv makes the division exact. */
+static void vli_montStep(uECC_word_t *t,
+                         const uECC_word_t *mod,
+                         uECC_word_t inv,
+                         wordcount_t num_words) {
+    uECC_word_t m = t[0] * inv;
+    uECC_word_t carry = 0;
+    wordcount_t j;
+    (void)vli_mac(m, mod[0], t[0], &carry);
+    for (j = 1; j < num_words; ++j) {
+        t[j - 1] = vli_mac(m, mod[j], t[j], &carry);
+    }
+    t[num_words - 1] = t[num_words] + carry;
+    t[num_words] = (t[num_words - 1] < carry);
+}
+
+/* result = t (num_words + 1 words, t < 2 * mod) reduced mod mod, in constant time. */
+static void vli_montFinish(uECC_word_t *result,
+                           const uECC_word_t *t,
+                           const uECC_word_t *mod,
+                           wordcount_t num_words) {
+    uECC_word_t borrow = uECC_vli_sub(result, t, mod, num_words);
+    uECC_word_t mask = (uECC_word_t)0 - (borrow & (t[num_words] ^ 1)); /* keep t if t < mod */
+    wordcount_t i;
+    for (i = 0; i < num_words; ++i) {
+        result[i] = (t[i] & mask) | (result[i] & ~mask);
+    }
+}
+
+/* Computes result = left * right / R % mod, with R = 2^(uECC_WORD_BITS * num_words),
+   in constant time (word-serial Montgomery multiplication). mod must be odd, and
+   left * right < mod * R (e.g. right < mod). result may alias left or right. */
+static void vli_montMult(uECC_word_t *result,
+                         const uECC_word_t *left,
+                         const uECC_word_t *right,
+                         const uECC_word_t *mod,
+                         wordcount_t num_words) {
+    uECC_word_t t[uECC_MAX_WORDS + 1];
+    uECC_word_t inv = vli_montInv(mod);
+    uECC_word_t carry, top;
+    wordcount_t i, j;
+    for (i = 0; i <= num_words; ++i) {
+        t[i] = 0;
+    }
+    for (i = 0; i < num_words; ++i) {
+        /* t += left[i] * right */
+        carry = 0;
+        for (j = 0; j < num_words; ++j) {
+            t[j] = vli_mac(left[i], right[j], t[j], &carry);
+        }
+        t[num_words] += carry;
+        top = (t[num_words] < carry);
+        vli_montStep(t, mod, inv, num_words);
+        t[num_words] += top;
+    }
+    vli_montFinish(result, t, mod, num_words);
+}
+
+/* Computes result = left / R % mod (Montgomery reduction), in constant time. mod must
+   be odd and left < R. result may alias left. */
+static void vli_montReduce(uECC_word_t *result,
+                           const uECC_word_t *left,
+                           const uECC_word_t *mod,
+                           wordcount_t num_words) {
+    uECC_word_t t[uECC_MAX_WORDS + 1];
+    uECC_word_t inv = vli_montInv(mod);
+    wordcount_t i;
+    uECC_vli_set(t, left, num_words);
+    t[num_words] = 0;
+    for (i = 0; i < num_words; ++i) {
+        vli_montStep(t, mod, inv, num_words);
+    }
+    vli_montFinish(result, t, mod, num_words);
+}
+
+#if uECC_ENABLE_VLI_API
 /* Computes result = (left * right) % mod. */
 uECC_VLI_API void uECC_vli_modMult(uECC_word_t *result,
                                    const uECC_word_t *left,
@@ -618,6 +741,7 @@ uECC_VLI_API void uECC_vli_modMult(uECC_word_t *result,
     uECC_vli_mult(product, left, right, num_words);
     uECC_vli_mmod(result, product, mod, num_words);
 }
+#endif /* uECC_ENABLE_VLI_API */
 
 uECC_VLI_API void uECC_vli_modMult_fast(uECC_word_t *result,
                                         const uECC_word_t *left,
@@ -676,6 +800,511 @@ uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
 }
 
 #endif /* uECC_SQUARE_FUNC */
+
+#if (uECC_SAFEGCD == 1)
+
+/* Constant-time modular inversion using the "safegcd" algorithm of Bernstein and
+   Yang ("Fast constant-time gcd computation and modular inversion", 2019), in the
+   form used by libsecp256k1 (signed 30-bit limbs, batches of 30 "half-delta"
+   divsteps; see libsecp256k1's doc/safegcd_implementation.md). Works for any odd
+   modulus of up to 256 bits. */
+
+#define S30_LIMBS_MAX 9                        /* 9 * 30 = 270 >= 256 + 2 bits */
+#define S30_MASK ((int32_t)0x3FFFFFFF)
+#define S30_BATCHES 20                         /* 20 * 30 = 600 >= 590 divsteps,
+                                                  enough for any input < 2^256 */
+
+typedef struct {
+    int32_t u, v, q, r;
+} s30_trans;
+
+/* Byte k of a VLI. */
+#define VLI_BYTE(vli, k) \
+    ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
+
+static void vli_to_s30(int32_t *r,
+                       const uECC_word_t *a,
+                       wordcount_t num_words,
+                       wordcount_t len) {
+    uint64_t acc = 0;
+    int nbits = 0;
+    int k = 0;
+    const int nbytes = num_words * uECC_WORD_SIZE;
+    wordcount_t i;
+    for (i = 0; i < len; ++i) {
+        while (nbits < 30 && k < nbytes) {
+            acc |= (uint64_t)VLI_BYTE(a, k) << nbits;
+            nbits += 8;
+            ++k;
+        }
+        r[i] = (int32_t)acc & S30_MASK;
+        acc >>= 30;
+        nbits = (nbits > 30) ? nbits - 30 : 0;
+    }
+}
+
+/* r must be normalized (all limbs in [0, 2^30)). */
+static void s30_to_vli(uECC_word_t *result,
+                       const int32_t *r,
+                       wordcount_t num_words,
+                       wordcount_t len) {
+    uint64_t acc = 0;
+    int nbits = 0;
+    wordcount_t i = 0;
+    int k;
+    const int nbytes = num_words * uECC_WORD_SIZE;
+    uECC_vli_clear(result, num_words);
+    for (k = 0; k < nbytes; ++k) {
+        while (nbits < 8 && i < len) {
+            acc |= (uint64_t)(uint32_t)r[i++] << nbits;
+            nbits += 30;
+        }
+        result[k / uECC_WORD_SIZE] |= (uECC_word_t)(uint8_t)acc << (8 * (k % uECC_WORD_SIZE));
+        acc >>= 8;
+        nbits -= 8;
+    }
+}
+
+/* Performs 30 half-delta divsteps on the low bits of f and g (f odd), returning
+   the updated zeta (= -(delta + 1/2)) and the transition matrix, scaled by 2^30. */
+__attribute__((noinline)) static int32_t s30_divsteps(int32_t zeta, uint32_t f, uint32_t g, s30_trans *t) {
+    uint32_t u = 1, v = 0, q = 0, r = 1;
+    uint32_t c1, c2, x, y, z;
+    int i;
+    for (i = 0; i < 30; ++i) {
+        c1 = (uint32_t)(zeta >> 31);           /* -1 if zeta < 0 (delta > 0) */
+        c2 = -(g & 1);                         /* -1 if g is odd */
+        /* Conditionally negate f, u, v (if delta > 0) and add them to g, q, r
+           (if g is odd). */
+        x = (f ^ c1) - c1;
+        y = (u ^ c1) - c1;
+        z = (v ^ c1) - c1;
+        g += x & c2;
+        q += y & c2;
+        r += z & c2;
+        /* If both: swap (f, u, v) with (g, q, r) and negate delta. */
+        c1 &= c2;
+        zeta = (zeta ^ (int32_t)c1) - 1;
+        f += g & c1;
+        u += q & c1;
+        v += r & c1;
+        g >>= 1;
+        u <<= 1;
+        v <<= 1;
+    }
+    t->u = (int32_t)u;
+    t->v = (int32_t)v;
+    t->q = (int32_t)q;
+    t->r = (int32_t)r;
+    return zeta;
+}
+
+#if !asm_s30_update
+/* (d, e) = t * (d, e) / 2^30 mod modulus, keeping d and e in (-2 * modulus, modulus). */
+__attribute__((noinline)) static void s30_update_de(int32_t *d,
+                          int32_t *e,
+                          const s30_trans *t,
+                          const int32_t *mod,
+                          uint32_t mod_inv30,
+                          wordcount_t len) {
+    const int32_t u = t->u, v = t->v, q = t->q, r = t->r;
+    int32_t di, ei, md, me, sd, se;
+    int64_t cd, ce;
+    wordcount_t i;
+    /* Add (u & sd) + (v & se) multiples of the modulus to d (and likewise for e)
+       so that the result stays in range when d or e is negative. */
+    sd = d[len - 1] >> 31;
+    se = e[len - 1] >> 31;
+    md = (u & sd) + (v & se);
+    me = (q & sd) + (r & se);
+    di = d[0];
+    ei = e[0];
+    cd = (int64_t)u * di + (int64_t)v * ei;
+    ce = (int64_t)q * di + (int64_t)r * ei;
+    /* Adjust md and me so that the bottom 30 bits of the results are zero. */
+    md -= (int32_t)((mod_inv30 * (uint32_t)cd + (uint32_t)md) & S30_MASK);
+    me -= (int32_t)((mod_inv30 * (uint32_t)ce + (uint32_t)me) & S30_MASK);
+    cd += (int64_t)mod[0] * md;
+    ce += (int64_t)mod[0] * me;
+    cd >>= 30;
+    ce >>= 30;
+    for (i = 1; i < len; ++i) {
+        di = d[i];
+        ei = e[i];
+        cd += (int64_t)u * di + (int64_t)v * ei + (int64_t)mod[i] * md;
+        ce += (int64_t)q * di + (int64_t)r * ei + (int64_t)mod[i] * me;
+        d[i - 1] = (int32_t)cd & S30_MASK;
+        e[i - 1] = (int32_t)ce & S30_MASK;
+        cd >>= 30;
+        ce >>= 30;
+    }
+    d[len - 1] = (int32_t)cd;
+    e[len - 1] = (int32_t)ce;
+}
+
+/* (f, g) = t * (f, g) / 2^30 (exact). */
+__attribute__((noinline)) static void s30_update_fg(int32_t *f, int32_t *g, const s30_trans *t, wordcount_t len) {
+    const int32_t u = t->u, v = t->v, q = t->q, r = t->r;
+    int32_t fi, gi;
+    int64_t cf, cg;
+    wordcount_t i;
+    fi = f[0];
+    gi = g[0];
+    cf = (int64_t)u * fi + (int64_t)v * gi;
+    cg = (int64_t)q * fi + (int64_t)r * gi;
+    cf >>= 30;
+    cg >>= 30;
+    for (i = 1; i < len; ++i) {
+        fi = f[i];
+        gi = g[i];
+        cf += (int64_t)u * fi + (int64_t)v * gi;
+        cg += (int64_t)q * fi + (int64_t)r * gi;
+        f[i - 1] = (int32_t)cf & S30_MASK;
+        g[i - 1] = (int32_t)cg & S30_MASK;
+        cf >>= 30;
+        cg >>= 30;
+    }
+    f[len - 1] = (int32_t)cf;
+    g[len - 1] = (int32_t)cg;
+}
+#endif /* !asm_s30_update */
+
+/* Brings r from (-2 * modulus, modulus) to [0, modulus), negating it first if
+   sign < 0. */
+static void s30_normalize(int32_t *r, int32_t sign, const int32_t *mod, wordcount_t len) {
+    int32_t cond;
+    wordcount_t i;
+    int pass;
+    cond = r[len - 1] >> 31;
+    for (i = 0; i < len; ++i) {
+        r[i] += mod[i] & cond;
+    }
+    cond = sign >> 31;
+    for (i = 0; i < len; ++i) {
+        r[i] = (r[i] ^ cond) - cond;
+    }
+    for (pass = 0; pass < 2; ++pass) {
+        /* Propagate carries so that all limbs but the top are in [0, 2^30). */
+        for (i = 0; i < len - 1; ++i) {
+            r[i + 1] += r[i] >> 30;
+            r[i] &= S30_MASK;
+        }
+        if (pass == 0) {
+            cond = r[len - 1] >> 31;
+            for (i = 0; i < len; ++i) {
+                r[i] += mod[i] & cond;
+            }
+        }
+    }
+}
+
+/* Computes result = (1 / input) % mod, in constant time. mod must be odd and input
+   must be < mod. Returns 0 if input is 0. */
+uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
+                                  const uECC_word_t *input,
+                                  const uECC_word_t *mod,
+                                  wordcount_t num_words) {
+    /* de = { d, e, modulus } and fg = { f, g }, each S30_LIMBS_MAX limbs (the
+       assembly updates rely on this layout). */
+    int32_t de[3 * S30_LIMBS_MAX], fg[2 * S30_LIMBS_MAX];
+    int32_t *d = de, *e = de + S30_LIMBS_MAX, *m = de + 2 * S30_LIMBS_MAX;
+    int32_t *f = fg, *g = fg + S30_LIMBS_MAX;
+    s30_trans t;
+    int32_t zeta = -1;                         /* delta = 1/2 */
+    uint32_t inv;
+    const wordcount_t len = (wordcount_t)((num_words * uECC_WORD_BITS + 2 + 29) / 30);
+    wordcount_t i;
+
+    vli_to_s30(m, mod, num_words, len);
+    /* inv = 1 / mod (mod 2^32), by Newton iteration (valid to 3 bits initially). */
+    inv = (uint32_t)m[0] | ((uint32_t)m[1] << 30);
+    {
+        uint32_t m0 = inv;
+        inv *= 2 - m0 * inv;
+        inv *= 2 - m0 * inv;
+        inv *= 2 - m0 * inv;
+        inv *= 2 - m0 * inv;
+    }
+    for (i = 0; i < len; ++i) {
+        d[i] = 0;
+        e[i] = 0;
+        f[i] = m[i];
+    }
+    e[0] = 1;
+    vli_to_s30(g, input, num_words, len);
+
+    for (i = 0; i < S30_BATCHES; ++i) {
+        zeta = s30_divsteps(zeta, (uint32_t)f[0], (uint32_t)g[0], &t);
+#if asm_s30_update
+        s30_update_de_asm(de, &t.u, inv, (uint32_t)len);
+        s30_update_fg_asm(fg, &t.u, (uint32_t)len);
+#else
+        s30_update_de(d, e, &t, m, inv, len);
+        s30_update_fg(f, g, &t, len);
+#endif
+    }
+    /* Now g == 0 and f == +/-1 (or +/-input, if input == 0, in which case d == 0). */
+    s30_normalize(d, f[len - 1], m, len);
+    s30_to_vli(result, d, num_words, len);
+}
+
+#elif (uECC_SAFEGCD == 2)
+
+/* Constant-time modular inversion using safegcd (see above), with signed 14-bit
+   limbs and batches of 14 divsteps, so that every product is 16x16->32 bits. For
+   platforms without a fast 32x32->64-bit multiply (8-bit AVR, Cortex-M0). */
+
+#define S14_LIMBS_MAX 19                       /* see uECC_vli_modInv */
+#define S14_MASK 0x3FFF
+#define S14_BATCHES 43                         /* 43 * 14 = 602 >= 590 divsteps,
+                                                  enough for any input < 2^256 */
+
+/* acc += a * b, for int32_t acc and int16_t a, b. */
+#ifndef S14_MAC
+    #define S14_MAC(acc, a, b) ((acc) += (int32_t)(a) * (b))
+#endif
+/* acc >>= 14 (arithmetic). */
+#ifndef S14_SHR
+    #define S14_SHR(acc) ((acc) >>= 14)
+#endif
+
+/* Limbs and matrix entries fit in 16 bits; use native-width integers where that is
+   cheaper (on 32-bit platforms 16-bit types need extra sign / zero extensions). */
+#if (uECC_WORD_SIZE == 1)
+typedef int16_t s14_t;
+typedef uint16_t s14_ut;
+#else
+typedef int32_t s14_t;
+typedef uint32_t s14_ut;
+#endif
+#define S14_SIGN_SHIFT (sizeof(s14_t) * 8 - 1)
+
+typedef struct {
+    s14_t u, v, q, r;
+} s14_trans;
+
+/* Byte k of a VLI. */
+#define VLI_BYTE(vli, k) \
+    ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
+
+static void vli_to_s14(s14_t *r,
+                       const uECC_word_t *a,
+                       wordcount_t num_words,
+                       wordcount_t len) {
+    uint32_t acc = 0;
+    int nbits = 0;
+    int k = 0;
+    const int nbytes = num_words * uECC_WORD_SIZE;
+    wordcount_t i;
+    for (i = 0; i < len; ++i) {
+        while (nbits < 14 && k < nbytes) {
+            acc |= (uint32_t)VLI_BYTE(a, k) << nbits;
+            nbits += 8;
+            ++k;
+        }
+        r[i] = (s14_t)(acc & S14_MASK);
+        acc >>= 14;
+        nbits = (nbits > 14) ? nbits - 14 : 0;
+    }
+}
+
+/* r must be normalized (all limbs in [0, 2^14)). */
+static void s14_to_vli(uECC_word_t *result,
+                       const s14_t *r,
+                       wordcount_t num_words,
+                       wordcount_t len) {
+    uint32_t acc = 0;
+    int nbits = 0;
+    wordcount_t i = 0;
+    int k;
+    const int nbytes = num_words * uECC_WORD_SIZE;
+    uECC_vli_clear(result, num_words);
+    for (k = 0; k < nbytes; ++k) {
+        while (nbits < 8 && i < len) {
+            acc |= (uint32_t)(uint16_t)r[i++] << nbits;
+            nbits += 14;
+        }
+        result[k / uECC_WORD_SIZE] |= (uECC_word_t)(uint8_t)acc << (8 * (k % uECC_WORD_SIZE));
+        acc >>= 8;
+        nbits -= 8;
+    }
+}
+
+/* 14 half-delta divsteps on the low bits of f and g (f odd); see s30_divsteps. */
+static s14_t s14_divsteps(s14_t zeta, s14_ut f, s14_ut g, s14_trans *t) {
+    s14_ut u = 1, v = 0, q = 0, r = 1;
+    s14_ut c1, c2, x, y, z;
+    uint8_t i;
+    for (i = 0; i < 14; ++i) {
+        c1 = (s14_ut)(zeta >> S14_SIGN_SHIFT);
+        c2 = (s14_ut)-(g & 1);
+        x = (f ^ c1) - c1;
+        y = (u ^ c1) - c1;
+        z = (v ^ c1) - c1;
+        g += x & c2;
+        q += y & c2;
+        r += z & c2;
+        c1 &= c2;
+        zeta = (s14_t)((zeta ^ (s14_t)c1) - 1);
+        f += g & c1;
+        u += q & c1;
+        v += r & c1;
+        g >>= 1;
+        u <<= 1;
+        v <<= 1;
+    }
+    /* Sign-extend from 16 bits (exact: |entries| <= 2^14). */
+    t->u = (int16_t)u;
+    t->v = (int16_t)v;
+    t->q = (int16_t)q;
+    t->r = (int16_t)r;
+    return zeta;
+}
+
+/* (d, e) = t * (d, e) / 2^14 mod modulus; see s30_update_de. */
+static void s14_update_de(s14_t *d,
+                          s14_t *e,
+                          const s14_trans *t,
+                          const s14_t *mod,
+                          uint16_t mod_inv14,
+                          wordcount_t len) {
+    const s14_t u = t->u, v = t->v, q = t->q, r = t->r;
+    s14_t di, ei, md, me, sd, se;
+    int32_t cd = 0, ce = 0;
+    wordcount_t i;
+    sd = d[len - 1] >> S14_SIGN_SHIFT;
+    se = e[len - 1] >> S14_SIGN_SHIFT;
+    md = (u & sd) + (v & se);
+    me = (q & sd) + (r & se);
+    di = d[0];
+    ei = e[0];
+    S14_MAC(cd, u, di);
+    S14_MAC(cd, v, ei);
+    S14_MAC(ce, q, di);
+    S14_MAC(ce, r, ei);
+    md -= (s14_t)((uint16_t)(mod_inv14 * (uint16_t)cd + (uint16_t)md) & S14_MASK);
+    me -= (s14_t)((uint16_t)(mod_inv14 * (uint16_t)ce + (uint16_t)me) & S14_MASK);
+    S14_MAC(cd, mod[0], md);
+    S14_MAC(ce, mod[0], me);
+    S14_SHR(cd);
+    S14_SHR(ce);
+    for (i = 1; i < len; ++i) {
+        di = d[i];
+        ei = e[i];
+        S14_MAC(cd, u, di);
+        S14_MAC(cd, v, ei);
+        S14_MAC(cd, mod[i], md);
+        S14_MAC(ce, q, di);
+        S14_MAC(ce, r, ei);
+        S14_MAC(ce, mod[i], me);
+        d[i - 1] = (s14_t)cd & S14_MASK;
+        e[i - 1] = (s14_t)ce & S14_MASK;
+        S14_SHR(cd);
+        S14_SHR(ce);
+    }
+    d[len - 1] = (s14_t)cd;
+    e[len - 1] = (s14_t)ce;
+}
+
+/* (f, g) = t * (f, g) / 2^14 (exact). */
+static void s14_update_fg(s14_t *f, s14_t *g, const s14_trans *t, wordcount_t len) {
+    const s14_t u = t->u, v = t->v, q = t->q, r = t->r;
+    s14_t fi, gi;
+    int32_t cf = 0, cg = 0;
+    wordcount_t i;
+    fi = f[0];
+    gi = g[0];
+    S14_MAC(cf, u, fi);
+    S14_MAC(cf, v, gi);
+    S14_MAC(cg, q, fi);
+    S14_MAC(cg, r, gi);
+    S14_SHR(cf);
+    S14_SHR(cg);
+    for (i = 1; i < len; ++i) {
+        fi = f[i];
+        gi = g[i];
+        S14_MAC(cf, u, fi);
+        S14_MAC(cf, v, gi);
+        S14_MAC(cg, q, fi);
+        S14_MAC(cg, r, gi);
+        f[i - 1] = (s14_t)cf & S14_MASK;
+        g[i - 1] = (s14_t)cg & S14_MASK;
+        S14_SHR(cf);
+        S14_SHR(cg);
+    }
+    f[len - 1] = (s14_t)cf;
+    g[len - 1] = (s14_t)cg;
+}
+
+/* Brings r from (-2 * modulus, modulus) to [0, modulus), negating it first if
+   sign < 0. */
+static void s14_normalize(s14_t *r, s14_t sign, const s14_t *mod, wordcount_t len) {
+    s14_t cond;
+    wordcount_t i;
+    uint8_t pass;
+    cond = r[len - 1] >> S14_SIGN_SHIFT;
+    for (i = 0; i < len; ++i) {
+        r[i] += mod[i] & cond;
+    }
+    cond = sign >> S14_SIGN_SHIFT;
+    for (i = 0; i < len; ++i) {
+        r[i] = (r[i] ^ cond) - cond;
+    }
+    for (pass = 0; pass < 2; ++pass) {
+        for (i = 0; i < len - 1; ++i) {
+            r[i + 1] += r[i] >> 14;
+            r[i] &= S14_MASK;
+        }
+        if (pass == 0) {
+            cond = r[len - 1] >> S14_SIGN_SHIFT;
+            for (i = 0; i < len; ++i) {
+                r[i] += mod[i] & cond;
+            }
+        }
+    }
+}
+
+/* Computes result = (1 / input) % mod, in constant time. mod must be odd and input
+   must be < mod. Returns 0 if input is 0. */
+uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
+                                  const uECC_word_t *input,
+                                  const uECC_word_t *mod,
+                                  wordcount_t num_words) {
+    s14_t d[S14_LIMBS_MAX], e[S14_LIMBS_MAX], f[S14_LIMBS_MAX], g[S14_LIMBS_MAX];
+    s14_t m[S14_LIMBS_MAX];
+    s14_trans t;
+    s14_t zeta = -1;                         /* delta = 1/2 */
+    uint16_t inv, m0;
+    /* Enough limbs that values in (-2^(bits + 1), 2^(bits + 1)) keep the signed
+       top limb within 15 bits. */
+    const wordcount_t len = (wordcount_t)((num_words * uECC_WORD_BITS) / 14 + 1);
+    wordcount_t i;
+
+    vli_to_s14(m, mod, num_words, len);
+    /* inv = 1 / mod (mod 2^16), by Newton iteration (valid to 3 bits initially). */
+    m0 = (uint16_t)m[0] | (uint16_t)((uint16_t)m[1] << 14);
+    inv = m0;
+    inv *= (uint16_t)(2 - (uint16_t)(m0 * inv));
+    inv *= (uint16_t)(2 - (uint16_t)(m0 * inv));
+    inv *= (uint16_t)(2 - (uint16_t)(m0 * inv));
+    for (i = 0; i < len; ++i) {
+        d[i] = 0;
+        e[i] = 0;
+        f[i] = m[i];
+    }
+    e[0] = 1;
+    vli_to_s14(g, input, num_words, len);
+
+    for (i = 0; i < S14_BATCHES; ++i) {
+        zeta = s14_divsteps(zeta, (s14_ut)f[0], (s14_ut)g[0], &t);
+        s14_update_de(d, e, &t, m, inv, len);
+        s14_update_fg(f, g, &t, len);
+    }
+    s14_normalize(d, f[len - 1], m, len);
+    s14_to_vli(result, d, num_words, len);
+}
+
+#else /* !uECC_SAFEGCD */
 
 #define EVEN(vli) (!(vli[0] & 1))
 static void vli_modInv_update(uECC_word_t *uv,
@@ -737,6 +1366,7 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
     }
     uECC_vli_set(result, u, num_words);
 }
+#endif /* uECC_SAFEGCD */
 
 /* ------ Point operations ------ */
 
@@ -1296,10 +1926,15 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
     }
 
     /* Prevent side channel analysis of uECC_vli_modInv() to determine
-       bits of k / the private key by premultiplying by a random number */
-    uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k' = rand * k */
-    uECC_vli_modInv(k, k, curve->n, num_n_words);       /* k = 1 / k' */
-    uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k = 1 / k */
+       bits of k / the private key by premultiplying by a random number.
+       The arithmetic mod n uses Montgomery multiplication, M(a, b) = a * b / R
+       (R = 2^(uECC_WORD_BITS * num_n_words)); the powers of R are arranged to cancel
+       out, so that no Montgomery-form constants are needed. */
+    vli_montMult(k, k, tmp, curve->n, num_n_words);    /* k' = rand * k / R */
+    vli_montReduce(k, k, curve->n, num_n_words);       /* k' = rand * k / R^2 */
+    vli_montReduce(k, k, curve->n, num_n_words);       /* k' = rand * k / R^3 */
+    uECC_vli_modInv(k, k, curve->n, num_n_words);      /* k = R^3 / (rand * k) */
+    vli_montMult(k, k, tmp, curve->n, num_n_words);    /* k = R^2 / k */
 
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN == 0
     uECC_vli_nativeToBytes(signature, curve->num_bytes, p); /* store r */
@@ -1313,11 +1948,12 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
 
     s[num_n_words - 1] = 0;
     uECC_vli_set(s, p, num_words);
-    uECC_vli_modMult(s, tmp, s, curve->n, num_n_words); /* s = r*d */
+    vli_montMult(s, s, tmp, curve->n, num_n_words);    /* s = r * d / R */
 
     bits2int(tmp, message_hash, hash_size, curve);
-    uECC_vli_modAdd(s, tmp, s, curve->n, num_n_words); /* s = e + r*d */
-    uECC_vli_modMult(s, s, k, curve->n, num_n_words);  /* s = (e + r*d) / k */
+    vli_montReduce(tmp, tmp, curve->n, num_n_words);   /* tmp = e / R */
+    uECC_vli_modAdd(s, tmp, s, curve->n, num_n_words); /* s = (e + r * d) / R */
+    vli_montMult(s, s, k, curve->n, num_n_words);      /* s = (e + r * d) / k */
     if (uECC_vli_numBits(s, num_n_words) > (bitcount_t)curve->num_bytes * 8) {
         return 0;
     }
@@ -1541,12 +2177,13 @@ int uECC_verify(const uint8_t *public_key,
         return 0;
     }
 
-    /* Calculate u1 and u2. */
-    uECC_vli_modInv(z, s, curve->n, num_n_words); /* z = 1/s */
+    /* Calculate u1 and u2, using Montgomery multiplication M(a, b) = a * b / R. */
+    vli_montReduce(z, s, curve->n, num_n_words);    /* z = s / R */
+    uECC_vli_modInv(z, z, curve->n, num_n_words);   /* z = R / s */
     u1[num_n_words - 1] = 0;
     bits2int(u1, message_hash, hash_size, curve);
-    uECC_vli_modMult(u1, u1, z, curve->n, num_n_words); /* u1 = e/s */
-    uECC_vli_modMult(u2, r, z, curve->n, num_n_words); /* u2 = r/s */
+    vli_montMult(u1, u1, z, curve->n, num_n_words); /* u1 = e / s */
+    vli_montMult(u2, r, z, curve->n, num_n_words);  /* u2 = r / s */
 
     /* Calculate sum = G + Q. */
     uECC_vli_set(sum, _public, num_words);
