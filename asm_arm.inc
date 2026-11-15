@@ -51,6 +51,10 @@
 
 #if (uECC_PLATFORM == uECC_arm_thumb)
 
+/* On Thumb-1, the unrolled add/sub (and rshift) start at level 3, so that
+   level 2 (assembly reductions) and level 3 differ. */
+#if (uECC_OPTIMIZATION_LEVEL >= 3)
+
 #define ARM_THUMB1_ADD_PAIR_FIRST \
     "ldmia %[lptr]!, {r3, r4} \n\t" \
     "ldmia %[rptr]!, {r5, r6} \n\t" \
@@ -200,6 +204,8 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 #endif
 }
 #define asm_sub 1
+
+#endif /* (uECC_OPTIMIZATION_LEVEL >= 3) */
 
 #else /* Thumb-2 or 32-bit ARM */
 
@@ -367,11 +373,23 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 
 #endif /* uECC_PLATFORM == uECC_arm_thumb */
 
+#if (uECC_OPTIMIZATION_LEVEL >= 3) || (uECC_PLATFORM != uECC_arm_thumb)
 #include "asm_arm_rshift.inc"
+#endif
+
+/* At level 4, fused constant-time modAdd / modSub for Thumb-2 and ARM (faster
+   than the generic versions, but about 1 KB larger). */
+#if (uECC_OPTIMIZATION_LEVEL >= 4) && (uECC_PLATFORM != uECC_arm_thumb)
+#include "asm_arm_modaddsub.inc"
+#endif
 
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 2) */
 
-#if (uECC_OPTIMIZATION_LEVEL >= 3)
+/* Multiplication / squaring: unrolled at levels >= 3 for Thumb-2 / ARM; for
+   Thumb-1 the compact word-row loops (smaller and faster than the generic
+   versions) are used from level 1, and unrolled versions at level 4. */
+#if (uECC_OPTIMIZATION_LEVEL >= 3) || \
+    ((uECC_OPTIMIZATION_LEVEL > 0) && (uECC_PLATFORM == uECC_arm_thumb))
 
 #if (uECC_PLATFORM != uECC_arm_thumb)
 
@@ -572,7 +590,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
 #else /* uECC_PLATFORM == uECC_arm_thumb */
 
-#if (uECC_OPTIMIZATION_LEVEL == 3)
+#if (uECC_OPTIMIZATION_LEVEL <= 3)
 
 /* Compact Word-Row Loop multiplication for Thumb-1 (ARMv6-M / Cortex-M0):
    Hoists splitting left[i] into 16-bit halfwords (a_lo in r8, a_hi in r9) out
@@ -770,7 +788,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 }
 #define asm_mult 1
 
-#endif /* (uECC_OPTIMIZATION_LEVEL == 3) */
+#endif /* (uECC_OPTIMIZATION_LEVEL <= 3) */
 
 #if uECC_SQUARE_FUNC
 /* Compact Word-Row Loop squaring for Thumb-1 (used for both Level 3 and Level 4):
@@ -918,12 +936,11 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
 #endif /* uECC_PLATFORM != uECC_arm_thumb */
 
-#endif /* (uECC_OPTIMIZATION_LEVEL >= 3) */
+#endif /* (uECC_OPTIMIZATION_LEVEL >= 3) || Thumb-1 */
 
-/* Fast reductions: at levels >= 3 for all ARM platforms, and at all levels
-   for Thumb-1 (where the assembly is both smaller and faster than C). */
-#if (uECC_OPTIMIZATION_LEVEL >= 3) || \
-    ((uECC_OPTIMIZATION_LEVEL > 0) && (uECC_PLATFORM == uECC_arm_thumb))
+/* Constant-time assembly fast reductions from level 2 (level 1 uses the smaller
+   variable-time C versions; see uECC_ARM_COMPACT_L1 in uECC.c). */
+#if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
 #include "asm_arm_mmod.inc"
 #endif
 
@@ -934,7 +951,8 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-#if (uECC_PLATFORM != uECC_arm_thumb)
+#if (uECC_PLATFORM != uECC_arm_thumb) && (uECC_OPTIMIZATION_LEVEL > 0)
+    /* Carry kept in the flags (faster); level 0 uses the smaller loop below. */
     const uECC_word_t *left_end = left + num_words;
     uint32_t left_word;
     uint32_t right_word;
@@ -993,7 +1011,8 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-#if (uECC_PLATFORM != uECC_arm_thumb)
+#if (uECC_PLATFORM != uECC_arm_thumb) && (uECC_OPTIMIZATION_LEVEL > 0)
+    /* Carry kept in the flags (faster); level 0 uses the smaller loop below. */
     const uECC_word_t *left_end = left + num_words;
     uint32_t left_word;
     uint32_t right_word;

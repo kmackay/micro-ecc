@@ -88,16 +88,21 @@
 
 #include "platform-specific.inc"
 
-/* uECC_SAFEGCD - Selects the uECC_vli_modInv() implementation:
-   0 - binary extended Euclidean algorithm (variable-time).
-   1 - constant-time safegcd with signed 30-bit limbs (needs a fast 32x32->64-bit
-       multiply; not supported with avr-gcc).
-   2 - constant-time safegcd with signed 14-bit limbs (only 16x16->32-bit
-       multiplies). Slower than option 0 on 8-bit platforms and Thumb-1
-       (Cortex-M0), but constant-time.
-   The default is 1, except on 8-bit platforms and Thumb-1 where it is 0. */
+/* Level 1 on ARM favors code size: it uses the smaller (variable-time) C fast
+   reductions, the generic mod-n multiplication (uECC_vli_modMult) and the binary
+   extended Euclidean inversion. Levels >= 2 use the constant-time assembly
+   reductions, Montgomery multiplication mod n and (on Thumb-2 / ARM) safegcd. */
+#if (uECC_OPTIMIZATION_LEVEL == 1) && (uECC_PLATFORM == uECC_arm || \
+    uECC_PLATFORM == uECC_arm_thumb || uECC_PLATFORM == uECC_arm_thumb2)
+    #define uECC_ARM_COMPACT_L1 1
+#else
+    #define uECC_ARM_COMPACT_L1 0
+#endif
+
+/* Default modular inversion implementation (see uECC_SAFEGCD in uECC.h). */
 #ifndef uECC_SAFEGCD
-    #if (uECC_WORD_SIZE == 1) || (uECC_PLATFORM == uECC_arm_thumb)
+    #if (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1 || (uECC_WORD_SIZE == 1) || \
+        (uECC_PLATFORM == uECC_arm_thumb)
         #define uECC_SAFEGCD 0
     #else
         #define uECC_SAFEGCD 1
@@ -553,6 +558,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
 /* Computes result = (left + right) % mod.
    Assumes that left < mod and right < mod, and that result does not overlap mod. */
+#if !asm_modAdd
 uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   const uECC_word_t *right,
@@ -564,9 +570,11 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
         uECC_vli_sub(result, result, mod, num_words);
     }
 }
+#endif /* !asm_modAdd */
 
 /* Computes result = (left - right) % mod.
    Assumes that left < mod and right < mod, and that result does not overlap mod. */
+#if !asm_modSub
 uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   const uECC_word_t *right,
@@ -579,8 +587,9 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
         uECC_vli_add(result, result, mod, num_words);
     }
 }
+#endif /* !asm_modSub */
 
-#if uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0)
+#if uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1
 /* Computes result = product % mod, where product is 2N words long. */
 /* Currently only designed to work for curve_p or curve_n. */
 uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
@@ -626,6 +635,7 @@ uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
 }
 #endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) */
 
+#if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
 /* ---- Montgomery multiplication (used for the arithmetic mod n in ECDSA) ---- */
 
 /* Returns the low word of a * b + c + *carry, and sets *carry to the high word. */
@@ -648,10 +658,12 @@ static uECC_word_t vli_mac(uECC_word_t a, uECC_word_t b, uECC_word_t c, uECC_wor
 static uECC_word_t vli_montInv(const uECC_word_t *mod) {
     uECC_word_t inv = mod[0];
     uECC_word_t i;
+    /* (0u + x) keeps the products unsigned when uECC_word_t would otherwise be
+       promoted to (signed) int. */
     for (i = 0; i < 5; ++i) {
-        inv *= 2 - mod[0] * inv;
+        inv = (uECC_word_t)((0u + inv) * (uECC_word_t)(2u - (0u + mod[0]) * inv));
     }
-    return 0 - inv;
+    return (uECC_word_t)(0u - inv);
 }
 
 /* t = (t + m * mod) / 2^uECC_WORD_BITS for t of num_words + 1 words, where
@@ -660,7 +672,7 @@ static void vli_montStep(uECC_word_t *t,
                          const uECC_word_t *mod,
                          uECC_word_t inv,
                          wordcount_t num_words) {
-    uECC_word_t m = t[0] * inv;
+    uECC_word_t m = (uECC_word_t)((0u + t[0]) * inv);
     uECC_word_t carry = 0;
     wordcount_t j;
     (void)vli_mac(m, mod[0], t[0], &carry);
@@ -729,8 +741,9 @@ static void vli_montReduce(uECC_word_t *result,
     }
     vli_montFinish(result, t, mod, num_words);
 }
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0) */
 
-#if uECC_ENABLE_VLI_API
+#if uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1
 /* Computes result = (left * right) % mod. */
 uECC_VLI_API void uECC_vli_modMult(uECC_word_t *result,
                                    const uECC_word_t *left,
@@ -741,7 +754,7 @@ uECC_VLI_API void uECC_vli_modMult(uECC_word_t *result,
     uECC_vli_mult(product, left, right, num_words);
     uECC_vli_mmod(result, product, mod, num_words);
 }
-#endif /* uECC_ENABLE_VLI_API */
+#endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) */
 
 uECC_VLI_API void uECC_vli_modMult_fast(uECC_word_t *result,
                                         const uECC_word_t *left,
@@ -1182,8 +1195,8 @@ static void s14_update_de(s14_t *d,
     S14_MAC(cd, v, ei);
     S14_MAC(ce, q, di);
     S14_MAC(ce, r, ei);
-    md -= (s14_t)((uint16_t)(mod_inv14 * (uint16_t)cd + (uint16_t)md) & S14_MASK);
-    me -= (s14_t)((uint16_t)(mod_inv14 * (uint16_t)ce + (uint16_t)me) & S14_MASK);
+    md -= (s14_t)((uint16_t)((0u + mod_inv14) * (uint16_t)cd + (uint16_t)md) & S14_MASK);
+    me -= (s14_t)((uint16_t)((0u + mod_inv14) * (uint16_t)ce + (uint16_t)me) & S14_MASK);
     S14_MAC(cd, mod[0], md);
     S14_MAC(ce, mod[0], me);
     S14_SHR(cd);
@@ -1284,9 +1297,10 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
     /* inv = 1 / mod (mod 2^16), by Newton iteration (valid to 3 bits initially). */
     m0 = (uint16_t)m[0] | (uint16_t)((uint16_t)m[1] << 14);
     inv = m0;
-    inv *= (uint16_t)(2 - (uint16_t)(m0 * inv));
-    inv *= (uint16_t)(2 - (uint16_t)(m0 * inv));
-    inv *= (uint16_t)(2 - (uint16_t)(m0 * inv));
+    /* (0u + x): unsigned products, even where uint16_t promotes to int. */
+    inv = (uint16_t)((0u + inv) * (uint16_t)(2u - (0u + m0) * inv));
+    inv = (uint16_t)((0u + inv) * (uint16_t)(2u - (0u + m0) * inv));
+    inv = (uint16_t)((0u + inv) * (uint16_t)(2u - (0u + m0) * inv));
     for (i = 0; i < len; ++i) {
         d[i] = 0;
         e[i] = 0;
@@ -1930,11 +1944,17 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
        The arithmetic mod n uses Montgomery multiplication, M(a, b) = a * b / R
        (R = 2^(uECC_WORD_BITS * num_n_words)); the powers of R are arranged to cancel
        out, so that no Montgomery-form constants are needed. */
+#if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
     vli_montMult(k, k, tmp, curve->n, num_n_words);    /* k' = rand * k / R */
     vli_montReduce(k, k, curve->n, num_n_words);       /* k' = rand * k / R^2 */
     vli_montReduce(k, k, curve->n, num_n_words);       /* k' = rand * k / R^3 */
     uECC_vli_modInv(k, k, curve->n, num_n_words);      /* k = R^3 / (rand * k) */
     vli_montMult(k, k, tmp, curve->n, num_n_words);    /* k = R^2 / k */
+#else
+    uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k' = rand * k */
+    uECC_vli_modInv(k, k, curve->n, num_n_words);       /* k = 1 / k' */
+    uECC_vli_modMult(k, k, tmp, curve->n, num_n_words); /* k = 1 / k */
+#endif
 
 #if uECC_VLI_NATIVE_LITTLE_ENDIAN == 0
     uECC_vli_nativeToBytes(signature, curve->num_bytes, p); /* store r */
@@ -1948,12 +1968,20 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
 
     s[num_n_words - 1] = 0;
     uECC_vli_set(s, p, num_words);
+#if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
     vli_montMult(s, s, tmp, curve->n, num_n_words);    /* s = r * d / R */
 
     bits2int(tmp, message_hash, hash_size, curve);
     vli_montReduce(tmp, tmp, curve->n, num_n_words);   /* tmp = e / R */
     uECC_vli_modAdd(s, tmp, s, curve->n, num_n_words); /* s = (e + r * d) / R */
     vli_montMult(s, s, k, curve->n, num_n_words);      /* s = (e + r * d) / k */
+#else
+    uECC_vli_modMult(s, tmp, s, curve->n, num_n_words); /* s = r*d */
+
+    bits2int(tmp, message_hash, hash_size, curve);
+    uECC_vli_modAdd(s, tmp, s, curve->n, num_n_words); /* s = e + r*d */
+    uECC_vli_modMult(s, s, k, curve->n, num_n_words);  /* s = (e + r*d) / k */
+#endif
     if (uECC_vli_numBits(s, num_n_words) > (bitcount_t)curve->num_bytes * 8) {
         return 0;
     }
@@ -2178,12 +2206,20 @@ int uECC_verify(const uint8_t *public_key,
     }
 
     /* Calculate u1 and u2, using Montgomery multiplication M(a, b) = a * b / R. */
+#if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
     vli_montReduce(z, s, curve->n, num_n_words);    /* z = s / R */
     uECC_vli_modInv(z, z, curve->n, num_n_words);   /* z = R / s */
     u1[num_n_words - 1] = 0;
     bits2int(u1, message_hash, hash_size, curve);
     vli_montMult(u1, u1, z, curve->n, num_n_words); /* u1 = e / s */
     vli_montMult(u2, r, z, curve->n, num_n_words);  /* u2 = r / s */
+#else
+    uECC_vli_modInv(z, s, curve->n, num_n_words);   /* z = 1/s */
+    u1[num_n_words - 1] = 0;
+    bits2int(u1, message_hash, hash_size, curve);
+    uECC_vli_modMult(u1, u1, z, curve->n, num_n_words); /* u1 = e/s */
+    uECC_vli_modMult(u2, r, z, curve->n, num_n_words);  /* u2 = r/s */
+#endif
 
     /* Calculate sum = G + Q. */
     uECC_vli_set(sum, _public, num_words);

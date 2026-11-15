@@ -37,6 +37,17 @@ faster somewhat faster, but increases the code size. */
     #define uECC_SQUARE_FUNC 0
 #endif
 
+/* uECC_SAFEGCD - Selects the modular inversion (uECC_vli_modInv()) implementation:
+   0 - binary extended Euclidean algorithm (variable-time).
+   1 - constant-time safegcd with signed 30-bit limbs (needs a fast 32x32->64-bit
+       multiply; not supported with avr-gcc).
+   2 - constant-time safegcd with signed 14-bit limbs (only needs 16x16->32-bit
+       multiplies). Slower than option 0 on 8-bit platforms and Thumb-1 (Cortex-M0),
+       but constant-time.
+If uECC_SAFEGCD is not explicitly defined then it will be automatically set based on your
+platform: 1, except at optimization level 0 (smallest code), at level 1 on ARM, and on 8-bit
+platforms and Thumb-1, where it is 0. */
+
 /* uECC_VLI_NATIVE_LITTLE_ENDIAN - If enabled (defined as nonzero), this will switch to native
 little-endian format for *all* arrays passed in and out of the public API. This includes public
 and private keys, shared secrets, signatures and message hashes.
