@@ -36,6 +36,14 @@
  *      Stack frames for |A_l - A_h|, |B_l - B_h|, and M are allocated above SP
  *      with atomic __SP_H__/__SP_L__ updates.
  *
+ *   3a. FAST_MULT_ASM_{24,32}_UNROLLED (uECC_OPTIMIZATION_LEVEL >= 4):
+ *      Fully unrolled 2-level (192-bit) and 3-level (256-bit) branch-free
+ *      Karatsuba based on Hutter & Schwabe's karatsuba192/256_branchfree with
+ *      the hybrid leaf M'. Stack accesses are ISR-safe: no data is ever read or
+ *      written below SP (the original 256-bit code moved SP above live data to
+ *      read it back with POP; those reads use LDD/LD instead), and all SP
+ *      updates are atomic.
+ *
  *   4. FAST_SQUARE_ASM_{20,24} (160/192-bit squaring):
  *      Upgraded MOVW-aligned sliding-window schoolbook squarer: computes each
  *      off-diagonal cross-product a_i * a_j (i < j) once while shifting the
@@ -5961,6 +5969,6337 @@
     "std z+30, r12 \n\t" \
     "std z+31, r13 \n\t" \
     "ret \n\t"
+
+#if (uECC_OPTIMIZATION_LEVEL >= 4)
+
+/* 192-bit (24x24 -> 48-byte) fully unrolled 2-level branch-free Karatsuba
+   multiplier (uECC_OPTIMIZATION_LEVEL >= 4). Based on Hutter & Schwabe's
+   karatsuba192_branchfree with the hybrid 2's-complement leaf M' and an
+   ISR-safe stack frame (m0..m5 temporaries allocated above SP; atomic SP
+   restore). */
+#define FAST_MULT_ASM_24_UNROLLED \
+    /* level 1: compute L */ \
+    /* init zero registers */ \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    "movw r22, r20 \n\t" \
+    "movw r24, r20 \n\t" \
+    /* Compute L */ \
+    "ld r2, x+ \n\t" \
+    "ldd r8, y+0 \n\t" \
+    "ldd r9, y+1 \n\t" \
+    "ldd r10, y+2 \n\t" \
+    "ldd r11, y+3 \n\t" \
+    "ldd r12, y+4 \n\t" \
+    "ldd r13, y+5 \n\t" \
+    "mul r2, r10 \n\t" /* a0 * b2 */ \
+    "movw r16, r0 \n\t" \
+    "mul r2, r8 \n\t" /* a0 * b0 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r9 \n\t" /* a0 * b1 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r25 \n\t" \
+    "mul r2, r12 \n\t" /* a0 * b4 */ \
+    "movw r18, r0 \n\t" \
+    "mul r2, r11 \n\t" /* a0 * b3 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r25 \n\t" \
+    "mul r2, r13 \n\t" /* a0 * b5 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "ld r3, x+ \n\t" \
+    "mul r3, r10 \n\t" /* a1 * b2 */ \
+    "movw r6, r0 \n\t" \
+    "mul r3, r8 \n\t" /* a1 * b0 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r6 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r3, r9 \n\t" /* a1 * b1 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r3, r12 \n\t" /* a1 * b4 */ \
+    "add r18, r7 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r21, r25 \n\t" \
+    "mul r3, r11 \n\t" /* a1 * b3 */ \
+    "movw r6, r0 \n\t" \
+    "mul r3, r13 \n\t" /* a1 * b5 */ \
+    "add r18, r6 \n\t" \
+    "adc r19, r7 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "ld r4, x+ \n\t" \
+    "mul r4, r10 \n\t" /* a2 * b2 */ \
+    "movw r6, r0 \n\t" \
+    "mul r4, r8 \n\t" /* a2 * b0 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r18, r6 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r4, r9 \n\t" /* a2 * b1 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r4, r12 \n\t" /* a2 * b4 */ \
+    "add r19, r7 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r25 \n\t" \
+    "mul r4, r11 \n\t" /* a2 * b3 */ \
+    "movw r6, r0 \n\t" \
+    "mul r4, r13 \n\t" /* a2 * b5 */ \
+    "add r19, r6 \n\t" \
+    "adc r20, r7 \n\t" \
+    "adc r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "std z+0, r14 \n\t" \
+    "std z+1, r15 \n\t" \
+    "std z+2, r16 \n\t" \
+    "ld r5, x+ \n\t" \
+    "mul r5, r10 \n\t" /* a3 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r5, r8 \n\t" /* a3 * b0 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r5, r9 \n\t" /* a3 * b1 */ \
+    "add r18, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r5, r12 \n\t" /* a3 * b4 */ \
+    "add r20, r15 \n\t" \
+    "adc r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r25 \n\t" \
+    "mul r5, r11 \n\t" /* a3 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r5, r13 \n\t" /* a3 * b5 */ \
+    "add r20, r14 \n\t" \
+    "adc r21, r15 \n\t" \
+    "adc r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "ld r6, x+ \n\t" \
+    "mul r6, r10 \n\t" /* a4 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r6, r8 \n\t" /* a4 * b0 */ \
+    "add r18, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r6, r9 \n\t" /* a4 * b1 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r6, r12 \n\t" /* a4 * b4 */ \
+    "add r21, r15 \n\t" \
+    "adc r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r25 \n\t" \
+    "mul r6, r11 \n\t" /* a4 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r6, r13 \n\t" /* a4 * b5 */ \
+    "add r21, r14 \n\t" \
+    "adc r22, r15 \n\t" \
+    "adc r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "ld r7, x+ \n\t" \
+    "mul r7, r10 \n\t" /* a5 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r7, r8 \n\t" /* a5 * b0 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r21, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r7, r9 \n\t" /* a5 * b1 */ \
+    "add r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r7, r12 \n\t" /* a5 * b4 */ \
+    "add r22, r15 \n\t" \
+    "adc r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r25 \n\t" \
+    "mul r7, r11 \n\t" /* a5 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r7, r13 \n\t" /* a5 * b5 */ \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "std z+3, r17 \n\t" \
+    "std z+4, r18 \n\t" \
+    "std z+5, r19 \n\t" \
+    /* load a6..a11 and b6..b11 */ \
+    "ld r14, x+ \n\t" \
+    "ld r15, x+ \n\t" \
+    "ld r16, x+ \n\t" \
+    "ld r17, x+ \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "push r26 \n\t" /* save X register */ \
+    "push r27 \n\t" \
+    "push r28 \n\t" /* save Y register */ \
+    "push r29 \n\t" \
+    "ldd r8, y+6 \n\t" \
+    "ldd r9, y+7 \n\t" \
+    "ldd r10, y+8 \n\t" \
+    "ldd r11, y+9 \n\t" \
+    "ldd r12, y+10 \n\t" \
+    "ldd r13, y+11 \n\t" \
+    "push r30 \n\t" /* store Z register on stack */ \
+    "push r31 \n\t" \
+    /* Compute H + (l6,l7,l8,l9,l10,l11) */ \
+    "clr r30 \n\t" \
+    "clr r31 \n\t" \
+    "movw r2, r30 \n\t" \
+    "movw r4, r30 \n\t" \
+    "movw r6, r30 \n\t" \
+    "mul r8, r14 \n\t" \
+    "add r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r31 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r8, r15 \n\t" \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r14 \n\t" \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r6 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r16 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r9, r15 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r10, r14 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r7 \n\t" \
+    "adc r6, r31 \n\t" \
+    "clr r7 \n\t" \
+    "mul r8, r17 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r16 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r10, r15 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r11, r14 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r6 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r18 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r9, r17 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r10, r16 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r11, r15 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r12, r14 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r19 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r18 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r10, r17 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r11, r16 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r12, r15 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r13, r14 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r15, r13 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r16, r12 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r17, r11 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r18, r10 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r19, r9 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r16, r13 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r17, r12 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r18, r11 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r19, r10 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r17, r13 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r18, r12 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r19, r11 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r18, r13 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r31 \n\t" \
+    "mul r19, r12 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r31 \n\t" \
+    "mul r19, r13 \n\t" \
+    "add r4, r0 \n\t" \
+    "adc r5, r1 \n\t" \
+    /* Restore Z register permanently and push h6, h7 */ \
+    "pop r31 \n\t" \
+    "pop r30 \n\t" \
+    "push r6 \n\t" \
+    "push r7 \n\t" \
+    /* Compute D_b = B_h - B_l in R8..R13, borrow c_b in R1 */ \
+    "ldd r1, y+0 \n\t" \
+    "sub r8, r1 \n\t" \
+    "ldd r1, y+1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "ldd r1, y+2 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "ldd r1, y+3 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "ldd r1, y+4 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "ldd r1, y+5 \n\t" \
+    "sbc r13, r1 \n\t" \
+    "sbc r1, r1 \n\t" \
+    /* Compute D_a = A_l - A_h in R14..R19, borrow c_a in R0 */ \
+    "sbiw r26, 12 \n\t" \
+    "ld r28, x+ \n\t" \
+    "ld r29, x+ \n\t" \
+    "sub r28, r14 \n\t" \
+    "sbc r29, r15 \n\t" \
+    "movw r14, r28 \n\t" \
+    "ld r28, x+ \n\t" \
+    "ld r29, x+ \n\t" \
+    "sbc r28, r16 \n\t" \
+    "sbc r29, r17 \n\t" \
+    "movw r16, r28 \n\t" \
+    "ld r28, x+ \n\t" \
+    "ld r29, x+ \n\t" \
+    "sbc r28, r18 \n\t" \
+    "sbc r29, r19 \n\t" \
+    "movw r18, r28 \n\t" \
+    "sbc r0, r0 \n\t" \
+    /* Form U_0..U_5 in R6,R7,R26..R29 and U_6..U_11 in R20..R25 */ \
+    "bst r0, 0 \n\t" \
+    "push r1 \n\t" \
+    "ldd r0, z+0 \n\t" \
+    "ldd r1, z+1 \n\t" \
+    "ldd r26, z+2 \n\t" \
+    "ldd r27, z+3 \n\t" \
+    "ldd r28, z+4 \n\t" \
+    "ldd r29, z+5 \n\t" \
+    "add r0, r20 \n\t" \
+    "adc r1, r21 \n\t" \
+    "adc r26, r22 \n\t" \
+    "adc r27, r23 \n\t" \
+    "adc r28, r24 \n\t" \
+    "adc r29, r25 \n\t" \
+    "adc r20, r7 \n\t" \
+    "adc r21, r6 \n\t" \
+    "adc r22, r2 \n\t" \
+    "adc r23, r3 \n\t" \
+    "adc r24, r4 \n\t" \
+    "adc r25, r5 \n\t" \
+    "movw r6, r0 \n\t" \
+    "clr r1 \n\t" \
+    "adc r1, r1 \n\t" \
+    "push r1 \n\t" \
+    /* Compute (U_0..U_5) + M, storing r[6..11] via Z as columns complete */ \
+    /* Column 0: a0 * b0 */ \
+    "mul r14, r8 \n\t" \
+    "add r6, r0 \n\t" \
+    "std z+6, r6 \n\t" \
+    "clr r6 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r6 \n\t" \
+    /* Column 1: a0 * b1 + a1 * b0 */ \
+    "mul r14, r9 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "add r26, r6 \n\t" \
+    "clr r6 \n\t" \
+    "adc r6, r6 \n\t" \
+    "mul r15, r8 \n\t" \
+    "add r7, r0 \n\t" \
+    "std z+7, r7 \n\t" \
+    "clr r7 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r6 \n\t" \
+    "mov r6, r7 \n\t" \
+    "adc r6, r7 \n\t" \
+    /* Column 2: a0 * b2 + a1 * b1 + a2 * b0 */ \
+    "mul r14, r10 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r15, r9 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r16, r8 \n\t" \
+    "add r26, r0 \n\t" \
+    "std z+8, r26 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r6 \n\t" \
+    "mov r6, r7 \n\t" \
+    "adc r6, r7 \n\t" \
+    /* Column 3: a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0 */ \
+    "mul r14, r11 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r15, r10 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r16, r9 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r17, r8 \n\t" \
+    "add r27, r0 \n\t" \
+    "std z+9, r27 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r6 \n\t" \
+    "mov r6, r7 \n\t" \
+    "adc r6, r7 \n\t" \
+    /* Column 4: a0 * b4 + ... + a4 * b0 */ \
+    "clr r26 \n\t" \
+    "mul r14, r12 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r15, r11 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r16, r10 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r17, r9 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r28, r0 \n\t" \
+    "std z+10, r28 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r6, r7 \n\t" \
+    /* Column 5: a0 * b5 + ... + a5 * b0 */ \
+    "mul r14, r13 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r26, r7 \n\t" \
+    "mul r15, r12 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r26, r7 \n\t" \
+    "mul r16, r11 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r26, r7 \n\t" \
+    "mul r17, r10 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r26, r7 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r26, r7 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r29, r0 \n\t" \
+    "std z+11, r29 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r26, r7 \n\t" \
+    /* Column 6: a1 * b5 + ... + a5 * b1 */ \
+    "clr r27 \n\t" \
+    "mul r15, r13 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r7 \n\t" \
+    "mul r16, r12 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r7 \n\t" \
+    "mul r17, r11 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r7 \n\t" \
+    "mul r18, r10 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r7 \n\t" \
+    "mul r19, r9 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r7 \n\t" \
+    /* Column 7: a2 * b5 + ... + a5 * b2 */ \
+    "clr r28 \n\t" \
+    "mul r16, r13 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r7 \n\t" \
+    "mul r17, r12 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r7 \n\t" \
+    "mul r18, r11 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r7 \n\t" \
+    "mul r19, r10 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r7 \n\t" \
+    /* Column 8: a3 * b5 + a4 * b4 + a5 * b3 */ \
+    "clr r29 \n\t" \
+    "mul r17, r13 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r7 \n\t" \
+    "mul r18, r12 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r7 \n\t" \
+    "mul r19, r11 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r7 \n\t" \
+    /* Columns 9 & 10: a4 * b5 + a5 * b4 and a5 * b5 */ \
+    "mul r18, r13 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r7, r7 \n\t" \
+    "mul r19, r13 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "mul r19, r12 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "clr r0 \n\t" \
+    "adc r7, r0 \n\t" \
+    /* Subtract (D_a & c_b) and (D_b & c_a) in-place, then add M_6..M_11 */ \
+    "pop r1 \n\t" \
+    "pop r0 \n\t" \
+    "and r14, r0 \n\t" \
+    "sub r20, r14 \n\t" \
+    "clr r14 \n\t" \
+    "and r15, r0 \n\t" \
+    "sbc r21, r15 \n\t" \
+    "and r16, r0 \n\t" \
+    "sbc r22, r16 \n\t" \
+    "and r17, r0 \n\t" \
+    "sbc r23, r17 \n\t" \
+    "and r18, r0 \n\t" \
+    "sbc r24, r18 \n\t" \
+    "and r19, r0 \n\t" \
+    "sbc r25, r19 \n\t" \
+    "sbc r1, r14 \n\t" \
+    "mov r15, r14 \n\t" \
+    "bld r15, 0 \n\t" \
+    "neg r15 \n\t" \
+    "and r0, r15 \n\t" \
+    "sub r1, r0 \n\t" \
+    "and r8, r15 \n\t" \
+    "sub r20, r8 \n\t" \
+    "and r9, r15 \n\t" \
+    "sbc r21, r9 \n\t" \
+    "and r10, r15 \n\t" \
+    "sbc r22, r10 \n\t" \
+    "and r11, r15 \n\t" \
+    "sbc r23, r11 \n\t" \
+    "and r12, r15 \n\t" \
+    "sbc r24, r12 \n\t" \
+    "and r13, r15 \n\t" \
+    "sbc r25, r13 \n\t" \
+    "sbc r1, r14 \n\t" \
+    "pop r0 \n\t" \
+    "pop r8 \n\t" \
+    "mov r14, r1 \n\t" \
+    "asr r14 \n\t" \
+    "add r20, r6 \n\t" \
+    "adc r21, r26 \n\t" \
+    "adc r22, r27 \n\t" \
+    "adc r23, r28 \n\t" \
+    "adc r24, r29 \n\t" \
+    "adc r25, r7 \n\t" \
+    /* propagate carry/borrow into h6..h11 */ \
+    "adc r0, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "adc r2, r14 \n\t" \
+    "adc r3, r14 \n\t" \
+    "adc r4, r14 \n\t" \
+    "adc r5, r14 \n\t" \
+    "std z+12, r20 \n\t" \
+    "std z+13, r21 \n\t" \
+    "std z+14, r22 \n\t" \
+    "std z+15, r23 \n\t" \
+    "std z+16, r24 \n\t" \
+    "std z+17, r25 \n\t" \
+    "std z+18, r0 \n\t" \
+    "std z+19, r8 \n\t" \
+    "std z+20, r2 \n\t" \
+    "std z+21, r3 \n\t" \
+    "std z+22, r4 \n\t" \
+    "std z+23, r5 \n\t" \
+    "pop r29 \n\t" \
+    "pop r28 \n\t" \
+    "pop r27 \n\t" \
+    "pop r26 \n\t" \
+    /* level 1: compute H */ \
+    /* init zero registers */ \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    "movw r22, r20 \n\t" \
+    "movw r24, r20 \n\t" \
+    /* level 2: Compute L */ \
+    "ld r2, x+ \n\t" \
+    "ldd r8, y+12 \n\t" \
+    "ldd r9, y+13 \n\t" \
+    "ldd r10, y+14 \n\t" \
+    "ldd r11, y+15 \n\t" \
+    "ldd r12, y+16 \n\t" \
+    "ldd r13, y+17 \n\t" \
+    "mul r2, r10 \n\t" /* a0 * b2 */ \
+    "movw r16, r0 \n\t" \
+    "mul r2, r8 \n\t" /* a0 * b0 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r9 \n\t" /* a0 * b1 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r25 \n\t" \
+    "mul r2, r12 \n\t" /* a0 * b4 */ \
+    "movw r18, r0 \n\t" \
+    "mul r2, r11 \n\t" /* a0 * b3 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r25 \n\t" \
+    "mul r2, r13 \n\t" /* a0 * b5 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "ld r3, x+ \n\t" \
+    "mul r3, r10 \n\t" /* a1 * b2 */ \
+    "movw r6, r0 \n\t" \
+    "mul r3, r8 \n\t" /* a1 * b0 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r6 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r3, r9 \n\t" /* a1 * b1 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r3, r12 \n\t" /* a1 * b4 */ \
+    "add r18, r7 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r21, r25 \n\t" \
+    "mul r3, r11 \n\t" /* a1 * b3 */ \
+    "movw r6, r0 \n\t" \
+    "mul r3, r13 \n\t" /* a1 * b5 */ \
+    "add r18, r6 \n\t" \
+    "adc r19, r7 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "ld r4, x+ \n\t" \
+    "mul r4, r10 \n\t" /* a2 * b2 */ \
+    "movw r6, r0 \n\t" \
+    "mul r4, r8 \n\t" /* a2 * b0 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r18, r6 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r4, r9 \n\t" /* a2 * b1 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r7, r25 \n\t" \
+    "mul r4, r12 \n\t" /* a2 * b4 */ \
+    "add r19, r7 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r25 \n\t" \
+    "mul r4, r11 \n\t" /* a2 * b3 */ \
+    "movw r6, r0 \n\t" \
+    "mul r4, r13 \n\t" /* a2 * b5 */ \
+    "add r19, r6 \n\t" \
+    "adc r20, r7 \n\t" \
+    "adc r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "std z+24, r14 \n\t" \
+    "std z+25, r15 \n\t" \
+    "std z+26, r16 \n\t" \
+    "ld r5, x+ \n\t" \
+    "mul r5, r10 \n\t" /* a3 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r5, r8 \n\t" /* a3 * b0 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r5, r9 \n\t" /* a3 * b1 */ \
+    "add r18, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r5, r12 \n\t" /* a3 * b4 */ \
+    "add r20, r15 \n\t" \
+    "adc r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r25 \n\t" \
+    "mul r5, r11 \n\t" /* a3 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r5, r13 \n\t" /* a3 * b5 */ \
+    "add r20, r14 \n\t" \
+    "adc r21, r15 \n\t" \
+    "adc r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "ld r6, x+ \n\t" \
+    "mul r6, r10 \n\t" /* a4 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r6, r8 \n\t" /* a4 * b0 */ \
+    "add r18, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r6, r9 \n\t" /* a4 * b1 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r6, r12 \n\t" /* a4 * b4 */ \
+    "add r21, r15 \n\t" \
+    "adc r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r25 \n\t" \
+    "mul r6, r11 \n\t" /* a4 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r6, r13 \n\t" /* a4 * b5 */ \
+    "add r21, r14 \n\t" \
+    "adc r22, r15 \n\t" \
+    "adc r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "ld r7, x+ \n\t" \
+    "mul r7, r10 \n\t" /* a5 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r7, r8 \n\t" /* a5 * b0 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r21, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r7, r9 \n\t" /* a5 * b1 */ \
+    "add r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r7, r12 \n\t" /* a5 * b4 */ \
+    "add r22, r15 \n\t" \
+    "adc r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r25 \n\t" \
+    "mul r7, r11 \n\t" /* a5 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r7, r13 \n\t" /* a5 * b5 */ \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "std z+27, r17 \n\t" \
+    "std z+28, r18 \n\t" \
+    "std z+29, r19 \n\t" \
+    /* load a6..a11 and b6..b11 */ \
+    "ld r14, x+ \n\t" \
+    "ld r15, x+ \n\t" \
+    "ld r16, x+ \n\t" \
+    "ld r17, x+ \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "push r26 \n\t" /* save X register */ \
+    "push r27 \n\t" \
+    "push r28 \n\t" /* save Y register */ \
+    "push r29 \n\t" \
+    "push r30 \n\t" /* save Z register */ \
+    "push r31 \n\t" \
+    "ldd r8, y+18 \n\t" \
+    "ldd r9, y+19 \n\t" \
+    "ldd r10, y+20 \n\t" \
+    "ldd r11, y+21 \n\t" \
+    "ldd r12, y+22 \n\t" \
+    "ldd r13, y+23 \n\t" \
+    /* Compute H + (l6,l7,l8,l9,l10,l11) */ \
+    "clr r30 \n\t" \
+    "clr r31 \n\t" \
+    "movw r2, r30 \n\t" \
+    "movw r4, r30 \n\t" \
+    "movw r6, r30 \n\t" \
+    "mul r8, r14 \n\t" \
+    "add r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r31 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r8, r15 \n\t" \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r14 \n\t" \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r6 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r16 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r9, r15 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r10, r14 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r7 \n\t" \
+    "adc r6, r31 \n\t" \
+    "clr r7 \n\t" \
+    "mul r8, r17 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r16 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r10, r15 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r11, r14 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r6 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r18 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r9, r17 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r10, r16 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r11, r15 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r12, r14 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r19 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r18 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r10, r17 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r11, r16 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r12, r15 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r13, r14 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r15, r13 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r16, r12 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r17, r11 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r18, r10 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r19, r9 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r16, r13 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r17, r12 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r18, r11 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r19, r10 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r17, r13 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r18, r12 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r19, r11 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r18, r13 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r31 \n\t" \
+    "mul r19, r12 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r31 \n\t" \
+    "mul r19, r13 \n\t" \
+    "add r4, r0 \n\t" \
+    "adc r5, r1 \n\t" \
+    /* push h6 and h7 on stack */ \
+    "push r6 \n\t" \
+    "push r7 \n\t" \
+    /* subtract a0-a5 */ \
+    "sbiw r26, 12 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sub r14, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r15, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r16, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r17, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r18, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r19, r0 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b5 */ \
+    "ldd r1, y+12 \n\t" \
+    "sub r8, r1 \n\t" \
+    "ldd r1, y+13 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "ldd r1, y+14 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "ldd r1, y+15 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "ldd r1, y+16 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "ldd r1, y+17 \n\t" \
+    "sbc r13, r1 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r10, r1 \n\t" \
+    "eor r11, r1 \n\t" \
+    "eor r12, r1 \n\t" \
+    "eor r13, r1 \n\t" \
+    "sub r14, r0 \n\t" \
+    "sbc r15, r0 \n\t" \
+    "sbc r16, r0 \n\t" \
+    "sbc r17, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "sub r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "sbc r13, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* Compute M */ \
+    "movw r26, r30 \n\t" \
+    "movw r28, r30 \n\t" \
+    "mul r14, r8 \n\t" \
+    "movw r6, r0 \n\t" \
+    "mul r14, r9 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "mul r15, r8 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r31 \n\t" \
+    "mul r14, r10 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r31 \n\t" \
+    "mul r15, r9 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r31 \n\t" \
+    "mul r16, r8 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r31 \n\t" \
+    "mul r14, r11 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r15, r10 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r16, r9 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r17, r8 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r14, r12 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r15, r11 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r16, r10 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r17, r9 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r14, r13 \n\t" \
+    "clr r14 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r15, r12 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r16, r11 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r17, r10 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "clr r8 \n\t" \
+    "mul r15, r13 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r16, r12 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r17, r11 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r18, r10 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r19, r9 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "clr r9 \n\t" \
+    "mul r16, r13 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "mul r17, r12 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "mul r18, r11 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "mul r19, r10 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "clr r10 \n\t" \
+    "mul r17, r13 \n\t" \
+    "add r8, r0 \n\t" \
+    "adc r9, r1 \n\t" \
+    "adc r10, r14 \n\t" \
+    "mul r18, r12 \n\t" \
+    "add r8, r0 \n\t" \
+    "adc r9, r1 \n\t" \
+    "adc r10, r14 \n\t" \
+    "mul r19, r11 \n\t" \
+    "add r8, r0 \n\t" \
+    "adc r9, r1 \n\t" \
+    "adc r10, r14 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r13 \n\t" \
+    "add r9, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r14 \n\t" \
+    "mul r19, r12 \n\t" \
+    "add r9, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r14 \n\t" \
+    "mul r19, r13 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "movw r12, r30 \n\t" \
+    /* restore h6 and h7 and Z register */ \
+    "pop r0 \n\t" \
+    "pop r1 \n\t" \
+    "pop r31 \n\t" \
+    "pop r30 \n\t" \
+    /* add l5+h0 to l0 and h5 */ \
+    "ldd r14, z+24 \n\t" \
+    "ldd r15, z+25 \n\t" \
+    "ldd r16, z+26 \n\t" \
+    "ldd r17, z+27 \n\t" \
+    "ldd r18, z+28 \n\t" \
+    "ldd r19, z+29 \n\t" \
+    "add r14, r20 \n\t" \
+    "adc r15, r21 \n\t" \
+    "adc r16, r22 \n\t" \
+    "adc r17, r23 \n\t" \
+    "adc r18, r24 \n\t" \
+    "adc r19, r25 \n\t" \
+    "push r30 \n\t" \
+    "push r31 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r2 \n\t" \
+    "adc r23, r3 \n\t" \
+    "adc r24, r4 \n\t" \
+    "adc r25, r5 \n\t" \
+    /* carry is stored in R31 */ \
+    /* process sign bit */ \
+    "clr r30 \n\t" \
+    "bld r30,0 \n\t" \
+    "dec r30 \n\t" \
+    "clr r31 \n\t" \
+    "adc r31, r30 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r6, r30 \n\t" \
+    "eor r7, r30 \n\t" \
+    "eor r26, r30 \n\t" \
+    "eor r27, r30 \n\t" \
+    "eor r28, r30 \n\t" \
+    "eor r29, r30 \n\t" \
+    "eor r12, r30 \n\t" \
+    "eor r13, r30 \n\t" \
+    "eor r8, r30 \n\t" \
+    "eor r9, r30 \n\t" \
+    "eor r10, r30 \n\t" \
+    "eor r11, r30 \n\t" \
+    "bst r30, 0 \n\t" \
+    "mov r30, r31 \n\t" \
+    "asr r30 \n\t" \
+    "bld r30, 0 \n\t" \
+    "asr r30 \n\t" \
+    /* add in M */ \
+    "adc r14, r6 \n\t" \
+    "adc r15, r7 \n\t" \
+    "adc r16, r26 \n\t" \
+    "adc r17, r27 \n\t" \
+    "adc r18, r28 \n\t" \
+    "adc r19, r29 \n\t" \
+    "adc r20, r12 \n\t" \
+    "adc r21, r13 \n\t" \
+    "adc r22, r8 \n\t" \
+    "adc r23, r9 \n\t" \
+    "adc r24, r10 \n\t" \
+    "adc r25, r11 \n\t" \
+    /* propagate carry/borrow */ \
+    "adc r0, r31 \n\t" \
+    "adc r1, r30 \n\t" \
+    "adc r2, r30 \n\t" \
+    "adc r3, r30 \n\t" \
+    "adc r4, r30 \n\t" \
+    "adc r5, r30 \n\t" \
+    "pop r31 \n\t" /* restore Z register */ \
+    "pop r30 \n\t" \
+    "std z+36, r20 \n\t" \
+    "std z+37, r21 \n\t" \
+    "std z+38, r22 \n\t" \
+    "std z+39, r23 \n\t" \
+    "std z+40, r24 \n\t" \
+    "std z+41, r25 \n\t" \
+    "std z+42, r0 \n\t" \
+    "std z+43, r1 \n\t" \
+    "std z+44, r2 \n\t" \
+    "std z+45, r3 \n\t" \
+    "std z+46, r4 \n\t" \
+    "std z+47, r5 \n\t" \
+    "pop r29 \n\t" \
+    "pop r28 \n\t" \
+    "pop r27 \n\t" \
+    "pop r26 \n\t" \
+    /* level 1: combine L and H */ \
+    "ldd r6, z+24 \n\t" \
+    "ldd r7, z+25 \n\t" \
+    "ldd r8, z+26 \n\t" \
+    "ldd r9, z+27 \n\t" \
+    "ldd r10, z+28 \n\t" \
+    "ldd r11, z+29 \n\t" \
+    /* H is stored in: 6,7,8,9,10,11,14,15,16,17,18,19,20,21,22,23,24,25,0,1,2,3,4,5 */ \
+    /* add HIGH(L) */ \
+    "ldd r12, z+12 \n\t" \
+    "add r6, r12 \n\t" \
+    "ldd r12, z+13 \n\t" \
+    "adc r7, r12 \n\t" \
+    "ldd r12, z+14 \n\t" \
+    "adc r8, r12 \n\t" \
+    "ldd r12, z+15 \n\t" \
+    "adc r9, r12 \n\t" \
+    "ldd r12, z+16 \n\t" \
+    "adc r10, r12 \n\t" \
+    "ldd r12, z+17 \n\t" \
+    "adc r11, r12 \n\t" \
+    "ldd r12, z+18 \n\t" \
+    "adc r14, r12 \n\t" \
+    "ldd r12, z+19 \n\t" \
+    "adc r15, r12 \n\t" \
+    "ldd r12, z+20 \n\t" \
+    "adc r16, r12 \n\t" \
+    "ldd r12, z+21 \n\t" \
+    "adc r17, r12 \n\t" \
+    "ldd r12, z+22 \n\t" \
+    "adc r18, r12 \n\t" \
+    "ldd r12, z+23 \n\t" \
+    "adc r19, r12 \n\t" \
+    /* store carry on stack */ \
+    "clr r12 \n\t" \
+    "clr r13 \n\t" \
+    "adc r13, r12 \n\t" \
+    /* propagate carry to end */ \
+    "add r20, r13 \n\t" \
+    "adc r21, r12 \n\t" \
+    "adc r22, r12 \n\t" \
+    "adc r23, r12 \n\t" \
+    "adc r24, r12 \n\t" \
+    "adc r25, r12 \n\t" \
+    "adc r0, r12 \n\t" \
+    "adc r1, r12 \n\t" \
+    "adc r2, r12 \n\t" \
+    "adc r3, r12 \n\t" \
+    "adc r4, r12 \n\t" \
+    "adc r5, r12 \n\t" \
+    "ldd r12, z+0 \n\t" \
+    "add r12, r6 \n\t" \
+    "std z+12, r12 \n\t" \
+    "ldd r12, z+1 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+13, r12 \n\t" \
+    "ldd r12, z+2 \n\t" \
+    "adc r12, r8 \n\t" \
+    "std z+14, r12 \n\t" \
+    "ldd r12, z+3 \n\t" \
+    "adc r12, r9 \n\t" \
+    "std z+15, r12 \n\t" \
+    "ldd r12, z+4 \n\t" \
+    "adc r12, r10 \n\t" \
+    "std z+16, r12 \n\t" \
+    "ldd r12, z+5 \n\t" \
+    "adc r12, r11 \n\t" \
+    "std z+17, r12 \n\t" \
+    "ldd r12, z+6 \n\t" \
+    "adc r12, r14 \n\t" \
+    "std z+18, r12 \n\t" \
+    "ldd r12, z+7 \n\t" \
+    "adc r12, r15 \n\t" \
+    "std z+19, r12 \n\t" \
+    "ldd r12, z+8 \n\t" \
+    "adc r12, r16 \n\t" \
+    "std z+20, r12 \n\t" \
+    "ldd r12, z+9 \n\t" \
+    "adc r12, r17 \n\t" \
+    "std z+21, r12 \n\t" \
+    "ldd r12, z+10 \n\t" \
+    "adc r12, r18 \n\t" \
+    "std z+22, r12 \n\t" \
+    "ldd r12, z+11 \n\t" \
+    "adc r12, r19 \n\t" \
+    "std z+23, r12 \n\t" \
+    "adc r20, r6 \n\t" \
+    "std z+24, r20 \n\t" \
+    "adc r21, r7 \n\t" \
+    "std z+25, r21 \n\t" \
+    "adc r22, r8 \n\t" \
+    "std z+26, r22 \n\t" \
+    "adc r23, r9 \n\t" \
+    "std z+27, r23 \n\t" \
+    "adc r24, r10 \n\t" \
+    "std z+28, r24 \n\t" \
+    "adc r25, r11 \n\t" \
+    "std z+29, r25 \n\t" \
+    "adc r0, r14 \n\t" \
+    "std z+30, r0 \n\t" \
+    "adc r1, r15 \n\t" \
+    "std z+31, r1 \n\t" \
+    "adc r2, r16 \n\t" \
+    "std z+32, r2 \n\t" \
+    "adc r3, r17 \n\t" \
+    "std z+33, r3 \n\t" \
+    "adc r4, r18 \n\t" \
+    "std z+34, r4 \n\t" \
+    "adc r5, r19 \n\t" \
+    "std z+35, r5 \n\t" \
+    /* store carry in R13 */ \
+    "clr r12 \n\t" \
+    "adc r13, r12 \n\t" \
+    "push r13 \n\t" \
+    /* level 1: subtract a0-a12 */ \
+    "sbiw r26, 24 \n\t" \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ld r6, x+ \n\t" \
+    "ld r7, x+ \n\t" \
+    "ld r14, x+ \n\t" \
+    "ld r15, x+ \n\t" \
+    "ld r16, x+ \n\t" \
+    "ld r17, x+ \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r8, x+ \n\t" \
+    "ld r9, x+ \n\t" \
+    "ld r10, x+ \n\t" \
+    "ld r11, x+ \n\t" \
+    "ld r12, x+ \n\t" \
+    "ld r13, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ld r21, x+ \n\t" \
+    "ld r22, x+ \n\t" \
+    "ld r23, x+ \n\t" \
+    "ld r24, x+ \n\t" \
+    "ld r25, x+ \n\t" \
+    "sub r2, r8 \n\t" \
+    "sbc r3, r9 \n\t" \
+    "sbc r4, r10 \n\t" \
+    "sbc r5, r11 \n\t" \
+    "sbc r6, r12 \n\t" \
+    "sbc r7, r13 \n\t" \
+    "sbc r14, r20 \n\t" \
+    "sbc r15, r21 \n\t" \
+    "sbc r16, r22 \n\t" \
+    "sbc r17, r23 \n\t" \
+    "sbc r18, r24 \n\t" \
+    "sbc r19, r25 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* level 1: absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r0 \n\t" \
+    "eor r7, r0 \n\t" \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sbc r6, r0 \n\t" \
+    "sbc r7, r0 \n\t" \
+    "sbc r14, r0 \n\t" \
+    "sbc r15, r0 \n\t" \
+    "sbc r16, r0 \n\t" \
+    "sbc r17, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "push r19 \n\t" \
+    "push r18 \n\t" \
+    "push r17 \n\t" \
+    "push r16 \n\t" \
+    "push r15 \n\t" \
+    "push r14 \n\t" \
+    "push r7 \n\t" \
+    "push r6 \n\t" \
+    "push r5 \n\t" \
+    "push r4 \n\t" \
+    "push r3 \n\t" \
+    "push r2 \n\t" \
+    /* level 1: subtract b0-b12 */ \
+    "ldd r8, y+0 \n\t" \
+    "ldd r9, y+1 \n\t" \
+    "ldd r10, y+2 \n\t" \
+    "ldd r11, y+3 \n\t" \
+    "ldd r12, y+4 \n\t" \
+    "ldd r13, y+5 \n\t" \
+    "ldd r14, y+6 \n\t" \
+    "ldd r15, y+7 \n\t" \
+    "ldd r16, y+8 \n\t" \
+    "ldd r17, y+9 \n\t" \
+    "ldd r18, y+10 \n\t" \
+    "ldd r19, y+11 \n\t" \
+    "ldd r20, y+12 \n\t" \
+    "sub r8, r20 \n\t" \
+    "ldd r20, y+13 \n\t" \
+    "sbc r9, r20 \n\t" \
+    "ldd r20, y+14 \n\t" \
+    "sbc r10, r20 \n\t" \
+    "ldd r20, y+15 \n\t" \
+    "sbc r11, r20 \n\t" \
+    "ldd r20, y+16 \n\t" \
+    "sbc r12, r20 \n\t" \
+    "ldd r20, y+17 \n\t" \
+    "sbc r13, r20 \n\t" \
+    "ldd r20, y+18 \n\t" \
+    "sbc r14, r20 \n\t" \
+    "ldd r20, y+19 \n\t" \
+    "sbc r15, r20 \n\t" \
+    "ldd r20, y+20 \n\t" \
+    "sbc r16, r20 \n\t" \
+    "ldd r20, y+21 \n\t" \
+    "sbc r17, r20 \n\t" \
+    "ldd r20, y+22 \n\t" \
+    "sbc r18, r20 \n\t" \
+    "ldd r20, y+23 \n\t" \
+    "sbc r19, r20 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* level 1: absolute values */ \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r10, r1 \n\t" \
+    "eor r11, r1 \n\t" \
+    "eor r12, r1 \n\t" \
+    "eor r13, r1 \n\t" \
+    "eor r14, r1 \n\t" \
+    "eor r15, r1 \n\t" \
+    "eor r16, r1 \n\t" \
+    "eor r17, r1 \n\t" \
+    "eor r18, r1 \n\t" \
+    "eor r19, r1 \n\t" \
+    "sub r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "sbc r13, r1 \n\t" \
+    "sbc r14, r1 \n\t" \
+    "sbc r15, r1 \n\t" \
+    "sbc r16, r1 \n\t" \
+    "sbc r17, r1 \n\t" \
+    "sbc r18, r1 \n\t" \
+    "sbc r19, r1 \n\t" \
+    "push r19 \n\t" \
+    "push r18 \n\t" \
+    "push r17 \n\t" \
+    "push r16 \n\t" \
+    "push r15 \n\t" \
+    "push r14 \n\t" \
+    "push r13 \n\t" \
+    "push r12 \n\t" \
+    "push r11 \n\t" \
+    "push r10 \n\t" \
+    "push r9 \n\t" \
+    "in r28, __SP_L__ \n\t" \
+    "in r29, __SP_H__ \n\t" \
+    "push r8 \n\t" \
+    "eor r0, r1 \n\t" \
+    "push r0 \n\t" \
+    /* ISR safety: allocate 6 bytes (m0..m5 temporaries) above the Z save slot */ \
+    /* with plain PUSHes so they are never below SP. */ \
+    "push r0 \n\t" \
+    "push r0 \n\t" \
+    "push r0 \n\t" \
+    "push r0 \n\t" \
+    "push r0 \n\t" \
+    "push r0 \n\t" \
+    "push r30 \n\t" /* save Z register */ \
+    "push r31 \n\t" \
+    /* now load stack pointer in R31:30 */ \
+    "in r30, __SP_L__ \n\t" \
+    "in r31, __SP_H__ \n\t" \
+    "adiw r30, 3 \n\t" /* ISR safety: Z -> allocated m0..m5 (above saved Z) */ \
+    /* level 1: compute M */ \
+    /* init zero registers */ \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    "movw r22, r20 \n\t" \
+    "movw r24, r20 \n\t" \
+    /* level 2: compute L */ \
+    "ldd r8, y+0 \n\t" \
+    "ldd r9, y+1 \n\t" \
+    "ldd r10, y+2 \n\t" \
+    "ldd r11, y+3 \n\t" \
+    "ldd r12, y+4 \n\t" \
+    "ldd r13, y+5 \n\t" \
+    "mul r2, r10 \n\t" /* a0 * b2 */ \
+    "movw r16, r0 \n\t" \
+    "mul r2, r8 \n\t" /* a0 * b0 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r9 \n\t" /* a0 * b1 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r25 \n\t" \
+    "mul r2, r12 \n\t" /* a0 * b4 */ \
+    "movw r18, r0 \n\t" \
+    "mul r2, r11 \n\t" /* a0 * b3 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r25 \n\t" \
+    "mul r2, r13 \n\t" /* a0 * b5 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "mul r3, r10 \n\t" /* a1 * b2 */ \
+    "movw r26, r0 \n\t" \
+    "mul r3, r8 \n\t" /* a1 * b0 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "adc r27, r25 \n\t" \
+    "mul r3, r9 \n\t" /* a1 * b1 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r27, r25 \n\t" \
+    "mul r3, r12 \n\t" /* a1 * b4 */ \
+    "add r18, r27 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r21, r25 \n\t" \
+    "mul r3, r11 \n\t" /* a1 * b3 */ \
+    "movw r26, r0 \n\t" \
+    "mul r3, r13 \n\t" /* a1 * b5 */ \
+    "add r18, r26 \n\t" \
+    "adc r19, r27 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "mul r4, r10 \n\t" /* a2 * b2 */ \
+    "movw r26, r0 \n\t" \
+    "mul r4, r8 \n\t" /* a2 * b0 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "adc r27, r25 \n\t" \
+    "mul r4, r9 \n\t" /* a2 * b1 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r27, r25 \n\t" \
+    "mul r4, r12 \n\t" /* a2 * b4 */ \
+    "add r19, r27 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r25 \n\t" \
+    "mul r4, r11 \n\t" /* a2 * b3 */ \
+    "movw r26, r0 \n\t" \
+    "mul r4, r13 \n\t" /* a2 * b5 */ \
+    "add r19, r26 \n\t" \
+    "adc r20, r27 \n\t" \
+    "adc r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "std z+0, r14 \n\t" \
+    "std z+1, r15 \n\t" \
+    "std z+2, r16 \n\t" \
+    "mul r5, r10 \n\t" /* a3 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r5, r8 \n\t" /* a3 * b0 */ \
+    "add r17, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r5, r9 \n\t" /* a3 * b1 */ \
+    "add r18, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r5, r12 \n\t" /* a3 * b4 */ \
+    "add r20, r15 \n\t" \
+    "adc r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r25 \n\t" \
+    "mul r5, r11 \n\t" /* a3 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r5, r13 \n\t" /* a3 * b5 */ \
+    "add r20, r14 \n\t" \
+    "adc r21, r15 \n\t" \
+    "adc r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "mul r6, r10 \n\t" /* a4 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r6, r8 \n\t" /* a4 * b0 */ \
+    "add r18, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r6, r9 \n\t" /* a4 * b1 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r6, r12 \n\t" /* a4 * b4 */ \
+    "add r21, r15 \n\t" \
+    "adc r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r25 \n\t" \
+    "mul r6, r11 \n\t" /* a4 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r6, r13 \n\t" /* a4 * b5 */ \
+    "add r21, r14 \n\t" \
+    "adc r22, r15 \n\t" \
+    "adc r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "mul r7, r10 \n\t" /* a5 * b2 */ \
+    "movw r14, r0 \n\t" \
+    "mul r7, r8 \n\t" /* a5 * b0 */ \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r21, r14 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r7, r9 \n\t" /* a5 * b1 */ \
+    "add r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r15, r25 \n\t" \
+    "mul r7, r12 \n\t" /* a5 * b4 */ \
+    "add r22, r15 \n\t" \
+    "adc r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r25 \n\t" \
+    "mul r7, r11 \n\t" /* a5 * b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r7, r13 \n\t" /* a5 * b5 */ \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "std z+3, r17 \n\t" \
+    "std z+4, r18 \n\t" \
+    "std z+5, r19 \n\t" \
+    /* load a6..a11 and b6..b11 */ \
+    "ldd r14, y+18 \n\t" \
+    "ldd r15, y+19 \n\t" \
+    "ldd r16, y+20 \n\t" \
+    "ldd r17, y+21 \n\t" \
+    "ldd r18, y+22 \n\t" \
+    "ldd r19, y+23 \n\t" \
+    "ldd r8, y+6 \n\t" \
+    "ldd r9, y+7 \n\t" \
+    "ldd r10, y+8 \n\t" \
+    "ldd r11, y+9 \n\t" \
+    "ldd r12, y+10 \n\t" \
+    "ldd r13, y+11 \n\t" \
+    /* Compute H + (l6,l7,l8,l9,l10,l11) */ \
+    "clr r30 \n\t" \
+    "clr r31 \n\t" \
+    "movw r2, r30 \n\t" \
+    "movw r4, r30 \n\t" \
+    "movw r6, r30 \n\t" \
+    "mul r8, r14 \n\t" \
+    "add r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r31 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r8, r15 \n\t" \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r14 \n\t" \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r6 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r16 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r9, r15 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r10, r14 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r7 \n\t" \
+    "adc r6, r31 \n\t" \
+    "clr r7 \n\t" \
+    "mul r8, r17 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r16 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r10, r15 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r11, r14 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r6 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r18 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r9, r17 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r10, r16 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r11, r15 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "mul r12, r14 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r7, r31 \n\t" \
+    "clr r6 \n\t" \
+    "mul r8, r19 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r9, r18 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r10, r17 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r11, r16 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r12, r15 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r13, r14 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r6, r31 \n\t" \
+    "mul r15, r13 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r16, r12 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r17, r11 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r18, r10 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r19, r9 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r2, r31 \n\t" \
+    "mul r16, r13 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r17, r12 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r18, r11 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r19, r10 \n\t" \
+    "add r6, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r31 \n\t" \
+    "mul r17, r13 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r18, r12 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r19, r11 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r31 \n\t" \
+    "mul r18, r13 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r31 \n\t" \
+    "mul r19, r12 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r31 \n\t" \
+    "mul r19, r13 \n\t" \
+    "add r4, r0 \n\t" \
+    "adc r5, r1 \n\t" \
+    /* push h6 and h7 on stack */ \
+    "push r6 \n\t" \
+    "push r7 \n\t" \
+    /* subtract a0-a5 */ \
+    "ldd r0, y+12 \n\t" \
+    "sub r14, r0 \n\t" \
+    "ldd r0, y+13 \n\t" \
+    "sbc r15, r0 \n\t" \
+    "ldd r0, y+14 \n\t" \
+    "sbc r16, r0 \n\t" \
+    "ldd r0, y+15 \n\t" \
+    "sbc r17, r0 \n\t" \
+    "ldd r0, y+16 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "ldd r0, y+17 \n\t" \
+    "sbc r19, r0 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b5 */ \
+    "ldd r1, y+0 \n\t" \
+    "sub r8, r1 \n\t" \
+    "ldd r1, y+1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "ldd r1, y+2 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "ldd r1, y+3 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "ldd r1, y+4 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "ldd r1, y+5 \n\t" \
+    "sbc r13, r1 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r10, r1 \n\t" \
+    "eor r11, r1 \n\t" \
+    "eor r12, r1 \n\t" \
+    "eor r13, r1 \n\t" \
+    "sub r14, r0 \n\t" \
+    "sbc r15, r0 \n\t" \
+    "sbc r16, r0 \n\t" \
+    "sbc r17, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "sub r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "sbc r13, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* Compute M */ \
+    "movw r26, r30 \n\t" \
+    "movw r28, r30 \n\t" \
+    "mul r14, r8 \n\t" \
+    "movw r6, r0 \n\t" \
+    "mul r14, r9 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "mul r15, r8 \n\t" \
+    "add r7, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "adc r27, r31 \n\t" \
+    "mul r14, r10 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r31 \n\t" \
+    "mul r15, r9 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r31 \n\t" \
+    "mul r16, r8 \n\t" \
+    "add r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r28, r31 \n\t" \
+    "mul r14, r11 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r15, r10 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r16, r9 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r17, r8 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r31 \n\t" \
+    "mul r14, r12 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r15, r11 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r16, r10 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r17, r9 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r30, r31 \n\t" \
+    "mul r14, r13 \n\t" \
+    "clr r14 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r15, r12 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r16, r11 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r17, r10 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r30, r1 \n\t" \
+    "adc r31, r14 \n\t" \
+    "clr r8 \n\t" \
+    "mul r15, r13 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r16, r12 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r17, r11 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r18, r10 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "mul r19, r9 \n\t" \
+    "add r30, r0 \n\t" \
+    "adc r31, r1 \n\t" \
+    "adc r8, r14 \n\t" \
+    "clr r9 \n\t" \
+    "mul r16, r13 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "mul r17, r12 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "mul r18, r11 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "mul r19, r10 \n\t" \
+    "add r31, r0 \n\t" \
+    "adc r8, r1 \n\t" \
+    "adc r9, r14 \n\t" \
+    "clr r10 \n\t" \
+    "mul r17, r13 \n\t" \
+    "add r8, r0 \n\t" \
+    "adc r9, r1 \n\t" \
+    "adc r10, r14 \n\t" \
+    "mul r18, r12 \n\t" \
+    "add r8, r0 \n\t" \
+    "adc r9, r1 \n\t" \
+    "adc r10, r14 \n\t" \
+    "mul r19, r11 \n\t" \
+    "add r8, r0 \n\t" \
+    "adc r9, r1 \n\t" \
+    "adc r10, r14 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r13 \n\t" \
+    "add r9, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r14 \n\t" \
+    "mul r19, r12 \n\t" \
+    "add r9, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r14 \n\t" \
+    "mul r19, r13 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "movw r12, r30 \n\t" \
+    "pop r0 \n\t" \
+    "pop r1 \n\t" \
+    /* now load stack pointer in R31:30 */ \
+    "in r30, __SP_L__ \n\t" \
+    "in r31, __SP_H__ \n\t" \
+    "adiw r30, 3 \n\t" /* ISR safety: Z -> allocated m0..m5 */ \
+    /* add l5+h0 to l0 and h5 */ \
+    "ldd r14, z+0 \n\t" \
+    "ldd r15, z+1 \n\t" \
+    "ldd r16, z+2 \n\t" \
+    "ldd r17, z+3 \n\t" \
+    "ldd r18, z+4 \n\t" \
+    "ldd r19, z+5 \n\t" \
+    "pop r31 \n\t" /* load Z register */ \
+    "pop r30 \n\t" \
+    "add r14, r20 \n\t" \
+    "adc r15, r21 \n\t" \
+    "adc r16, r22 \n\t" \
+    "adc r17, r23 \n\t" \
+    "adc r18, r24 \n\t" \
+    "adc r19, r25 \n\t" \
+    "push r30 \n\t" \
+    "push r31 \n\t" \
+    "adc r20, r0 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r2 \n\t" \
+    "adc r23, r3 \n\t" \
+    "adc r24, r4 \n\t" \
+    "adc r25, r5 \n\t" \
+    /* carry is stored in R31 */ \
+    /* now load sign bit */ \
+    "clr r30 \n\t" \
+    "bld r30,0 \n\t" \
+    "dec r30 \n\t" \
+    "clr r31 \n\t" \
+    "adc r31, r30 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r6, r30 \n\t" \
+    "eor r7, r30 \n\t" \
+    "eor r26, r30 \n\t" \
+    "eor r27, r30 \n\t" \
+    "eor r28, r30 \n\t" \
+    "eor r29, r30 \n\t" \
+    "eor r12, r30 \n\t" \
+    "eor r13, r30 \n\t" \
+    "eor r8, r30 \n\t" \
+    "eor r9, r30 \n\t" \
+    "eor r10, r30 \n\t" \
+    "eor r11, r30 \n\t" \
+    "bst r30, 0 \n\t" \
+    "mov r30, r31 \n\t" \
+    "asr r30 \n\t" \
+    "bld r30, 0 \n\t" \
+    "asr r30 \n\t" \
+    /* add in M */ \
+    "adc r14, r6 \n\t" \
+    "adc r15, r7 \n\t" \
+    "adc r16, r26 \n\t" \
+    "adc r17, r27 \n\t" \
+    "adc r18, r28 \n\t" \
+    "adc r19, r29 \n\t" \
+    "adc r20, r12 \n\t" \
+    "adc r21, r13 \n\t" \
+    "adc r22, r8 \n\t" \
+    "adc r23, r9 \n\t" \
+    "adc r24, r10 \n\t" \
+    "adc r25, r11 \n\t" \
+    /* propagate carry/borrow */ \
+    "adc r0, r31 \n\t" \
+    "adc r1, r30 \n\t" \
+    "adc r2, r30 \n\t" \
+    "adc r3, r30 \n\t" \
+    "adc r4, r30 \n\t" \
+    "adc r5, r30 \n\t" \
+    "pop r31 \n\t" /* restore Z register */ \
+    "pop r30 \n\t" \
+    /* now load stack pointer in R29:28 */ \
+    "in r28, __SP_L__ \n\t" \
+    "in r29, __SP_H__ \n\t" \
+    "adiw r28, 1 \n\t" /* ISR safety: Y -> allocated m0..m5 */ \
+    /* level 1: combine L, H, and M */ \
+    /* load m0..m5 in 8,9,10,11,12,13 */ \
+    "ldd r8, y+0 \n\t" \
+    "ldd r9, y+1 \n\t" \
+    "ldd r10, y+2 \n\t" \
+    "ldd r11, y+3 \n\t" \
+    "ldd r12, y+4 \n\t" \
+    "ldd r13, y+5 \n\t" \
+    /* M is stored in: 8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,0,1,2,3,4,5 */ \
+    /* process sign bit */ \
+    "ldd r6, y+6 \n\t" /* ISR safety: sign byte (was POP; frame released at the end) */ \
+    "com r6 \n\t" \
+    "mov r7, r6 \n\t" \
+    "asr r7 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r8, r6 \n\t" \
+    "eor r9, r6 \n\t" \
+    "eor r10, r6 \n\t" \
+    "eor r11, r6 \n\t" \
+    "eor r12, r6 \n\t" \
+    "eor r13, r6 \n\t" \
+    "eor r14, r6 \n\t" \
+    "eor r15, r6 \n\t" \
+    "eor r16, r6 \n\t" \
+    "eor r17, r6 \n\t" \
+    "eor r18, r6 \n\t" \
+    "eor r19, r6 \n\t" \
+    "eor r20, r6 \n\t" \
+    "eor r21, r6 \n\t" \
+    "eor r22, r6 \n\t" \
+    "eor r23, r6 \n\t" \
+    "eor r24, r6 \n\t" \
+    "eor r25, r6 \n\t" \
+    "eor r0, r6 \n\t" \
+    "eor r1, r6 \n\t" \
+    "eor r2, r6 \n\t" \
+    "eor r3, r6 \n\t" \
+    "eor r4, r6 \n\t" \
+    "eor r5, r6 \n\t" \
+    "mov r27, r6 \n\t" \
+    /* load carry from stack */ \
+    "ldd r26, y+31 \n\t" /* ISR safety: Y is 4 higher than in the original */ \
+    "add r6, r26 \n\t" \
+    "clr r26 \n\t" \
+    "adc r7, r26 \n\t" \
+    "add r27, r27 \n\t" /* sets carry flag if R27 = 0xff */ \
+    /* add in M */ \
+    "ldd r26, z+12 \n\t" \
+    "adc r26, r8 \n\t" \
+    "std z+12, r26 \n\t" \
+    "ldd r26, z+13 \n\t" \
+    "adc r26, r9 \n\t" \
+    "std z+13, r26 \n\t" \
+    "ldd r26, z+14 \n\t" \
+    "adc r26, r10 \n\t" \
+    "std z+14, r26 \n\t" \
+    "ldd r26, z+15 \n\t" \
+    "adc r26, r11 \n\t" \
+    "std z+15, r26 \n\t" \
+    "ldd r26, z+16 \n\t" \
+    "adc r26, r12 \n\t" \
+    "std z+16, r26 \n\t" \
+    "ldd r26, z+17 \n\t" \
+    "adc r26, r13 \n\t" \
+    "std z+17, r26 \n\t" \
+    "ldd r26, z+18 \n\t" \
+    "adc r26, r14 \n\t" \
+    "std z+18, r26 \n\t" \
+    "ldd r26, z+19 \n\t" \
+    "adc r26, r15 \n\t" \
+    "std z+19, r26 \n\t" \
+    "ldd r26, z+20 \n\t" \
+    "adc r26, r16 \n\t" \
+    "std z+20, r26 \n\t" \
+    "ldd r26, z+21 \n\t" \
+    "adc r26, r17 \n\t" \
+    "std z+21, r26 \n\t" \
+    "ldd r26, z+22 \n\t" \
+    "adc r26, r18 \n\t" \
+    "std z+22, r26 \n\t" \
+    "ldd r26, z+23 \n\t" \
+    "adc r26, r19 \n\t" \
+    "std z+23, r26 \n\t" \
+    "ldd r26, z+24 \n\t" \
+    "adc r26, r20 \n\t" \
+    "std z+24, r26 \n\t" \
+    "ldd r26, z+25 \n\t" \
+    "adc r26, r21 \n\t" \
+    "std z+25, r26 \n\t" \
+    "ldd r26, z+26 \n\t" \
+    "adc r26, r22 \n\t" \
+    "std z+26, r26 \n\t" \
+    "ldd r26, z+27 \n\t" \
+    "adc r26, r23 \n\t" \
+    "std z+27, r26 \n\t" \
+    "ldd r26, z+28 \n\t" \
+    "adc r26, r24 \n\t" \
+    "std z+28, r26 \n\t" \
+    "ldd r26, z+29 \n\t" \
+    "adc r26, r25 \n\t" \
+    "std z+29, r26 \n\t" \
+    "ldd r26, z+30 \n\t" \
+    "adc r26, r0 \n\t" \
+    "std z+30, r26 \n\t" \
+    "ldd r26, z+31 \n\t" \
+    "adc r26, r1 \n\t" \
+    "std z+31, r26 \n\t" \
+    "ldd r26, z+32 \n\t" \
+    "adc r26, r2 \n\t" \
+    "std z+32, r26 \n\t" \
+    "ldd r26, z+33 \n\t" \
+    "adc r26, r3 \n\t" \
+    "std z+33, r26 \n\t" \
+    "ldd r26, z+34 \n\t" \
+    "adc r26, r4 \n\t" \
+    "std z+34, r26 \n\t" \
+    "ldd r26, z+35 \n\t" \
+    "adc r26, r5 \n\t" \
+    "std z+35, r26 \n\t" \
+    /* propagate carry/borrow */ \
+    "ldd r12, z+36 \n\t" \
+    "adc r12, r6 \n\t" \
+    "std z+36, r12 \n\t" \
+    "ldd r12, z+37 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+37, r12 \n\t" \
+    "ldd r12, z+38 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+38, r12 \n\t" \
+    "ldd r12, z+39 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+39, r12 \n\t" \
+    "ldd r12, z+40 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+40, r12 \n\t" \
+    "ldd r12, z+41 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+41, r12 \n\t" \
+    "ldd r12, z+42 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+42, r12 \n\t" \
+    "ldd r12, z+43 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+43, r12 \n\t" \
+    "ldd r12, z+44 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+44, r12 \n\t" \
+    "ldd r12, z+45 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+45, r12 \n\t" \
+    "ldd r12, z+46 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+46, r12 \n\t" \
+    "ldd r12, z+47 \n\t" \
+    "adc r12, r7 \n\t" \
+    "std z+47, r12 \n\t" \
+    /* restore stack pointer */ \
+    "adiw r28, 31 \n\t" /* ISR safety: Y is 4 higher than in the original */ \
+    "in r0, __SREG__ \n\t" /* ISR safety: atomic SP restore */ \
+    "cli \n\t" \
+    "out __SP_H__, r29 \n\t" \
+    "out __SREG__, r0 \n\t" \
+    "out __SP_L__, r28 \n\t"
+
+/* 256-bit (32x32 -> 64-byte) fully unrolled 3-level branch-free Karatsuba
+   multiplier (uECC_OPTIMIZATION_LEVEL >= 4). Based on Hutter & Schwabe's
+   karatsuba256_branchfree with the hybrid 2's-complement leaf M'. The
+   original moved SP above live stack data to read it back with POP; those
+   accesses are rewritten as LDD/LD so SP never rises above live data, and
+   the remaining SP updates are atomic. */
+#define FAST_MULT_ASM_32_UNROLLED \
+    /* level 1: compute L */ \
+    /* level 2: compute L */ \
+    /* init zero registers */ \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    "movw r16, r20 \n\t" \
+    /* level 2: compute L */ \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ldd r22, y+0 \n\t" \
+    "ldd r23, y+1 \n\t" \
+    "ldd r24, y+2 \n\t" \
+    "ldd r25, y+3 \n\t" \
+    "mul r2, r24 \n\t" /* a0*b2 */ \
+    "movw r12, r0 \n\t" \
+    "mul r2, r22 \n\t" /* a0*b0 */ \
+    "movw r10, r0 \n\t" \
+    "mul r2, r23 \n\t" /* a0*b1 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r21 \n\t" \
+    "mul r3, r25 \n\t" /* a1*b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r25 \n\t" /* a0*b3 */ \
+    "movw r18, r0 \n\t" \
+    "mul r3, r22 \n\t" /* a1*b0 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r18 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r3, r23 \n\t" /* a1*b1 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r4, r25 \n\t" /* a2*b3 */ \
+    "add r14, r19 \n\t" \
+    "adc r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "mul r4, r24 \n\t" /* a2*b2 */ \
+    "movw r18, r0 \n\t" \
+    "mul r4, r22 \n\t" /* a2*b0 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r18 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r3, r24 \n\t" /* a1*b2 */ \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r5, r25 \n\t" /* a3*b3 */ \
+    "add r15, r19 \n\t" \
+    "adc r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "mul r5, r23 \n\t" /* a3*b1 */ \
+    "movw r18, r0 \n\t" \
+    "mul r4, r23 \n\t" /* a2*b1 */ \
+    "add r13, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r5, r22 \n\t" /* a3*b0 */ \
+    "add r13, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r5, r24 \n\t" /* a3*b2 */ \
+    "add r14, r18 \n\t" \
+    "adc r0, r19 \n\t" \
+    "adc r1, r21 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r21 \n\t" \
+    "std z+0, r10 \n\t" \
+    "std z+1, r11 \n\t" \
+    "std z+2, r12 \n\t" \
+    "std z+3, r13 \n\t" \
+    /* load a4..a7 and b4..b7 */ \
+    "movw r10, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ldd r6, y+4 \n\t" \
+    "ldd r7, y+5 \n\t" \
+    "ldd r8, y+6 \n\t" \
+    "ldd r9, y+7 \n\t" \
+    /* level 2: compute H + (l3,l4,l5) */ \
+    "mul r18, r6 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r6 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r11 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r19, r7 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r20, r6 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r20, r7 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    /* D_a = A_l - A_h */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "sbc r5, r18 \n\t" \
+    "sbc r0, r0 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue H */ \
+    "mul r18, r6 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r9 \n\t" \
+    "clr r19 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r8 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r9 \n\t" \
+    "clr r20 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* D_b = B_h - B_l */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    "sbc r1, r1 \n\t" \
+    /* Form U_0..U_7 and subtract (D_a & c_b) */ \
+    "ldd r22, z+0 \n\t" \
+    "ldd r23, z+1 \n\t" \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r10 \n\t" \
+    "adc r15, r11 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    "clr r18 \n\t" \
+    "bld r18, 0 \n\t" \
+    "and r18, r1 \n\t" \
+    "adc r18, r21 \n\t" \
+    "movw r24, r2 \n\t" \
+    "and r24, r1 \n\t" \
+    "sub r14, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r15, r25 \n\t" \
+    "movw r24, r4 \n\t" \
+    "and r24, r1 \n\t" \
+    "sbc r16, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r17, r25 \n\t" \
+    "sbc r18, r21 \n\t" \
+    /* level 2: compute M (fusing U_0, U_1 and keeping R18 untouched) */ \
+    "clr r24 \n\t" \
+    "clr r25 \n\t" \
+    "mul r2, r6 \n\t" \
+    "add r22, r0 \n\t" \
+    "std z+4, r22 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "std z+5, r23 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "clr r22 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r22, r21 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r22, r21 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r22, r21 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* Subtract (D_b & c_a) in-place and add M_2..M_7 */ \
+    "clr r0 \n\t" \
+    "bld r0, 0 \n\t" \
+    "neg r0 \n\t" \
+    "and r6, r0 \n\t" \
+    "sub r14, r6 \n\t" \
+    "and r7, r0 \n\t" \
+    "sbc r15, r7 \n\t" \
+    "and r8, r0 \n\t" \
+    "sbc r16, r8 \n\t" \
+    "and r9, r0 \n\t" \
+    "sbc r17, r9 \n\t" \
+    "sbc r18, r21 \n\t" \
+    "mov r0, r18 \n\t" \
+    "asr r0 \n\t" \
+    "add r12, r24 \n\t" \
+    "std z+6, r12 \n\t" \
+    "adc r13, r25 \n\t" \
+    "std z+7, r13 \n\t" \
+    "adc r14, r22 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    "adc r10, r18 \n\t" \
+    "adc r11, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    "movw r6, r14 \n\t" \
+    "movw r8, r16 \n\t" \
+    "mov r18, r10 \n\t" \
+    "mov r21, r11 \n\t" \
+    /* l8...l15 stored in 6,7,8,9,18,21,19,20 */ \
+    /* level 2: compute H */ \
+    /* init zero registers */ \
+    "clr r12 \n\t" \
+    "clr r13 \n\t" \
+    "movw r14, r12 \n\t" \
+    "movw r16, r12 \n\t" \
+    /* level 2: compute L */ \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ldd r22, y+8 \n\t" \
+    "ldd r23, y+9 \n\t" \
+    "ldd r24, y+10 \n\t" \
+    "ldd r25, y+11 \n\t" \
+    "mul r2, r22 \n\t" \
+    "movw r10, r0 \n\t" \
+    "mul r2, r23 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "mul r3, r22 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r17 \n\t" \
+    "mul r2, r24 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r17 \n\t" \
+    "mul r3, r23 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r17 \n\t" \
+    "mul r4, r22 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r17 \n\t" \
+    "mul r2, r25 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    "mul r3, r24 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    "mul r4, r23 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    "mul r5, r22 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    /* now add h0+l8 and h0+l12, storing S_{0..5} to Z+8..Z+13 */ \
+    "add r6, r10 \n\t" \
+    "std z+16, r6 \n\t" \
+    "adc r7, r11 \n\t" \
+    "std z+17, r7 \n\t" \
+    "adc r8, r12 \n\t" \
+    "std z+18, r8 \n\t" \
+    "adc r9, r13 \n\t" \
+    "std z+19, r9 \n\t" \
+    "adc r10, r18 \n\t" \
+    "std z+20, r10 \n\t" \
+    "adc r11, r21 \n\t" \
+    "std z+21, r11 \n\t" \
+    "adc r12, r19 \n\t" \
+    "adc r13, r20 \n\t" \
+    /* store carry on stack */ \
+    "sbc r0, r0 \n\t" \
+    "push r0 \n\t" \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    /* continue */ \
+    "mul r3, r25 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "mul r4, r24 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "mul r5, r23 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "mul r4, r25 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r21 \n\t" \
+    "mul r5, r24 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r21 \n\t" \
+    "mul r5, r25 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    /* load a4..a7 and b4..b7 */ \
+    "movw r10, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ldd r6, y+12 \n\t" \
+    "ldd r7, y+13 \n\t" \
+    "ldd r8, y+14 \n\t" \
+    "ldd r9, y+15 \n\t" \
+    /* level 2: compute H + (l3,l4,l5) */ \
+    "mul r18, r6 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r6 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r11 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r19, r7 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r20, r6 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r20, r7 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    /* D_a = A_l - A_h */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "sbc r5, r18 \n\t" \
+    "sbc r0, r0 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue H */ \
+    "mul r18, r6 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r9 \n\t" \
+    "clr r19 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r8 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r9 \n\t" \
+    "clr r20 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* D_b = B_h - B_l */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    "sbc r1, r1 \n\t" \
+    /* Form U_0..U_7, propagate carry, and subtract (D_a & c_b) */ \
+    "ldd r22, z+20 \n\t" \
+    "ldd r23, z+21 \n\t" \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r10 \n\t" \
+    "adc r15, r11 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    "clr r18 \n\t" \
+    "bld r18, 0 \n\t" \
+    "and r18, r1 \n\t" \
+    "adc r18, r21 \n\t" \
+    "pop r0 \n\t" \
+    "neg r0 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r21 \n\t" \
+    "adc r16, r21 \n\t" \
+    "adc r17, r21 \n\t" \
+    "adc r18, r21 \n\t" \
+    "movw r24, r2 \n\t" \
+    "and r24, r1 \n\t" \
+    "sub r14, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r15, r25 \n\t" \
+    "movw r24, r4 \n\t" \
+    "and r24, r1 \n\t" \
+    "sbc r16, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r17, r25 \n\t" \
+    "sbc r18, r21 \n\t" \
+    /* level 2: compute M (fusing U_0..U_2 in R22, R23, R12) */ \
+    "clr r24 \n\t" \
+    "clr r25 \n\t" \
+    "mul r2, r6 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r12, r21 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* Subtract (D_b & c_a) in-place and add M_3..M_7 */ \
+    "clr r0 \n\t" \
+    "bld r0, 0 \n\t" \
+    "neg r0 \n\t" \
+    "and r6, r0 \n\t" \
+    "sub r14, r6 \n\t" \
+    "and r7, r0 \n\t" \
+    "sbc r15, r7 \n\t" \
+    "and r8, r0 \n\t" \
+    "sbc r16, r8 \n\t" \
+    "and r9, r0 \n\t" \
+    "sbc r17, r9 \n\t" \
+    "sbc r18, r21 \n\t" \
+    "mov r0, r18 \n\t" \
+    "asr r0 \n\t" \
+    "add r13, r24 \n\t" \
+    "adc r14, r25 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    "adc r10, r18 \n\t" \
+    "adc r11, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    "std z+20, r22 \n\t" \
+    "std z+21, r23 \n\t" \
+    "std z+22, r12 \n\t" \
+    "std z+23, r13 \n\t" \
+    "std z+24, r14 \n\t" \
+    "std z+25, r15 \n\t" \
+    "std z+26, r16 \n\t" \
+    "std z+27, r17 \n\t" \
+    "std z+28, r10 \n\t" \
+    "std z+29, r11 \n\t" \
+    "std z+30, r19 \n\t" \
+    "std z+31, r20 \n\t" \
+    /* level 2: subtract a0-a7 */ \
+    "sbiw r26, 16 \n\t" \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ld r21, x+ \n\t" \
+    "ld r10, x+ \n\t" \
+    "ld r11, x+ \n\t" \
+    "ld r12, x+ \n\t" \
+    "ld r13, x+ \n\t" \
+    "ld r14, x+ \n\t" \
+    "ld r15, x+ \n\t" \
+    "ld r16, x+ \n\t" \
+    "ld r17, x+ \n\t" \
+    /* store X and Y register on stack */ \
+    "push r26 \n\t" \
+    "push r27 \n\t" \
+    "push r28 \n\t" \
+    "push r29 \n\t" \
+    "sub r2, r10 \n\t" \
+    "sbc r3, r11 \n\t" \
+    "sbc r4, r12 \n\t" \
+    "sbc r5, r13 \n\t" \
+    "sbc r18, r14 \n\t" \
+    "sbc r19, r15 \n\t" \
+    "sbc r20, r16 \n\t" \
+    "sbc r21, r17 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* level 2: subtract b0-b7 */ \
+    "ldd r6, y+0 \n\t" \
+    "ldd r7, y+1 \n\t" \
+    "ldd r8, y+2 \n\t" \
+    "ldd r9, y+3 \n\t" \
+    "ldd r22, y+4 \n\t" \
+    "ldd r23, y+5 \n\t" \
+    "ldd r24, y+6 \n\t" \
+    "ldd r25, y+7 \n\t" \
+    "ldd r10, y+8 \n\t" \
+    "ldd r11, y+9 \n\t" \
+    "ldd r12, y+10 \n\t" \
+    "ldd r13, y+11 \n\t" \
+    "ldd r14, y+12 \n\t" \
+    "ldd r15, y+13 \n\t" \
+    "ldd r16, y+14 \n\t" \
+    "ldd r17, y+15 \n\t" \
+    "sub r6, r10 \n\t" \
+    "sbc r7, r11 \n\t" \
+    "sbc r8, r12 \n\t" \
+    "sbc r9, r13 \n\t" \
+    "sbc r22, r14 \n\t" \
+    "sbc r23, r15 \n\t" \
+    "sbc r24, r16 \n\t" \
+    "sbc r25, r17 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* level 2: absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r20, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r22, r1 \n\t" \
+    "eor r23, r1 \n\t" \
+    "eor r24, r1 \n\t" \
+    "eor r25, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "sbc r20, r0 \n\t" \
+    "sbc r21, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r22, r1 \n\t" \
+    "sbc r23, r1 \n\t" \
+    "sbc r24, r1 \n\t" \
+    "sbc r25, r1 \n\t" \
+    "clr r26 \n\t" \
+    "clr r27 \n\t" \
+    "eor r0, r1 \n\t" \
+    "push r0 \n\t" \
+    /* level 2: compute M */ \
+    "movw r16, r26 \n\t" \
+    "mul r2, r8 \n\t" /* a0*b2 */ \
+    "movw r12, r0 \n\t" \
+    "mul r2, r6 \n\t" /* a0*b0 */ \
+    "movw r10, r0 \n\t" \
+    "mul r2, r7 \n\t" /* a0*b1 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r26 \n\t" \
+    "mul r3, r9 \n\t" /* a1*b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r9 \n\t" /* a0*b3 */ \
+    "movw r28, r0 \n\t" \
+    "mul r3, r6 \n\t" /* a1*b0 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r28 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r3, r7 \n\t" /* a1*b1 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r4, r9 \n\t" /* a2*b3 */ \
+    "add r14, r29 \n\t" \
+    "adc r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "mul r4, r8 \n\t" /* a2*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r6 \n\t" /* a2*b0 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r28 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r3, r8 \n\t" /* a1*b2 */ \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r5, r9 \n\t" /* a3*b3 */ \
+    "add r15, r29 \n\t" \
+    "adc r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "mul r5, r7 \n\t" /* a3*b1 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r7 \n\t" /* a2*b1 */ \
+    "add r13, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r5, r6 \n\t" /* a3*b0 */ \
+    "add r13, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r5, r8 \n\t" /* a3*b2 */ \
+    "add r14, r28 \n\t" \
+    "adc r0, r29 \n\t" \
+    "adc r1, r26 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    /* subtract a0-a4 */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "sbc r5, r21 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b4 */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* level 3: compute H + (l3,l4,l5) */ \
+    "mul r18, r24 \n\t" /* a0*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r18, r22 \n\t" /* a0*b0 */ \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r28 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r18, r23 \n\t" /* a0*b1 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r19, r25 \n\t" /* a1*b3 */ \
+    "add r17, r29 \n\t" \
+    "adc r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "mul r18, r25 \n\t" /* a0*b3 */ \
+    "movw r28, r0 \n\t" \
+    "mul r19, r22 \n\t" /* a1*b0 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r28 \n\t" \
+    "clr r18 \n\t" \
+    "adc r29, r18 \n\t" \
+    "mul r19, r23 \n\t" /* a1*b1 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r29, r18 \n\t" \
+    "mul r20, r25 \n\t" /* a2*b3 */ \
+    "add r26, r29 \n\t" \
+    "adc r27, r0 \n\t" \
+    "clr r18 \n\t" \
+    "adc r18, r1 \n\t" \
+    "mul r20, r24 \n\t" /* a2*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r20, r22 \n\t" /* a2*b0 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r26, r28 \n\t" \
+    "clr r0 \n\t" \
+    "adc r29, r0 \n\t" \
+    "mul r19, r24 \n\t" /* a1*b2 */ \
+    "add r17, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "clr r19 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r21, r25 \n\t" /* a3*b3 */ \
+    "add r27, r29 \n\t" \
+    "adc r18, r0 \n\t" \
+    "clr r25 \n\t" \
+    "adc r25, r1 \n\t" \
+    "mul r21, r23 \n\t" /* a3*b1 */ \
+    "movw r28,r0 \n\t" \
+    "mul r20, r23 \n\t" /* a2*b1 */ \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r21, r22 \n\t" /* a3*b0 */ \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r21, r24 \n\t" /* a3*b2 */ \
+    "add r26, r28 \n\t" \
+    "adc r0, r29 \n\t" \
+    "adc r1, r19 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r25, r19 \n\t" \
+    /* level 3: compute M */ \
+    "mul r2, r8 \n\t" /* a0*b2 */ \
+    "movw r22, r0 \n\t" \
+    "mul r2, r6 \n\t" /* a0*b0 */ \
+    "movw r20, r0 \n\t" \
+    "mul r2, r7 \n\t" /* a0*b1 */ \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r19 \n\t" \
+    "mul r3, r9 \n\t" /* a1*b3 */ \
+    "mov r24, r0 \n\t" \
+    "mov r0, r2 \n\t" \
+    "mov r2, r1 \n\t" \
+    "mul r0, r9 \n\t" /* a0*b3 */ \
+    "movw r28, r0 \n\t" \
+    "mul r3, r6 \n\t" /* a1*b0 */ \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r28 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r3, r7 \n\t" /* a1*b1 */ \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r4, r9 \n\t" /* a2*b3 */ \
+    "add r24, r29 \n\t" \
+    "adc r2, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "mul r4, r8 \n\t" /* a2*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r6 \n\t" /* a2*b0 */ \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r28 \n\t" \
+    "clr r0 \n\t" \
+    "adc r29, r0 \n\t" \
+    "mul r3, r8 \n\t" /* a1*b2 */ \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "clr r3 \n\t" \
+    "adc r29, r3 \n\t" \
+    "mul r5, r9 \n\t" /* a3*b3 */ \
+    "add r2, r29 \n\t" \
+    "adc r19, r0 \n\t" \
+    "clr r9 \n\t" \
+    "adc r9, r1 \n\t" \
+    "mul r5, r7 \n\t" /* a3*b1 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r7 \n\t" /* a2*b1 */ \
+    "add r23, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r3 \n\t" \
+    "mul r5, r6 \n\t" /* a3*b0 */ \
+    "add r23, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r3 \n\t" \
+    "mul r5, r8 \n\t" /* a3*b2 */ \
+    "add r24, r28 \n\t" \
+    "adc r0, r29 \n\t" \
+    "adc r1, r3 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r9, r3 \n\t" \
+    /* add l4+h0 to l0 and h4 */ \
+    "movw r4, r10 \n\t" \
+    "movw r6, r12 \n\t" \
+    "add r10, r14 \n\t" \
+    "adc r11, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r26 \n\t" \
+    "adc r15, r27 \n\t" \
+    "adc r16, r18 \n\t" \
+    "adc r17, r25 \n\t" \
+    /* store carry in R3 */ \
+    /* process sign bit */ \
+    "clr r0 \n\t" \
+    "bld r0, 0 \n\t" \
+    "dec r0 \n\t" \
+    /* merge carry and borrow */ \
+    "adc r3, r0 \n\t" \
+    "mov r1, r3 \n\t" \
+    "asr r1 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r20, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r22, r0 \n\t" \
+    "eor r23, r0 \n\t" \
+    "eor r24, r0 \n\t" \
+    "eor r2, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r9, r0 \n\t" \
+    "add r0, r0 \n\t" /* sets carry flag if R0 = 0xff */ \
+    /* add in M */ \
+    "adc r10, r20 \n\t" \
+    "adc r11, r21 \n\t" \
+    "adc r12, r22 \n\t" \
+    "adc r13, r23 \n\t" \
+    "adc r14, r24 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r9 \n\t" \
+    /* propagate carry to end */ \
+    "adc r26, r3 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r25, r1 \n\t" \
+    "mov r19, r25 \n\t" \
+    /* level 2: combine L, H, and M */ \
+    "ldd r20, z+0 \n\t" \
+    "ldd r21, z+1 \n\t" \
+    "ldd r22, z+2 \n\t" \
+    "ldd r23, z+3 \n\t" \
+    "ldd r24, z+4 \n\t" \
+    "ldd r25, z+5 \n\t" \
+    "ldd r8, z+6 \n\t" \
+    "ldd r9, z+7 \n\t" \
+    /* process sign bit */ \
+    "pop r0 \n\t" \
+    "com r0 \n\t" \
+    "mov r1, r0 \n\t" \
+    "asr r1 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r0 \n\t" \
+    "eor r7, r0 \n\t" \
+    "eor r10, r0 \n\t" \
+    "eor r11, r0 \n\t" \
+    "eor r12, r0 \n\t" \
+    "eor r13, r0 \n\t" \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r26, r0 \n\t" \
+    "eor r27, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "mov r28, r0 \n\t" \
+    "add r28, r28 \n\t" /* sets carry flag if R28 = 0xff */ \
+    /* add in M */ \
+    "adc r20, r4 \n\t" \
+    "adc r21, r5 \n\t" \
+    "adc r22, r6 \n\t" \
+    "adc r23, r7 \n\t" \
+    "adc r24, r10 \n\t" \
+    "adc r25, r11 \n\t" \
+    "adc r8, r12 \n\t" \
+    "adc r9, r13 \n\t" \
+    /* store carry in R28 */ \
+    "clr r28 \n\t" \
+    "adc r28, r28 \n\t" \
+    "ldd r2, z+16 \n\t" \
+    "ldd r3, z+17 \n\t" \
+    "add r20, r2 \n\t" \
+    "adc r21, r3 \n\t" \
+    "std z+8, r20 \n\t" \
+    "std z+9, r21 \n\t" \
+    "movw r20, r2 \n\t" \
+    "ldd r2, z+18 \n\t" \
+    "ldd r3, z+19 \n\t" \
+    "adc r22, r2 \n\t" \
+    "adc r23, r3 \n\t" \
+    "std z+10, r22 \n\t" \
+    "std z+11, r23 \n\t" \
+    "movw r22, r2 \n\t" \
+    "ldd r2, z+20 \n\t" \
+    "ldd r3, z+21 \n\t" \
+    "adc r24, r2 \n\t" \
+    "adc r25, r3 \n\t" \
+    "std z+12, r24 \n\t" \
+    "std z+13, r25 \n\t" \
+    "movw r24, r2 \n\t" \
+    "ldd r2, z+22 \n\t" \
+    "ldd r3, z+23 \n\t" \
+    "adc r8, r2 \n\t" \
+    "adc r9, r3 \n\t" \
+    "std z+14, r8 \n\t" \
+    "std z+15, r9 \n\t" \
+    "movw r8, r2 \n\t" \
+    /* store carry in R2 */ \
+    "clr r2 \n\t" \
+    "adc r2, r2 \n\t" \
+    "lsr r28 \n\t" \
+    "adc r20, r14 \n\t" \
+    "adc r21, r15 \n\t" \
+    "adc r22, r16 \n\t" \
+    "adc r23, r17 \n\t" \
+    "adc r24, r26 \n\t" \
+    "adc r25, r27 \n\t" \
+    "adc r8, r18 \n\t" \
+    "adc r9, r19 \n\t" \
+    /* store carry in R1:R0 */ \
+    "adc r0, r28 \n\t" \
+    "adc r1, r28 \n\t" \
+    "ldd r4, z+24 \n\t" \
+    "ldd r5, z+25 \n\t" \
+    "ldd r6, z+26 \n\t" \
+    "ldd r7, z+27 \n\t" \
+    "ldd r10, z+28 \n\t" \
+    "ldd r11, z+29 \n\t" \
+    "ldd r12, z+30 \n\t" \
+    "ldd r13, z+31 \n\t" \
+    "lsr r2 \n\t" \
+    "adc r20, r4 \n\t" \
+    "adc r21, r5 \n\t" \
+    "adc r22, r6 \n\t" \
+    "adc r23, r7 \n\t" \
+    "adc r24, r10 \n\t" \
+    "adc r25, r11 \n\t" \
+    "adc r8, r12 \n\t" \
+    "adc r9, r13 \n\t" \
+    /* store carry in R1:R0 */ \
+    "adc r0, r2 \n\t" \
+    "adc r1, r2 \n\t" \
+    "std z+16, r20 \n\t" \
+    "std z+17, r21 \n\t" \
+    "std z+18, r22 \n\t" \
+    "std z+19, r23 \n\t" \
+    "std z+20, r24 \n\t" \
+    "std z+21, r25 \n\t" \
+    "std z+22, r8 \n\t" \
+    "std z+23, r9 \n\t" \
+    /* propagate carry/borrow */ \
+    "add r4, r0 \n\t" \
+    "adc r5, r1 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r1 \n\t" \
+    "std z+24, r4 \n\t" \
+    "std z+25, r5 \n\t" \
+    "std z+26, r6 \n\t" \
+    "std z+27, r7 \n\t" \
+    "std z+28, r10 \n\t" \
+    "std z+29, r11 \n\t" \
+    "std z+30, r12 \n\t" \
+    "std z+31, r13 \n\t" \
+    /* restore X and Y register */ \
+    "pop r29 \n\t" \
+    "pop r28 \n\t" \
+    "pop r27 \n\t" \
+    "pop r26 \n\t" \
+    /* level 1: compute H */ \
+    /* init zero registers */ \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    "movw r16, r20 \n\t" \
+    /* level 2: compute L */ \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ldd r22, y+16 \n\t" \
+    "ldd r23, y+17 \n\t" \
+    "ldd r24, y+18 \n\t" \
+    "ldd r25, y+19 \n\t" \
+    "mul r2, r24 \n\t" /* a0*b2 */ \
+    "movw r12, r0 \n\t" \
+    "mul r2, r22 \n\t" /* a0*b0 */ \
+    "movw r10, r0 \n\t" \
+    "mul r2, r23 \n\t" /* a0*b1 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r21 \n\t" \
+    "mul r3, r25 \n\t" /* a1*b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r25 \n\t" /* a0*b3 */ \
+    "movw r18, r0 \n\t" \
+    "mul r3, r22 \n\t" /* a1*b0 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r18 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r3, r23 \n\t" /* a1*b1 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r4, r25 \n\t" /* a2*b3 */ \
+    "add r14, r19 \n\t" \
+    "adc r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "mul r4, r24 \n\t" /* a2*b2 */ \
+    "movw r18, r0 \n\t" \
+    "mul r4, r22 \n\t" /* a2*b0 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r18 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r3, r24 \n\t" /* a1*b2 */ \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r5, r25 \n\t" /* a3*b3 */ \
+    "add r15, r19 \n\t" \
+    "adc r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "mul r5, r23 \n\t" /* a3*b1 */ \
+    "movw r18, r0 \n\t" \
+    "mul r4, r23 \n\t" /* a2*b1 */ \
+    "add r13, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r5, r22 \n\t" /* a3*b0 */ \
+    "add r13, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r5, r24 \n\t" /* a3*b2 */ \
+    "add r14, r18 \n\t" \
+    "adc r0, r19 \n\t" \
+    "adc r1, r21 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r21 \n\t" \
+    "std z+32, r10 \n\t" \
+    "std z+33, r11 \n\t" \
+    "std z+34, r12 \n\t" \
+    "std z+35, r13 \n\t" \
+    /* load a4..a7 and b4..b7 */ \
+    "movw r10, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ldd r6, y+20 \n\t" \
+    "ldd r7, y+21 \n\t" \
+    "ldd r8, y+22 \n\t" \
+    "ldd r9, y+23 \n\t" \
+    /* level 2: compute H + (l3,l4,l5) */ \
+    "mul r18, r6 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r6 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r11 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r19, r7 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r20, r6 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r20, r7 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    /* D_a = A_l - A_h */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "sbc r5, r18 \n\t" \
+    "sbc r0, r0 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue H */ \
+    "mul r18, r6 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r9 \n\t" \
+    "clr r19 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r8 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r9 \n\t" \
+    "clr r20 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* D_b = B_h - B_l */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    "sbc r1, r1 \n\t" \
+    /* Form U_0..U_7 and subtract (D_a & c_b) */ \
+    "ldd r22, z+32 \n\t" \
+    "ldd r23, z+33 \n\t" \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r10 \n\t" \
+    "adc r15, r11 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    "clr r18 \n\t" \
+    "bld r18, 0 \n\t" \
+    "and r18, r1 \n\t" \
+    "adc r18, r21 \n\t" \
+    "movw r24, r2 \n\t" \
+    "and r24, r1 \n\t" \
+    "sub r14, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r15, r25 \n\t" \
+    "movw r24, r4 \n\t" \
+    "and r24, r1 \n\t" \
+    "sbc r16, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r17, r25 \n\t" \
+    "sbc r18, r21 \n\t" \
+    /* level 2: compute M (fusing U_0, U_1 and keeping R18 untouched) */ \
+    "clr r24 \n\t" \
+    "clr r25 \n\t" \
+    "mul r2, r6 \n\t" \
+    "add r22, r0 \n\t" \
+    "std z+36, r22 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "std z+37, r23 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "clr r22 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r22, r21 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r22, r21 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r22, r21 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* Subtract (D_b & c_a) in-place and add M_2..M_7 */ \
+    "clr r0 \n\t" \
+    "bld r0, 0 \n\t" \
+    "neg r0 \n\t" \
+    "and r6, r0 \n\t" \
+    "sub r14, r6 \n\t" \
+    "and r7, r0 \n\t" \
+    "sbc r15, r7 \n\t" \
+    "and r8, r0 \n\t" \
+    "sbc r16, r8 \n\t" \
+    "and r9, r0 \n\t" \
+    "sbc r17, r9 \n\t" \
+    "sbc r18, r21 \n\t" \
+    "mov r0, r18 \n\t" \
+    "asr r0 \n\t" \
+    "add r12, r24 \n\t" \
+    "std z+38, r12 \n\t" \
+    "adc r13, r25 \n\t" \
+    "std z+39, r13 \n\t" \
+    "adc r14, r22 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    "adc r10, r18 \n\t" \
+    "adc r11, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    "movw r6, r14 \n\t" \
+    "movw r8, r16 \n\t" \
+    "mov r18, r10 \n\t" \
+    "mov r21, r11 \n\t" \
+    /* l8...l15 stored in 6,7,8,9,18,21,19,20 */ \
+    /* level 2: compute H */ \
+    /* init zero registers */ \
+    "clr r12 \n\t" \
+    "clr r13 \n\t" \
+    "movw r14, r12 \n\t" \
+    "movw r16, r12 \n\t" \
+    /* level 2: compute L */ \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ldd r22, y+24 \n\t" \
+    "ldd r23, y+25 \n\t" \
+    "ldd r24, y+26 \n\t" \
+    "ldd r25, y+27 \n\t" \
+    "mul r2, r22 \n\t" \
+    "movw r10, r0 \n\t" \
+    "mul r2, r23 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "mul r3, r22 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r17 \n\t" \
+    "mul r2, r24 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r17 \n\t" \
+    "mul r3, r23 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r17 \n\t" \
+    "mul r4, r22 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r17 \n\t" \
+    "mul r2, r25 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    "mul r3, r24 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    "mul r4, r23 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    "mul r5, r22 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r17 \n\t" \
+    /* now add h0+l8 and h0+l12, storing S_{0..5} to Z+40..Z+45 */ \
+    "add r6, r10 \n\t" \
+    "std z+48, r6 \n\t" \
+    "adc r7, r11 \n\t" \
+    "std z+49, r7 \n\t" \
+    "adc r8, r12 \n\t" \
+    "std z+50, r8 \n\t" \
+    "adc r9, r13 \n\t" \
+    "std z+51, r9 \n\t" \
+    "adc r10, r18 \n\t" \
+    "std z+52, r10 \n\t" \
+    "adc r11, r21 \n\t" \
+    "std z+53, r11 \n\t" \
+    "adc r12, r19 \n\t" \
+    "adc r13, r20 \n\t" \
+    /* store carry on stack */ \
+    "sbc r0, r0 \n\t" \
+    "push r0 \n\t" \
+    "clr r20 \n\t" \
+    "clr r21 \n\t" \
+    /* continue */ \
+    "mul r3, r25 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "mul r4, r24 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "mul r5, r23 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "mul r4, r25 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r21 \n\t" \
+    "mul r5, r24 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r21 \n\t" \
+    "mul r5, r25 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    /* load a4..a7 and b4..b7 */ \
+    "movw r10, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ldd r6, y+28 \n\t" \
+    "ldd r7, y+29 \n\t" \
+    "ldd r8, y+30 \n\t" \
+    "ldd r9, y+31 \n\t" \
+    /* level 2: compute H + (l3,l4,l5) */ \
+    "mul r18, r6 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r21 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r6 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r11 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r19, r7 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "mul r20, r6 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r21 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r8 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r20, r7 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    /* D_a = A_l - A_h */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "ld r18, x+ \n\t" \
+    "sbc r5, r18 \n\t" \
+    "sbc r0, r0 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue H */ \
+    "mul r18, r6 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r21 \n\t" \
+    "mul r19, r9 \n\t" \
+    "clr r19 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r8 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r18, r7 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r21 \n\t" \
+    "mul r20, r9 \n\t" \
+    "clr r20 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r8 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r21 \n\t" \
+    "mul r18, r9 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* D_b = B_h - B_l */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    "sbc r1, r1 \n\t" \
+    /* Form U_0..U_7, propagate carry, and subtract (D_a & c_b) */ \
+    "ldd r22, z+52 \n\t" \
+    "ldd r23, z+53 \n\t" \
+    "add r22, r14 \n\t" \
+    "adc r23, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r10 \n\t" \
+    "adc r15, r11 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    "clr r18 \n\t" \
+    "bld r18, 0 \n\t" \
+    "and r18, r1 \n\t" \
+    "adc r18, r21 \n\t" \
+    "pop r0 \n\t" \
+    "neg r0 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r21 \n\t" \
+    "adc r16, r21 \n\t" \
+    "adc r17, r21 \n\t" \
+    "adc r18, r21 \n\t" \
+    "movw r24, r2 \n\t" \
+    "and r24, r1 \n\t" \
+    "sub r14, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r15, r25 \n\t" \
+    "movw r24, r4 \n\t" \
+    "and r24, r1 \n\t" \
+    "sbc r16, r24 \n\t" \
+    "and r25, r1 \n\t" \
+    "sbc r17, r25 \n\t" \
+    "sbc r18, r21 \n\t" \
+    /* level 2: compute M (fusing U_0..U_2 in R22, R23, R12) */ \
+    "clr r24 \n\t" \
+    "clr r25 \n\t" \
+    "mul r2, r6 \n\t" \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r12, r21 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r24, r21 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r21 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r21 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r21 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r21 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* Subtract (D_b & c_a) in-place and add M_3..M_7 */ \
+    "clr r0 \n\t" \
+    "bld r0, 0 \n\t" \
+    "neg r0 \n\t" \
+    "and r6, r0 \n\t" \
+    "sub r14, r6 \n\t" \
+    "and r7, r0 \n\t" \
+    "sbc r15, r7 \n\t" \
+    "and r8, r0 \n\t" \
+    "sbc r16, r8 \n\t" \
+    "and r9, r0 \n\t" \
+    "sbc r17, r9 \n\t" \
+    "sbc r18, r21 \n\t" \
+    "mov r0, r18 \n\t" \
+    "asr r0 \n\t" \
+    "add r13, r24 \n\t" \
+    "adc r14, r25 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    "adc r10, r18 \n\t" \
+    "adc r11, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    "std z+52, r22 \n\t" \
+    "std z+53, r23 \n\t" \
+    "std z+54, r12 \n\t" \
+    "std z+55, r13 \n\t" \
+    "std z+56, r14 \n\t" \
+    "std z+57, r15 \n\t" \
+    "std z+58, r16 \n\t" \
+    "std z+59, r17 \n\t" \
+    "std z+60, r10 \n\t" \
+    "std z+61, r11 \n\t" \
+    "std z+62, r19 \n\t" \
+    "std z+63, r20 \n\t" \
+    /* level 1: subtract a0-a7 */ \
+    "sbiw r26, 16 \n\t" \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ld r21, x+ \n\t" \
+    "ld r10, x+ \n\t" \
+    "ld r11, x+ \n\t" \
+    "ld r12, x+ \n\t" \
+    "ld r13, x+ \n\t" \
+    "ld r14, x+ \n\t" \
+    "ld r15, x+ \n\t" \
+    "ld r16, x+ \n\t" \
+    "ld r17, x+ \n\t" \
+    /* store X and Y register on stack */ \
+    "push r26 \n\t" \
+    "push r27 \n\t" \
+    "push r28 \n\t" \
+    "push r29 \n\t" \
+    "sub r2, r10 \n\t" \
+    "sbc r3, r11 \n\t" \
+    "sbc r4, r12 \n\t" \
+    "sbc r5, r13 \n\t" \
+    "sbc r18, r14 \n\t" \
+    "sbc r19, r15 \n\t" \
+    "sbc r20, r16 \n\t" \
+    "sbc r21, r17 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* level 1: subtract b0-b7 */ \
+    "ldd r6, y+16 \n\t" \
+    "ldd r7, y+17 \n\t" \
+    "ldd r8, y+18 \n\t" \
+    "ldd r9, y+19 \n\t" \
+    "ldd r22, y+20 \n\t" \
+    "ldd r23, y+21 \n\t" \
+    "ldd r24, y+22 \n\t" \
+    "ldd r25, y+23 \n\t" \
+    "ldd r10, y+24 \n\t" \
+    "ldd r11, y+25 \n\t" \
+    "ldd r12, y+26 \n\t" \
+    "ldd r13, y+27 \n\t" \
+    "ldd r14, y+28 \n\t" \
+    "ldd r15, y+29 \n\t" \
+    "ldd r16, y+30 \n\t" \
+    "ldd r17, y+31 \n\t" \
+    "sub r6, r10 \n\t" \
+    "sbc r7, r11 \n\t" \
+    "sbc r8, r12 \n\t" \
+    "sbc r9, r13 \n\t" \
+    "sbc r22, r14 \n\t" \
+    "sbc r23, r15 \n\t" \
+    "sbc r24, r16 \n\t" \
+    "sbc r25, r17 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* level 2: absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r20, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r22, r1 \n\t" \
+    "eor r23, r1 \n\t" \
+    "eor r24, r1 \n\t" \
+    "eor r25, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "sbc r20, r0 \n\t" \
+    "sbc r21, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r22, r1 \n\t" \
+    "sbc r23, r1 \n\t" \
+    "sbc r24, r1 \n\t" \
+    "sbc r25, r1 \n\t" \
+    "clr r26 \n\t" \
+    "clr r27 \n\t" \
+    "eor r0, r1 \n\t" \
+    "push r0 \n\t" \
+    /* level 2: compute M */ \
+    "movw r16, r26 \n\t" \
+    "mul r2, r8 \n\t" /* a0*b2 */ \
+    "movw r12, r0 \n\t" \
+    "mul r2, r6 \n\t" /* a0*b0 */ \
+    "movw r10, r0 \n\t" \
+    "mul r2, r7 \n\t" /* a0*b1 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r26 \n\t" \
+    "mul r3, r9 \n\t" /* a1*b3 */ \
+    "movw r14, r0 \n\t" \
+    "mul r2, r9 \n\t" /* a0*b3 */ \
+    "movw r28, r0 \n\t" \
+    "mul r3, r6 \n\t" /* a1*b0 */ \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r28 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r3, r7 \n\t" /* a1*b1 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r4, r9 \n\t" /* a2*b3 */ \
+    "add r14, r29 \n\t" \
+    "adc r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "mul r4, r8 \n\t" /* a2*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r6 \n\t" /* a2*b0 */ \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r28 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r3, r8 \n\t" /* a1*b2 */ \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r5, r9 \n\t" /* a3*b3 */ \
+    "add r15, r29 \n\t" \
+    "adc r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "mul r5, r7 \n\t" /* a3*b1 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r7 \n\t" /* a2*b1 */ \
+    "add r13, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r5, r6 \n\t" /* a3*b0 */ \
+    "add r13, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r5, r8 \n\t" /* a3*b2 */ \
+    "add r14, r28 \n\t" \
+    "adc r0, r29 \n\t" \
+    "adc r1, r26 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    /* subtract a0-a4 */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "sbc r5, r21 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b4 */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* level 3: compute H + (l3,l4,l5) */ \
+    "mul r18, r24 \n\t" /* a0*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r18, r22 \n\t" /* a0*b0 */ \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r28 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r18, r23 \n\t" /* a0*b1 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r19, r25 \n\t" /* a1*b3 */ \
+    "add r17, r29 \n\t" \
+    "adc r26, r0 \n\t" \
+    "adc r27, r1 \n\t" \
+    "mul r18, r25 \n\t" /* a0*b3 */ \
+    "movw r28, r0 \n\t" \
+    "mul r19, r22 \n\t" /* a1*b0 */ \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r28 \n\t" \
+    "clr r18 \n\t" \
+    "adc r29, r18 \n\t" \
+    "mul r19, r23 \n\t" /* a1*b1 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r29, r18 \n\t" \
+    "mul r20, r25 \n\t" /* a2*b3 */ \
+    "add r26, r29 \n\t" \
+    "adc r27, r0 \n\t" \
+    "clr r18 \n\t" \
+    "adc r18, r1 \n\t" \
+    "mul r20, r24 \n\t" /* a2*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r20, r22 \n\t" /* a2*b0 */ \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r26, r28 \n\t" \
+    "clr r0 \n\t" \
+    "adc r29, r0 \n\t" \
+    "mul r19, r24 \n\t" /* a1*b2 */ \
+    "add r17, r0 \n\t" \
+    "adc r26, r1 \n\t" \
+    "clr r19 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r21, r25 \n\t" /* a3*b3 */ \
+    "add r27, r29 \n\t" \
+    "adc r18, r0 \n\t" \
+    "clr r25 \n\t" \
+    "adc r25, r1 \n\t" \
+    "mul r21, r23 \n\t" /* a3*b1 */ \
+    "movw r28,r0 \n\t" \
+    "mul r20, r23 \n\t" /* a2*b1 */ \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r21, r22 \n\t" /* a3*b0 */ \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r21, r24 \n\t" /* a3*b2 */ \
+    "add r26, r28 \n\t" \
+    "adc r0, r29 \n\t" \
+    "adc r1, r19 \n\t" \
+    "add r27, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r25, r19 \n\t" \
+    /* level 3: compute M */ \
+    "mul r2, r8 \n\t" /* a0*b2 */ \
+    "movw r22, r0 \n\t" \
+    "mul r2, r6 \n\t" /* a0*b0 */ \
+    "movw r20, r0 \n\t" \
+    "mul r2, r7 \n\t" /* a0*b1 */ \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r19 \n\t" \
+    "mul r3, r9 \n\t" /* a1*b3 */ \
+    "mov r24, r0 \n\t" \
+    "mov r0, r2 \n\t" \
+    "mov r2, r1 \n\t" \
+    "mul r0, r9 \n\t" /* a0*b3 */ \
+    "movw r28, r0 \n\t" \
+    "mul r3, r6 \n\t" /* a1*b0 */ \
+    "add r21, r0 \n\t" \
+    "adc r22, r1 \n\t" \
+    "adc r23, r28 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r3, r7 \n\t" /* a1*b1 */ \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r29, r19 \n\t" \
+    "mul r4, r9 \n\t" /* a2*b3 */ \
+    "add r24, r29 \n\t" \
+    "adc r2, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "mul r4, r8 \n\t" /* a2*b2 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r6 \n\t" /* a2*b0 */ \
+    "add r22, r0 \n\t" \
+    "adc r23, r1 \n\t" \
+    "adc r24, r28 \n\t" \
+    "clr r0 \n\t" \
+    "adc r29, r0 \n\t" \
+    "mul r3, r8 \n\t" /* a1*b2 */ \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "clr r3 \n\t" \
+    "adc r29, r3 \n\t" \
+    "mul r5, r9 \n\t" /* a3*b3 */ \
+    "add r2, r29 \n\t" \
+    "adc r19, r0 \n\t" \
+    "clr r9 \n\t" \
+    "adc r9, r1 \n\t" \
+    "mul r5, r7 \n\t" /* a3*b1 */ \
+    "movw r28, r0 \n\t" \
+    "mul r4, r7 \n\t" /* a2*b1 */ \
+    "add r23, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r3 \n\t" \
+    "mul r5, r6 \n\t" /* a3*b0 */ \
+    "add r23, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r3 \n\t" \
+    "mul r5, r8 \n\t" /* a3*b2 */ \
+    "add r24, r28 \n\t" \
+    "adc r0, r29 \n\t" \
+    "adc r1, r3 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r9, r3 \n\t" \
+    /* add l4+h0 to l0 and h4 */ \
+    "movw r4, r10 \n\t" \
+    "movw r6, r12 \n\t" \
+    "add r10, r14 \n\t" \
+    "adc r11, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r26 \n\t" \
+    "adc r15, r27 \n\t" \
+    "adc r16, r18 \n\t" \
+    "adc r17, r25 \n\t" \
+    /* store carry in R3 */ \
+    /* process sign bit */ \
+    "clr r0 \n\t" \
+    "bld r0, 0 \n\t" \
+    "dec r0 \n\t" \
+    /* merge carry and borrow */ \
+    "adc r3, r0 \n\t" \
+    "mov r1, r3 \n\t" \
+    "asr r1 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r20, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r22, r0 \n\t" \
+    "eor r23, r0 \n\t" \
+    "eor r24, r0 \n\t" \
+    "eor r2, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r9, r0 \n\t" \
+    "add r0, r0 \n\t" /* sets carry flag if R0 = 0xff */ \
+    /* add in M */ \
+    "adc r10, r20 \n\t" \
+    "adc r11, r21 \n\t" \
+    "adc r12, r22 \n\t" \
+    "adc r13, r23 \n\t" \
+    "adc r14, r24 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r9 \n\t" \
+    /* propagate carry/borrow */ \
+    "adc r26, r3 \n\t" \
+    "adc r27, r1 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r25, r1 \n\t" \
+    "mov r19, r25 \n\t" \
+    /* level 2: combine L, H, and M */ \
+    "ldd r20, z+32 \n\t" \
+    "ldd r21, z+33 \n\t" \
+    "ldd r22, z+34 \n\t" \
+    "ldd r23, z+35 \n\t" \
+    "ldd r24, z+36 \n\t" \
+    "ldd r25, z+37 \n\t" \
+    "ldd r8, z+38 \n\t" \
+    "ldd r9, z+39 \n\t" \
+    "ldd r1, z+16 \n\t" \
+    "add r1, r20 \n\t" \
+    "std z+32, r1 \n\t" \
+    "ldd r1, z+17 \n\t" \
+    "adc r1, r21 \n\t" \
+    "std z+33, r1 \n\t" \
+    "ldd r1, z+18 \n\t" \
+    "adc r1, r22 \n\t" \
+    "std z+34, r1 \n\t" \
+    "ldd r1, z+19 \n\t" \
+    "adc r1, r23 \n\t" \
+    "std z+35, r1 \n\t" \
+    "ldd r1, z+20 \n\t" \
+    "adc r1, r24 \n\t" \
+    "std z+36, r1 \n\t" \
+    "ldd r1, z+21 \n\t" \
+    "adc r1, r25 \n\t" \
+    "std z+37, r1 \n\t" \
+    "ldd r1, z+22 \n\t" \
+    "adc r1, r8 \n\t" \
+    "std z+38, r1 \n\t" \
+    "ldd r1, z+23 \n\t" \
+    "adc r1, r9 \n\t" \
+    "std z+39, r1 \n\t" \
+    /* store carry in R28 */ \
+    "clr r28 \n\t" \
+    "adc r28, r28 \n\t" \
+    /* process sign bit */ \
+    "pop r0 \n\t" \
+    "com r0 \n\t" \
+    "mov r1, r0 \n\t" \
+    "asr r1 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r0 \n\t" \
+    "eor r7, r0 \n\t" \
+    "eor r10, r0 \n\t" \
+    "eor r11, r0 \n\t" \
+    "eor r12, r0 \n\t" \
+    "eor r13, r0 \n\t" \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r26, r0 \n\t" \
+    "eor r27, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "mov r2, r0 \n\t" \
+    "add r2, r2 \n\t" /* sets carry flag if R2 = 0xff */ \
+    /* add in M */ \
+    "adc r20, r4 \n\t" \
+    "adc r21, r5 \n\t" \
+    "adc r22, r6 \n\t" \
+    "adc r23, r7 \n\t" \
+    "adc r24, r10 \n\t" \
+    "adc r25, r11 \n\t" \
+    "adc r8, r12 \n\t" \
+    "adc r9, r13 \n\t" \
+    "ldd r4, z+56 \n\t" \
+    "ldd r5, z+57 \n\t" \
+    "ldd r6, z+58 \n\t" \
+    "ldd r7, z+59 \n\t" \
+    "ldd r10, z+60 \n\t" \
+    "ldd r11, z+61 \n\t" \
+    "ldd r12, z+62 \n\t" \
+    "ldd r13, z+63 \n\t" \
+    "adc r4, r14 \n\t" \
+    "adc r5, r15 \n\t" \
+    "adc r6, r16 \n\t" \
+    "adc r7, r17 \n\t" \
+    "adc r10, r26 \n\t" \
+    "adc r11, r27 \n\t" \
+    "adc r12, r18 \n\t" \
+    "adc r13, r19 \n\t" \
+    /* store carry in R1:R0 */ \
+    "clr r27 \n\t" \
+    "adc r0, r27 \n\t" \
+    "adc r1, r27 \n\t" \
+    "ldd r14, z+48 \n\t" \
+    "ldd r15, z+49 \n\t" \
+    "ldd r16, z+50 \n\t" \
+    "ldd r17, z+51 \n\t" \
+    "ldd r26, z+52 \n\t" \
+    "ldd r27, z+53 \n\t" \
+    "ldd r18, z+54 \n\t" \
+    "ldd r19, z+55 \n\t" \
+    "add r20, r14 \n\t" \
+    "adc r21, r15 \n\t" \
+    "adc r22, r16 \n\t" \
+    "adc r23, r17 \n\t" \
+    "adc r24, r26 \n\t" \
+    "adc r25, r27 \n\t" \
+    "adc r8, r18 \n\t" \
+    "adc r9, r19 \n\t" \
+    "adc r4, r14 \n\t" \
+    "adc r5, r15 \n\t" \
+    "adc r6, r16 \n\t" \
+    "adc r7, r17 \n\t" \
+    "adc r10, r26 \n\t" \
+    "adc r11, r27 \n\t" \
+    "adc r12, r18 \n\t" \
+    "adc r13, r19 \n\t" \
+    /* add carry to carry catcher */ \
+    "clr r14 \n\t" \
+    "adc r0, r14 \n\t" \
+    "adc r1, r14 \n\t" \
+    /* add higher part of the first 128 bits */ \
+    "lsr r28 \n\t" \
+    "ldd r28, z+24 \n\t" \
+    "adc r20, r28 \n\t" \
+    "ldd r28, z+25 \n\t" \
+    "adc r21, r28 \n\t" \
+    "ldd r28, z+26 \n\t" \
+    "adc r22, r28 \n\t" \
+    "ldd r28, z+27 \n\t" \
+    "adc r23, r28 \n\t" \
+    "ldd r28, z+28 \n\t" \
+    "adc r24, r28 \n\t" \
+    "ldd r28, z+29 \n\t" \
+    "adc r25, r28 \n\t" \
+    "ldd r28, z+30 \n\t" \
+    "adc r8, r28 \n\t" \
+    "ldd r28, z+31 \n\t" \
+    "adc r9, r28 \n\t" \
+    "adc r4, r14 \n\t" \
+    "adc r5, r14 \n\t" \
+    "adc r6, r14 \n\t" \
+    "adc r7, r14 \n\t" \
+    "adc r10, r14 \n\t" \
+    "adc r11, r14 \n\t" \
+    "adc r12, r14 \n\t" \
+    "adc r13, r14 \n\t" \
+    /* add carry to carry catcher */ \
+    "adc r0, r14 \n\t" \
+    "adc r1, r14 \n\t" \
+    "std z+40, r20 \n\t" \
+    "std z+41, r21 \n\t" \
+    "std z+42, r22 \n\t" \
+    "std z+43, r23 \n\t" \
+    "std z+44, r24 \n\t" \
+    "std z+45, r25 \n\t" \
+    "std z+46, r8 \n\t" \
+    "std z+47, r9 \n\t" \
+    "std z+48, r4 \n\t" \
+    "std z+49, r5 \n\t" \
+    "std z+50, r6 \n\t" \
+    "std z+51, r7 \n\t" \
+    "std z+52, r10 \n\t" \
+    "std z+53, r11 \n\t" \
+    "std z+54, r12 \n\t" \
+    "std z+55, r13 \n\t" \
+    /* propagate carry/borrow */ \
+    "ldd r4, z+56 \n\t" \
+    "ldd r5, z+57 \n\t" \
+    "ldd r6, z+58 \n\t" \
+    "ldd r7, z+59 \n\t" \
+    "ldd r10, z+60 \n\t" \
+    "ldd r11, z+61 \n\t" \
+    "ldd r12, z+62 \n\t" \
+    "ldd r13, z+63 \n\t" \
+    "add r4, r0 \n\t" \
+    "adc r5, r1 \n\t" \
+    "adc r6, r1 \n\t" \
+    "adc r7, r1 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r1 \n\t" \
+    "std z+56, r4 \n\t" \
+    "std z+57, r5 \n\t" \
+    "std z+58, r6 \n\t" \
+    "std z+59, r7 \n\t" \
+    "std z+60, r10 \n\t" \
+    "std z+61, r11 \n\t" \
+    "std z+62, r12 \n\t" \
+    "std z+63, r13 \n\t" \
+    /* restore X and Y register */ \
+    "pop r29 \n\t" \
+    "pop r28 \n\t" \
+    "pop r27 \n\t" \
+    "pop r26 \n\t" \
+    /* level 1: subtract a0-a15 */ \
+    "sbiw r26, 32 \n\t" \
+    "ld r2, x+ \n\t" \
+    "ld r3, x+ \n\t" \
+    "ld r4, x+ \n\t" \
+    "ld r5, x+ \n\t" \
+    "ld r18, x+ \n\t" \
+    "ld r19, x+ \n\t" \
+    "ld r20, x+ \n\t" \
+    "ld r21, x+ \n\t" \
+    "ld r10, x+ \n\t" \
+    "ld r11, x+ \n\t" \
+    "ld r12, x+ \n\t" \
+    "ld r13, x+ \n\t" \
+    "ld r14, x+ \n\t" \
+    "ld r15, x+ \n\t" \
+    "ld r16, x+ \n\t" \
+    "ld r17, x+ \n\t" \
+    "ld r0, x+ \n\t" \
+    "sub r2, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r3, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r4, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r5, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r18, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r19, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r20, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r21, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r10, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r11, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r12, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r13, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r14, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r15, r0 \n\t" \
+    "ld r0, x+ \n\t" \
+    "sbc r16, r0 \n\t" \
+    "ld r0, x \n\t" \
+    "sbc r17, r0 \n\t" \
+    /* store borrow in R0 */ \
+    "sbc r0, r0 \n\t" \
+    /* level 1: absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r20, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r10, r0 \n\t" \
+    "eor r11, r0 \n\t" \
+    "eor r12, r0 \n\t" \
+    "eor r13, r0 \n\t" \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "sbc r20, r0 \n\t" \
+    "sbc r21, r0 \n\t" \
+    "sbc r10, r0 \n\t" \
+    "sbc r11, r0 \n\t" \
+    "sbc r12, r0 \n\t" \
+    "sbc r13, r0 \n\t" \
+    "sbc r14, r0 \n\t" \
+    "sbc r15, r0 \n\t" \
+    "sbc r16, r0 \n\t" \
+    "sbc r17, r0 \n\t" \
+    /* level 1: push absolute values on stack */ \
+    "push r17 \n\t" \
+    "push r16 \n\t" \
+    "push r15 \n\t" \
+    "push r14 \n\t" \
+    "push r13 \n\t" \
+    "push r12 \n\t" \
+    "push r11 \n\t" \
+    "push r10 \n\t" \
+    "push r21 \n\t" \
+    "push r20 \n\t" \
+    "push r19 \n\t" \
+    "push r18 \n\t" \
+    "push r5 \n\t" \
+    "push r4 \n\t" \
+    "push r3 \n\t" \
+    "push r2 \n\t" \
+    /* level 1: subtract b0-b15 */ \
+    "ldd r6, y+0 \n\t" \
+    "ldd r7, y+1 \n\t" \
+    "ldd r8, y+2 \n\t" \
+    "ldd r9, y+3 \n\t" \
+    "ldd r22, y+4 \n\t" \
+    "ldd r23, y+5 \n\t" \
+    "ldd r24, y+6 \n\t" \
+    "ldd r25, y+7 \n\t" \
+    "ldd r10, y+8 \n\t" \
+    "ldd r11, y+9 \n\t" \
+    "ldd r12, y+10 \n\t" \
+    "ldd r13, y+11 \n\t" \
+    "ldd r14, y+12 \n\t" \
+    "ldd r15, y+13 \n\t" \
+    "ldd r16, y+14 \n\t" \
+    "ldd r17, y+15 \n\t" \
+    "ldd r1, y+16 \n\t" \
+    "sub r6, r1 \n\t" \
+    "ldd r1, y+17 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "ldd r1, y+18 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "ldd r1, y+19 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "ldd r1, y+20 \n\t" \
+    "sbc r22, r1 \n\t" \
+    "ldd r1, y+21 \n\t" \
+    "sbc r23, r1 \n\t" \
+    "ldd r1, y+22 \n\t" \
+    "sbc r24, r1 \n\t" \
+    "ldd r1, y+23 \n\t" \
+    "sbc r25, r1 \n\t" \
+    "ldd r1, y+24 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "ldd r1, y+25 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "ldd r1, y+26 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "ldd r1, y+27 \n\t" \
+    "sbc r13, r1 \n\t" \
+    "ldd r1, y+28 \n\t" \
+    "sbc r14, r1 \n\t" \
+    "ldd r1, y+29 \n\t" \
+    "sbc r15, r1 \n\t" \
+    "ldd r1, y+30 \n\t" \
+    "sbc r16, r1 \n\t" \
+    "ldd r1, y+31 \n\t" \
+    "sbc r17, r1 \n\t" \
+    /* store borrow in R1 */ \
+    "sbc r1, r1 \n\t" \
+    /* level 1: absolute values */ \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r22, r1 \n\t" \
+    "eor r23, r1 \n\t" \
+    "eor r24, r1 \n\t" \
+    "eor r25, r1 \n\t" \
+    "eor r10, r1 \n\t" \
+    "eor r11, r1 \n\t" \
+    "eor r12, r1 \n\t" \
+    "eor r13, r1 \n\t" \
+    "eor r14, r1 \n\t" \
+    "eor r15, r1 \n\t" \
+    "eor r16, r1 \n\t" \
+    "eor r17, r1 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r22, r1 \n\t" \
+    "sbc r23, r1 \n\t" \
+    "sbc r24, r1 \n\t" \
+    "sbc r25, r1 \n\t" \
+    "sbc r10, r1 \n\t" \
+    "sbc r11, r1 \n\t" \
+    "sbc r12, r1 \n\t" \
+    "sbc r13, r1 \n\t" \
+    "sbc r14, r1 \n\t" \
+    "sbc r15, r1 \n\t" \
+    "sbc r16, r1 \n\t" \
+    "sbc r17, r1 \n\t" \
+    /* level 1: push absolute values on stack */ \
+    "push r17 \n\t" \
+    "push r16 \n\t" \
+    "push r15 \n\t" \
+    "push r14 \n\t" \
+    "push r13 \n\t" \
+    "push r12 \n\t" \
+    "push r11 \n\t" \
+    "push r10 \n\t" \
+    "push r25 \n\t" \
+    "push r24 \n\t" \
+    "push r23 \n\t" \
+    "push r22 \n\t" \
+    "push r9 \n\t" \
+    "push r8 \n\t" \
+    "push r7 \n\t" \
+    "push r6 \n\t" \
+    "eor r0, r1 \n\t" \
+    "push r0 \n\t" \
+    /* level 1: compute M */ \
+    /* level 2: compute L */ \
+    /* init zero registers */ \
+    "clr r26 \n\t" \
+    "clr r27 \n\t" \
+    "movw r12, r26 \n\t" \
+    "movw r14, r26 \n\t" \
+    "movw r16, r26 \n\t" \
+    /* level 3: compute L */ \
+    "mul r2, r6 \n\t" \
+    "movw r10, r0 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r26 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r2, r9 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r3, r9 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r4, r9 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    /* level 3: compute H + (l3,l4,l5) */ \
+    "push r11 \n\t" \
+    "push r10 \n\t" \
+    "movw r10, r26 \n\t" \
+    "mul r18, r22 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r18, r23 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r19, r22 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r11 \n\t" \
+    "adc r10, r26 \n\t" \
+    "mul r18, r24 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r26 \n\t" \
+    "mul r19, r23 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r26 \n\t" \
+    "mul r20, r22 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r26 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r25 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r19, r24 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r20, r23 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    /* subtract a0-a4 */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "sbc r5, r21 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b4 */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue */ \
+    "mul r21, r22 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r19, r25 \n\t" \
+    "clr r19 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r20, r24 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r21, r23 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r20, r25 \n\t" \
+    "clr r20 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r26 \n\t" \
+    "mul r21, r24 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r26 \n\t" \
+    "mul r21, r25 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* level 3: compute M */ \
+    "movw r24, r26 \n\t" \
+    "clr r18 \n\t" \
+    "mul r2, r6 \n\t" \
+    "movw r22, r0 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r26 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r26 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r26 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* add l4+h0 to l0 and h4 */ \
+    "pop r6 \n\t" \
+    "pop r7 \n\t" \
+    "movw r8, r6 \n\t" \
+    "movw r28, r12 \n\t" \
+    "add r6, r14 \n\t" \
+    "adc r7, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r10 \n\t" \
+    "adc r15, r11 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    /* store carry in R26 */ \
+    /* process sign bit */ \
+    "clr r1 \n\t" \
+    "bld r1, 0 \n\t" \
+    "dec r1 \n\t" \
+    /* merge carry and borrow */ \
+    "adc r26, r1 \n\t" \
+    "mov r0, r26 \n\t" \
+    "asr r0 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r22, r1 \n\t" \
+    "eor r23, r1 \n\t" \
+    "eor r24, r1 \n\t" \
+    "eor r25, r1 \n\t" \
+    "eor r18, r1 \n\t" \
+    "eor r2, r1 \n\t" \
+    "eor r3, r1 \n\t" \
+    "eor r4, r1 \n\t" \
+    "add r1, r1 \n\t" /* sets carry flag if R1 = 0xff */ \
+    /* add in M */ \
+    "adc r6, r22 \n\t" \
+    "adc r7, r23 \n\t" \
+    "adc r12, r24 \n\t" \
+    "adc r13, r25 \n\t" \
+    "adc r14, r18 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    /* propagate carry/borrow */ \
+    "adc r10, r26 \n\t" \
+    "adc r11, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    "movw r22, r14 \n\t" \
+    "movw r24, r16 \n\t" \
+    "mov r18, r10 \n\t" \
+    "mov r21, r11 \n\t" \
+    /* h8...h15 stored in 22,23,24,25,18,21,19,20 */ \
+    /* level 2: compute H */ \
+    /* push Z+0...Z+7 on stack */ \
+    "push r8 \n\t" \
+    "push r9 \n\t" \
+    "push r28 \n\t" \
+    "push r29 \n\t" \
+    "push r6 \n\t" \
+    "push r7 \n\t" \
+    "push r12 \n\t" \
+    "push r13 \n\t" \
+    /* subtract stack pointer and load Y and X values */ \
+    "in r28, __SP_L__ \n\t" \
+    "in r29, __SP_H__ \n\t" \
+    "adiw r28, 33 \n\t" \
+    /* ISR safety: dropped SP raise to SP+33 (keeps live data allocated) */ \
+    /* load Y */ \
+    "ldd r2, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r3, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r4, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r5, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    /* set correct address */ \
+    "sbiw r28, 16 \n\t" \
+    /* ISR safety: dropped SP raise to SP+17 (keeps live data allocated) */ \
+    /* load X */ \
+    "ldd r6, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r7, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r8, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r9, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    /* set correct address */ \
+    "sbiw r28, 17 \n\t" \
+    /* ISR safety: dropped SP write (already 0x21bd) */ \
+    /* init zero registers */ \
+    "clr r26 \n\t" \
+    "movw r12, r26 \n\t" \
+    "movw r14, r26 \n\t" \
+    "movw r16, r26 \n\t" \
+    /* level 3: compute L */ \
+    "mul r2, r6 \n\t" \
+    "movw r10, r0 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r26 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r2, r9 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r3, r9 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r4, r9 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    /* add h0+l8 and h0+l12 */ \
+    "add r22, r10 \n\t" \
+    "push r22 \n\t" \
+    "adc r23, r11 \n\t" \
+    "push r23 \n\t" \
+    "adc r24, r12 \n\t" \
+    "push r24 \n\t" \
+    "adc r25, r13 \n\t" \
+    "push r25 \n\t" \
+    "adc r10, r18 \n\t" \
+    "push r10 \n\t" \
+    "adc r11, r21 \n\t" \
+    "push r11 \n\t" \
+    "adc r12, r19 \n\t" \
+    "adc r13, r20 \n\t" \
+    /* store carry in R27 */ \
+    "adc r27, r26 \n\t" \
+    /* set correct address */ \
+    "adiw r28, 37 \n\t" \
+    /* ISR safety: dropped SP raise to SP+43 (keeps live data allocated) */ \
+    /* load Y */ \
+    "ldd r18, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r19, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r20, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r21, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    /* set correct address */ \
+    "sbiw r28, 16 \n\t" \
+    /* ISR safety: dropped SP raise to SP+27 (keeps live data allocated) */ \
+    /* load X */ \
+    "ldd r22, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r23, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r24, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r25, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    /* set correct address */ \
+    "sbiw r28, 27 \n\t" \
+    /* ISR safety: dropped SP write (already 0x21b7) */ \
+    /* level 3: compute H */ \
+    "clr r10 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r22 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r18, r23 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r19, r22 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r11 \n\t" \
+    "adc r10, r26 \n\t" \
+    "mul r18, r24 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r26 \n\t" \
+    "mul r19, r23 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r26 \n\t" \
+    "mul r20, r22 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r10, r26 \n\t" \
+    "clr r11 \n\t" \
+    "mul r18, r25 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r19, r24 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r20, r23 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    /* subtract a0-a4 */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "sbc r5, r21 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b4 */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue */ \
+    "mul r21, r22 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r10, r1 \n\t" \
+    "adc r11, r26 \n\t" \
+    "mul r19, r25 \n\t" \
+    "clr r19 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r20, r24 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r21, r23 \n\t" \
+    "add r10, r0 \n\t" \
+    "adc r11, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r20, r25 \n\t" \
+    "clr r20 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r26 \n\t" \
+    "mul r21, r24 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r26 \n\t" \
+    "mul r21, r25 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* level 3: compute M */ \
+    "clr r24 \n\t" \
+    "clr r25 \n\t" \
+    "clr r18 \n\t" \
+    "mul r2, r6 \n\t" \
+    "movw r22, r0 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r26 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r26 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r26 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* add l4+h0 to l0 and h4 */ \
+    "pop r7 \n\t" \
+    "pop r6 \n\t" \
+    "add r6, r14 \n\t" \
+    "adc r7, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r10 \n\t" \
+    "adc r15, r11 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    /* store carry in R26 */ \
+    "adc r26, r26 \n\t" \
+    /* load carry and propagate to end */ \
+    "add r14, r27 \n\t" \
+    "clr r27 \n\t" \
+    "adc r15, r27 \n\t" \
+    "adc r16, r27 \n\t" \
+    "adc r17, r27 \n\t" \
+    /* store carry in R26 */ \
+    /* process sign bit */ \
+    "clr r1 \n\t" \
+    "bld r1, 0 \n\t" \
+    "dec r1 \n\t" \
+    /* merge carry and borrow */ \
+    "adc r26, r1 \n\t" \
+    "mov r0, r26 \n\t" \
+    "asr r0 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r22, r1 \n\t" \
+    "eor r23, r1 \n\t" \
+    "eor r24, r1 \n\t" \
+    "eor r25, r1 \n\t" \
+    "eor r18, r1 \n\t" \
+    "eor r2, r1 \n\t" \
+    "eor r3, r1 \n\t" \
+    "eor r4, r1 \n\t" \
+    "add r1, r1 \n\t" /* sets carry flag if R1 = 0xff */ \
+    /* add in M */ \
+    "adc r6, r22 \n\t" \
+    "adc r7, r23 \n\t" \
+    "adc r12, r24 \n\t" \
+    "adc r13, r25 \n\t" \
+    "adc r14, r18 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    /* propagate carry/borrow */ \
+    "adc r10, r26 \n\t" \
+    "adc r11, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    "push r6 \n\t" \
+    "push r7 \n\t" \
+    "push r12 \n\t" \
+    "push r13 \n\t" \
+    "push r14 \n\t" \
+    "push r15 \n\t" \
+    "push r16 \n\t" \
+    "push r17 \n\t" \
+    "push r10 \n\t" \
+    "push r11 \n\t" \
+    "push r19 \n\t" \
+    "push r20 \n\t" \
+    /* level 2: subtract a0-a7 */ \
+    "adiw r28, 31 \n\t" \
+    /* ISR safety: dropped SP raise to SP+41 (keeps live data allocated) */ \
+    "ldd r2, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r3, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r4, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r5, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r18, y+5 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r19, y+6 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r20, y+7 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r21, y+8 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r10, y+9 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r11, y+10 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r12, y+11 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r13, y+12 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r14, y+13 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r15, y+14 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r16, y+15 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r17, y+16 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "sub r2, r10 \n\t" \
+    "sbc r3, r11 \n\t" \
+    "sbc r4, r12 \n\t" \
+    "sbc r5, r13 \n\t" \
+    "sbc r18, r14 \n\t" \
+    "sbc r19, r15 \n\t" \
+    "sbc r20, r16 \n\t" \
+    "sbc r21, r17 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* level 3: subtract b0-b7 */ \
+    "sbiw r28, 16 \n\t" \
+    /* ISR safety: dropped SP raise to SP+25 (keeps live data allocated) */ \
+    "ldd r6, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r7, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r8, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r9, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r22, y+5 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r23, y+6 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r24, y+7 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r25, y+8 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r10, y+9 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r11, y+10 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r12, y+11 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r13, y+12 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r14, y+13 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r15, y+14 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r16, y+15 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r17, y+16 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "sbiw r28, 25 \n\t" \
+    /* ISR safety: dropped SP write (already 0x21ad) */ \
+    "sub r6, r10 \n\t" \
+    "sbc r7, r11 \n\t" \
+    "sbc r8, r12 \n\t" \
+    "sbc r9, r13 \n\t" \
+    "sbc r22, r14 \n\t" \
+    "sbc r23, r15 \n\t" \
+    "sbc r24, r16 \n\t" \
+    "sbc r25, r17 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* level 3: absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r20, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "eor r22, r1 \n\t" \
+    "eor r23, r1 \n\t" \
+    "eor r24, r1 \n\t" \
+    "eor r25, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sbc r18, r0 \n\t" \
+    "sbc r19, r0 \n\t" \
+    "sbc r20, r0 \n\t" \
+    "sbc r21, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "sbc r22, r1 \n\t" \
+    "sbc r23, r1 \n\t" \
+    "sbc r24, r1 \n\t" \
+    "sbc r25, r1 \n\t" \
+    "clr r26 \n\t" \
+    "eor r0, r1 \n\t" \
+    "push r0 \n\t" \
+    /* level 2: compute M */ \
+    /* init zero registers */ \
+    "movw r12, r26 \n\t" \
+    "movw r14, r12 \n\t" \
+    "movw r16, r12 \n\t" \
+    "movw r28, r12 \n\t" \
+    "mul r2, r6 \n\t" \
+    "movw r10, r0 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r11, r0 \n\t" \
+    "adc r12, r1 \n\t" \
+    "adc r13, r26 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r12, r0 \n\t" \
+    "adc r13, r1 \n\t" \
+    "adc r14, r26 \n\t" \
+    "mul r2, r9 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r13, r0 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r26 \n\t" \
+    "mul r3, r9 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "mul r4, r9 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r26 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    /* level 3: compute H + (l3,l4,l5) */ \
+    "mul r18, r22 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r26 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r18, r23 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r19, r22 \n\t" \
+    "add r15, r0 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r29 \n\t" \
+    "adc r28, r26 \n\t" \
+    "mul r18, r24 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r28, r26 \n\t" \
+    "mul r19, r23 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r28, r26 \n\t" \
+    "mul r20, r22 \n\t" \
+    "add r16, r0 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r28, r26 \n\t" \
+    "clr r29 \n\t" \
+    "mul r18, r25 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r19, r24 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r20, r23 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    /* subtract a0-a4 */ \
+    "sub r2, r18 \n\t" \
+    "sbc r3, r19 \n\t" \
+    "sbc r4, r20 \n\t" \
+    "sbc r5, r21 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r0, r0 \n\t" \
+    /* subtract b0-b4 */ \
+    "sub r6, r22 \n\t" \
+    "sbc r7, r23 \n\t" \
+    "sbc r8, r24 \n\t" \
+    "sbc r9, r25 \n\t" \
+    /* 0xff if carry and 0x00 if no carry */ \
+    "sbc r1, r1 \n\t" \
+    /* absolute values */ \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r6, r1 \n\t" \
+    "eor r7, r1 \n\t" \
+    "eor r8, r1 \n\t" \
+    "eor r9, r1 \n\t" \
+    "sub r2, r0 \n\t" \
+    "sbc r3, r0 \n\t" \
+    "sbc r4, r0 \n\t" \
+    "sbc r5, r0 \n\t" \
+    "sub r6, r1 \n\t" \
+    "sbc r7, r1 \n\t" \
+    "sbc r8, r1 \n\t" \
+    "sbc r9, r1 \n\t" \
+    "eor r0, r1 \n\t" \
+    "bst r0, 0 \n\t" \
+    /* continue */ \
+    "mul r21, r22 \n\t" \
+    "add r17, r0 \n\t" \
+    "adc r28, r1 \n\t" \
+    "adc r29, r26 \n\t" \
+    "mul r19, r25 \n\t" \
+    "clr r19 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r20, r24 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r21, r23 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r19, r26 \n\t" \
+    "mul r20, r25 \n\t" \
+    "clr r20 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r26 \n\t" \
+    "mul r21, r24 \n\t" \
+    "add r29, r0 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r26 \n\t" \
+    "mul r21, r25 \n\t" \
+    "add r19, r0 \n\t" \
+    "adc r20, r1 \n\t" \
+    /* level 3: compute M */ \
+    "clr r24 \n\t" \
+    "clr r25 \n\t" \
+    "clr r18 \n\t" \
+    "mul r2, r6 \n\t" \
+    "movw r22, r0 \n\t" \
+    "mul r2, r7 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "mul r3, r6 \n\t" \
+    "add r23, r0 \n\t" \
+    "adc r24, r1 \n\t" \
+    "adc r25, r26 \n\t" \
+    "mul r2, r8 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r3, r7 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r4, r6 \n\t" \
+    "add r24, r0 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r18, r26 \n\t" \
+    "mul r2, r9 \n\t" \
+    "clr r2 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r3, r8 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r4, r7 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r5, r6 \n\t" \
+    "add r25, r0 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r2, r26 \n\t" \
+    "mul r3, r9 \n\t" \
+    "clr r3 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r4, r8 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r5, r7 \n\t" \
+    "add r18, r0 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r26 \n\t" \
+    "mul r4, r9 \n\t" \
+    "clr r4 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r26 \n\t" \
+    "mul r5, r8 \n\t" \
+    "add r2, r0 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r26 \n\t" \
+    "mul r5, r9 \n\t" \
+    "add r3, r0 \n\t" \
+    "adc r4, r1 \n\t" \
+    /* add l4+h0 to l0 and h4 */ \
+    "movw r6, r10 \n\t" \
+    "movw r8, r12 \n\t" \
+    "add r10, r14 \n\t" \
+    "adc r11, r15 \n\t" \
+    "adc r12, r16 \n\t" \
+    "adc r13, r17 \n\t" \
+    "adc r14, r28 \n\t" \
+    "adc r15, r29 \n\t" \
+    "adc r16, r19 \n\t" \
+    "adc r17, r20 \n\t" \
+    /* store carry in R26 */ \
+    /* process sign bit */ \
+    "bld r27, 0 \n\t" \
+    "dec r27 \n\t" \
+    /* merge carry and borrow */ \
+    "adc r26, r27 \n\t" \
+    "mov r0, r26 \n\t" \
+    "asr r0 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r22, r27 \n\t" \
+    "eor r23, r27 \n\t" \
+    "eor r24, r27 \n\t" \
+    "eor r25, r27 \n\t" \
+    "eor r18, r27 \n\t" \
+    "eor r2, r27 \n\t" \
+    "eor r3, r27 \n\t" \
+    "eor r4, r27 \n\t" \
+    "add r27, r27 \n\t" /* sets carry flag if R27 = 0xff */ \
+    /* add in M */ \
+    "adc r10, r22 \n\t" \
+    "adc r11, r23 \n\t" \
+    "adc r12, r24 \n\t" \
+    "adc r13, r25 \n\t" \
+    "adc r14, r18 \n\t" \
+    "adc r15, r2 \n\t" \
+    "adc r16, r3 \n\t" \
+    "adc r17, r4 \n\t" \
+    /* propagate carry/borrow */ \
+    "adc r28, r26 \n\t" \
+    "adc r29, r0 \n\t" \
+    "adc r19, r0 \n\t" \
+    "adc r20, r0 \n\t" \
+    /* level 2: combine L, H, and M */ \
+    /* process sign bit */ \
+    "pop r0 \n\t" \
+    "com r0 \n\t" \
+    /* set correct address */ \
+    "in r26, __SP_L__ \n\t" \
+    "in r27, __SP_H__ \n\t" \
+    "adiw r26, 17 \n\t" /* ISR safety: adjusted so LD X+ replaces POP */ \
+    /* ISR safety: dropped SP raise to SP+16 (keeps live data allocated) */ \
+    /* load Z+7...Z+0 */ \
+    "ld r24, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r23, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r22, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r21, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r5, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r4, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r3, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r2, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    /* set correct address */ \
+    "sbiw r26, 24 \n\t" /* ISR safety: adjusted so LD X+ replaces POP */ \
+    /* ISR safety: dropped SP write (already 0x21ad) */ \
+    "mov r1, r0 \n\t" \
+    "asr r1 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r6, r0 \n\t" \
+    "eor r7, r0 \n\t" \
+    "eor r8, r0 \n\t" \
+    "eor r9, r0 \n\t" \
+    "eor r10, r0 \n\t" \
+    "eor r11, r0 \n\t" \
+    "eor r12, r0 \n\t" \
+    "eor r13, r0 \n\t" \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r28, r0 \n\t" \
+    "eor r29, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r20, r0 \n\t" \
+    "mov r18, r0 \n\t" \
+    "add r18, r18 \n\t" /* sets carry flag if R18 = 0xff */ \
+    /* add in M */ \
+    "adc r2, r6 \n\t" \
+    "adc r3, r7 \n\t" \
+    "adc r4, r8 \n\t" \
+    "adc r5, r9 \n\t" \
+    "adc r21, r10 \n\t" \
+    "adc r22, r11 \n\t" \
+    "adc r23, r12 \n\t" \
+    "adc r24, r13 \n\t" \
+    /* load Z+31...Z+24 */ \
+    "ld r13, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r12, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r11, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r10, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r9, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r8, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r7, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r6, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "adc r6, r14 \n\t" \
+    "adc r7, r15 \n\t" \
+    "adc r8, r16 \n\t" \
+    "adc r9, r17 \n\t" \
+    "adc r10, r28 \n\t" \
+    "adc r11, r29 \n\t" \
+    "adc r12, r19 \n\t" \
+    "adc r13, r20 \n\t" \
+    "clr r18 \n\t" \
+    "adc r0, r18 \n\t" \
+    "adc r1, r18 \n\t" \
+    /* load Z+24...Z+16 */ \
+    "ld r20, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r19, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r29, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r28, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r17, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r16, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r15, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ld r14, x+ \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "add r2, r14 \n\t" \
+    "adc r3, r15 \n\t" \
+    "adc r4, r16 \n\t" \
+    "adc r5, r17 \n\t" \
+    "adc r21, r28 \n\t" \
+    "adc r22, r29 \n\t" \
+    "adc r23, r19 \n\t" \
+    "adc r24, r20 \n\t" \
+    "adc r6, r14 \n\t" \
+    "adc r7, r15 \n\t" \
+    "adc r8, r16 \n\t" \
+    "adc r9, r17 \n\t" \
+    "adc r10, r28 \n\t" \
+    "adc r11, r29 \n\t" \
+    "adc r12, r19 \n\t" \
+    "adc r13, r20 \n\t" \
+    /* add carry to carry catcher */ \
+    "adc r0, r18 \n\t" \
+    "adc r1, r18 \n\t" \
+    /* propagate carry/borrow */ \
+    "in r28, __SP_L__ \n\t" /* ISR safety: real SP already 16 lower, so no SBIW needed */ \
+    "in r29, __SP_H__ \n\t" \
+    /* ISR safety: dropped SP write (already 0x21ad) */ \
+    /* load Z+31...Z+24 */ \
+    "pop r25 \n\t" \
+    "pop r20 \n\t" \
+    "pop r19 \n\t" \
+    "pop r18 \n\t" \
+    "pop r17 \n\t" \
+    "pop r16 \n\t" \
+    "pop r15 \n\t" \
+    "pop r14 \n\t" \
+    "add r14, r0 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r25, r1 \n\t" \
+    /* level 1: combine L, H, and M */ \
+    "adiw r28, 16 \n\t" \
+    "in r0, __SREG__ \n\t" /* ISR safety: atomic SP write */ \
+    "cli \n\t" \
+    "out __SP_H__, r29 \n\t" \
+    "out __SREG__, r0 \n\t" \
+    "out __SP_L__, r28 \n\t" \
+    "push r14 \n\t" \
+    "push r15 \n\t" \
+    "push r16 \n\t" \
+    "push r17 \n\t" \
+    "push r18 \n\t" \
+    "push r19 \n\t" \
+    "push r20 \n\t" \
+    "push r25 \n\t" \
+    /* ISR safety: dropped SP raise to SP+8 (keeps live data allocated) */ \
+    /* first load first 8 bytes of "m" */ \
+    "ldd r25, y+1 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r20, y+2 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r19, y+3 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r18, y+4 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r17, y+5 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r16, y+6 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r15, y+7 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "ldd r14, y+8 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    /* process sign bit */ \
+    "ldd r0, y+9 \n\t" /* ISR safety: LDD/LD instead of POP above SP */ \
+    "com r0 \n\t" \
+    "sbiw r28, 8 \n\t" \
+    /* ISR safety: dropped SP write (already 0x21b5) */ \
+    "mov r1, r0 \n\t" \
+    "asr r1 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r14, r0 \n\t" \
+    "eor r15, r0 \n\t" \
+    "eor r16, r0 \n\t" \
+    "eor r17, r0 \n\t" \
+    "eor r18, r0 \n\t" \
+    "eor r19, r0 \n\t" \
+    "eor r20, r0 \n\t" \
+    "eor r25, r0 \n\t" \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r22, r0 \n\t" \
+    "eor r23, r0 \n\t" \
+    "eor r24, r0 \n\t" \
+    /* ISR safety: X dead here, no compensation needed (was +17) */ \
+    "mov r27, r0 \n\t" \
+    "add r27, r27 \n\t" /* sets carry flag if R27 = 0xff */ \
+    /* calc l0+/-m0 */ \
+    "ldd r28, z+0 \n\t" \
+    "adc r28, r14 \n\t" \
+    "ldd r29, z+1 \n\t" \
+    "adc r29, r15 \n\t" \
+    "ldd r14, z+2 \n\t" \
+    "adc r14, r16 \n\t" \
+    "ldd r15, z+3 \n\t" \
+    "adc r15, r17 \n\t" \
+    "ldd r16, z+4 \n\t" \
+    "adc r16, r18 \n\t" \
+    "ldd r17, z+5 \n\t" \
+    "adc r17, r19 \n\t" \
+    "ldd r18, z+6 \n\t" \
+    "adc r18, r20 \n\t" \
+    "ldd r19, z+7 \n\t" \
+    "adc r19, r25 \n\t" \
+    "ldd r20, z+8 \n\t" \
+    "adc r20, r2 \n\t" \
+    "ldd r25, z+9 \n\t" \
+    "adc r25, r3 \n\t" \
+    "ldd r2, z+10 \n\t" \
+    "adc r2, r4 \n\t" \
+    "ldd r3, z+11 \n\t" \
+    "adc r3, r5 \n\t" \
+    "ldd r4, z+12 \n\t" \
+    "adc r4, r21 \n\t" \
+    "ldd r5, z+13 \n\t" \
+    "adc r5, r22 \n\t" \
+    "ldd r21, z+14 \n\t" \
+    "adc r21, r23 \n\t" \
+    "ldd r22, z+15 \n\t" \
+    "adc r22, r24 \n\t" \
+    /* store carry in R27 */ \
+    "clr r27 \n\t" \
+    "adc r27, r27 \n\t" \
+    /* add h0+l8 */ \
+    "ldd r24, z+32 \n\t" \
+    "add r28, r24 \n\t" \
+    "std z+16, r28 \n\t" \
+    "ldd r24, z+33 \n\t" \
+    "adc r29, r24 \n\t" \
+    "std z+17, r29 \n\t" \
+    "ldd r24, z+34 \n\t" \
+    "adc r14, r24 \n\t" \
+    "std z+18, r14 \n\t" \
+    "ldd r24, z+35 \n\t" \
+    "adc r15, r24 \n\t" \
+    "std z+19, r15 \n\t" \
+    "ldd r24, z+36 \n\t" \
+    "adc r16, r24 \n\t" \
+    "std z+20, r16 \n\t" \
+    "ldd r24, z+37 \n\t" \
+    "adc r17, r24 \n\t" \
+    "std z+21, r17 \n\t" \
+    "ldd r24, z+38 \n\t" \
+    "adc r18, r24 \n\t" \
+    "std z+22, r18 \n\t" \
+    "ldd r24, z+39 \n\t" \
+    "adc r19, r24 \n\t" \
+    "std z+23, r19 \n\t" \
+    "ldd r24, z+40 \n\t" \
+    "adc r20, r24 \n\t" \
+    "std z+24, r20 \n\t" \
+    "ldd r24, z+41 \n\t" \
+    "adc r25, r24 \n\t" \
+    "std z+25, r25 \n\t" \
+    "ldd r24, z+42 \n\t" \
+    "adc r2, r24 \n\t" \
+    "std z+26, r2 \n\t" \
+    "ldd r24, z+43 \n\t" \
+    "adc r3, r24 \n\t" \
+    "std z+27, r3 \n\t" \
+    "ldd r24, z+44 \n\t" \
+    "adc r4, r24 \n\t" \
+    "std z+28, r4 \n\t" \
+    "ldd r24, z+45 \n\t" \
+    "adc r5, r24 \n\t" \
+    "std z+29, r5 \n\t" \
+    "ldd r24, z+46 \n\t" \
+    "adc r21, r24 \n\t" \
+    "std z+30, r21 \n\t" \
+    "ldd r24, z+47 \n\t" \
+    "adc r22, r24 \n\t" \
+    "std z+31, r22 \n\t" \
+    /* store carry in R26 */ \
+    "clr r26 \n\t" \
+    "adc r26, r26 \n\t" \
+    /* load last 8 bytes of "m" */ \
+    "pop r24 \n\t" \
+    "pop r23 \n\t" \
+    "pop r22 \n\t" \
+    "pop r21 \n\t" \
+    "pop r5 \n\t" \
+    "pop r4 \n\t" \
+    "pop r3 \n\t" \
+    "pop r2 \n\t" \
+    /* invert all bits or do nothing */ \
+    "eor r6, r0 \n\t" \
+    "eor r7, r0 \n\t" \
+    "eor r8, r0 \n\t" \
+    "eor r9, r0 \n\t" \
+    "eor r10, r0 \n\t" \
+    "eor r11, r0 \n\t" \
+    "eor r12, r0 \n\t" \
+    "eor r13, r0 \n\t" \
+    "eor r2, r0 \n\t" \
+    "eor r3, r0 \n\t" \
+    "eor r4, r0 \n\t" \
+    "eor r5, r0 \n\t" \
+    "eor r21, r0 \n\t" \
+    "eor r22, r0 \n\t" \
+    "eor r23, r0 \n\t" \
+    "eor r24, r0 \n\t" \
+    "lsr r27 \n\t" \
+    "ldd r28, z+48 \n\t" \
+    "adc r28, r6 \n\t" \
+    "ldd r29, z+49 \n\t" \
+    "adc r29, r7 \n\t" \
+    "ldd r14, z+50 \n\t" \
+    "adc r14, r8 \n\t" \
+    "ldd r15, z+51 \n\t" \
+    "adc r15, r9 \n\t" \
+    "ldd r16, z+52 \n\t" \
+    "adc r16, r10 \n\t" \
+    "ldd r17, z+53 \n\t" \
+    "adc r17, r11 \n\t" \
+    "ldd r18, z+54 \n\t" \
+    "adc r18, r12 \n\t" \
+    "ldd r19, z+55 \n\t" \
+    "adc r19, r13 \n\t" \
+    "ldd r20, z+56 \n\t" \
+    "adc r20, r2 \n\t" \
+    "ldd r25, z+57 \n\t" \
+    "adc r25, r3 \n\t" \
+    "ldd r2, z+58 \n\t" \
+    "adc r2, r4 \n\t" \
+    "ldd r3, z+59 \n\t" \
+    "adc r3, r5 \n\t" \
+    "ldd r4, z+60 \n\t" \
+    "adc r4, r21 \n\t" \
+    "ldd r5, z+61 \n\t" \
+    "adc r5, r22 \n\t" \
+    "ldd r21, z+62 \n\t" \
+    "adc r21, r23 \n\t" \
+    "ldd r22, z+63 \n\t" \
+    "adc r22, r24 \n\t" \
+    /* store carry in R1:R0 */ \
+    "adc r0, r27 \n\t" \
+    "adc r1, r27 \n\t" \
+    /* now add h0+l8 */ \
+    "lsr r26 \n\t" \
+    "ldd r24, z+32 \n\t" \
+    "adc r28, r24 \n\t" \
+    "std z+32, r28 \n\t" \
+    "ldd r24, z+33 \n\t" \
+    "adc r29, r24 \n\t" \
+    "std z+33, r29 \n\t" \
+    "ldd r24, z+34 \n\t" \
+    "adc r14, r24 \n\t" \
+    "std z+34, r14 \n\t" \
+    "ldd r24, z+35 \n\t" \
+    "adc r15, r24 \n\t" \
+    "std z+35, r15 \n\t" \
+    "ldd r24, z+36 \n\t" \
+    "adc r16, r24 \n\t" \
+    "std z+36, r16 \n\t" \
+    "ldd r24, z+37 \n\t" \
+    "adc r17, r24 \n\t" \
+    "std z+37, r17 \n\t" \
+    "ldd r24, z+38 \n\t" \
+    "adc r18, r24 \n\t" \
+    "std z+38, r18 \n\t" \
+    "ldd r24, z+39 \n\t" \
+    "adc r19, r24 \n\t" \
+    "std z+39, r19 \n\t" \
+    "ldd r24, z+40 \n\t" \
+    "adc r20, r24 \n\t" \
+    "std z+40, r20 \n\t" \
+    "ldd r24, z+41 \n\t" \
+    "adc r25, r24 \n\t" \
+    "std z+41, r25 \n\t" \
+    "ldd r24, z+42 \n\t" \
+    "adc r2, r24 \n\t" \
+    "std z+42, r2 \n\t" \
+    "ldd r24, z+43 \n\t" \
+    "adc r3, r24 \n\t" \
+    "std z+43, r3 \n\t" \
+    "ldd r24, z+44 \n\t" \
+    "adc r4, r24 \n\t" \
+    "std z+44, r4 \n\t" \
+    "ldd r24, z+45 \n\t" \
+    "adc r5, r24 \n\t" \
+    "std z+45, r5 \n\t" \
+    "ldd r24, z+46 \n\t" \
+    "adc r21, r24 \n\t" \
+    "std z+46, r21 \n\t" \
+    "ldd r24, z+47 \n\t" \
+    "adc r22, r24 \n\t" \
+    "std z+47, r22 \n\t" \
+    /* store carry in R1:R0 */ \
+    "adc r0, r26 \n\t" \
+    "adc r1, r26 \n\t" \
+    /* propagate carry to end */ \
+    "ldd r28, z+48 \n\t" \
+    "ldd r29, z+49 \n\t" \
+    "ldd r14, z+50 \n\t" \
+    "ldd r15, z+51 \n\t" \
+    "ldd r16, z+52 \n\t" \
+    "ldd r17, z+53 \n\t" \
+    "ldd r18, z+54 \n\t" \
+    "ldd r19, z+55 \n\t" \
+    "ldd r20, z+56 \n\t" \
+    "ldd r25, z+57 \n\t" \
+    "ldd r2, z+58 \n\t" \
+    "ldd r3, z+59 \n\t" \
+    "ldd r4, z+60 \n\t" \
+    "ldd r5, z+61 \n\t" \
+    "ldd r21, z+62 \n\t" \
+    "ldd r22, z+63 \n\t" \
+    "add r28, r0 \n\t" \
+    "adc r29, r1 \n\t" \
+    "adc r14, r1 \n\t" \
+    "adc r15, r1 \n\t" \
+    "adc r16, r1 \n\t" \
+    "adc r17, r1 \n\t" \
+    "adc r18, r1 \n\t" \
+    "adc r19, r1 \n\t" \
+    "adc r20, r1 \n\t" \
+    "adc r25, r1 \n\t" \
+    "adc r2, r1 \n\t" \
+    "adc r3, r1 \n\t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, r1 \n\t" \
+    "adc r21, r1 \n\t" \
+    "adc r22, r1 \n\t" \
+    "std z+48, r28 \n\t" \
+    "std z+49, r29 \n\t" \
+    "std z+50, r14 \n\t" \
+    "std z+51, r15 \n\t" \
+    "std z+52, r16 \n\t" \
+    "std z+53, r17 \n\t" \
+    "std z+54, r18 \n\t" \
+    "std z+55, r19 \n\t" \
+    "std z+56, r20 \n\t" \
+    "std z+57, r25 \n\t" \
+    "std z+58, r2 \n\t" \
+    "std z+59, r3 \n\t" \
+    "std z+60, r4 \n\t" \
+    "std z+61, r5 \n\t" \
+    "std z+62, r21 \n\t" \
+    "std z+63, r22 \n\t" \
+    "in r28, __SP_L__ \n\t" \
+    "in r29, __SP_H__ \n\t" \
+    "adiw r28, 41 \n\t" \
+    "in r0, __SREG__ \n\t" /* ISR safety: atomic SP write */ \
+    "cli \n\t" \
+    "out __SP_H__, r29 \n\t" \
+    "out __SREG__, r0 \n\t" \
+    "out __SP_L__, r28 \n\t"
+
+#endif /* (uECC_OPTIMIZATION_LEVEL >= 4) */
 
 #if uECC_SQUARE_FUNC
 

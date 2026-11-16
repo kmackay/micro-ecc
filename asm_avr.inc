@@ -344,6 +344,11 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
  *     half-width leaf subroutine (FAST_MULT_LEAF_24/28/32) three times via
  *     rcall, trading ~2% of fully unrolled Karatsuba speed for a 55-65% Flash
  *     size reduction over unrolled schoolbook/Karatsuba code.
+ *   - At uECC_OPTIMIZATION_LEVEL >= 4, 192 and 256-bit use fully unrolled
+ *     2-level (192) and 3-level (256) branch-free Karatsuba instead
+ *     (FAST_MULT_ASM_24/32_UNROLLED; 3008/4897 core cycles vs. 3123/5002 for
+ *     the 1-level code, at a cost of ~2.3/4.1 KB). 224-bit keeps the 1-level
+ *     code, since unrolling it would save only ~32 cycles for ~3.5 KB.
  *
  * Squaring (uECC_vli_square, when uECC_SQUARE_FUNC is enabled):
  *   - 160-bit (20 bytes, plus 21-byte border extension) and 192-bit (24 bytes):
@@ -437,12 +442,19 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 #endif
         /* Each 1-level Karatsuba block jumps to 99f right before its adjacent
            leaf subroutine so rcall inside FAST_MULT_ASM_N stays well within
-           rcall's +/-4 KB displacement without executing the leaf on fallthrough. */
+           rcall's +/-4 KB displacement without executing the leaf on fallthrough.
+           At uECC_OPTIMIZATION_LEVEL >= 4 the fully unrolled multipliers have no
+           leaf subroutine. */
 #if uECC_SUPPORTS_secp192r1
         "24: \n\t"
+    #if (uECC_OPTIMIZATION_LEVEL >= 4)
+        FAST_MULT_ASM_24_UNROLLED
+        uECC_JMP "99f \n\t"
+    #else
         FAST_MULT_ASM_24
         uECC_JMP "99f \n\t"
         FAST_MULT_LEAF_24
+    #endif
 #endif
 #if uECC_SUPPORTS_secp224r1
         "28: \n\t"
@@ -452,9 +464,13 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 #endif
 #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
         "32: \n\t"
+    #if (uECC_OPTIMIZATION_LEVEL >= 4)
+        FAST_MULT_ASM_32_UNROLLED
+    #else
         FAST_MULT_ASM_32
         uECC_JMP "99f \n\t"
         FAST_MULT_LEAF_32
+    #endif
 #endif
         "99: \n\t"
         "eor r1, r1 \n\t"

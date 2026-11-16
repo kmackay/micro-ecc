@@ -39,7 +39,7 @@ See uECC.h for documentation for each function.
  * **1** - Adds curve-specific fast reductions written in C. On non-ARM platforms, also adds Montgomery multiplication for the ECDSA arithmetic mod n and, on 32-bit and 64-bit platforms, constant-time (safegcd) modular inversion. On ARM, level 1 favors code size: it keeps the generic mod n arithmetic and the binary extended Euclidean inversion, uses smaller (variable-time) C reductions, and on Thumb-1 uses a compact assembly multiply.
  * **2** - On AVR, adds unrolled assembly addition/subtraction and constant-time assembly reductions. On ARM, adds constant-time assembly reductions and Montgomery multiplication mod n; on Thumb-2 and ARM it also adds constant-time (safegcd) inversion and unrolled assembly addition/subtraction and right shift.
  * **3** - Adds unrolled assembly multiplication and squaring on AVR, Thumb-2 and ARM. On Thumb-1, adds unrolled assembly addition/subtraction and right shift.
- * **4** - Adds size-specialized assembly multiplication and squaring. On Thumb-2 and ARM, also inlines addition/subtraction and uses fused constant-time modular addition/subtraction. Level 4 currently only has an effect on ARM platforms.
+ * **4** - Adds size-specialized assembly multiplication and squaring. On Thumb-2 and ARM, also inlines addition/subtraction and uses fused constant-time modular addition/subtraction. On AVR, uses fully unrolled multi-level Karatsuba multiplication for 192 and 256-bit curves (instead of 1-level Karatsuba with a shared sub-multiply).
 
 ### Compilation Notes ###
 
