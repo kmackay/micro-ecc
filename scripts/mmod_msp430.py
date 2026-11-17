@@ -30,7 +30,12 @@ def d_words(curve):
     return words16((1 << (16 * n)) - PV[curve], n)
 
 # Hardware multiplier (MPY16) registers.
-MPY, OP2, RESLO, RESHI = "&0x0130", "&0x0138", "&0x013A", "&0x013C"
+# (C string macros from asm_msp430.inc, so that uECC_MSP430_MPY_BASE applies.)
+MPY, OP2 = '" uECC_MSP430_MPY "', '" uECC_MSP430_OP2 "'
+RESLO, RESHI = '" uECC_MSP430_RESLO "', '" uECC_MSP430_RESHI "'
+# MPY32 (uECC_MSP430_HWMULT == 32).
+OP2L, OP2H = '" uECC_MSP430_OP2L "', '" uECC_MSP430_OP2H "'
+RES0, RES1, RES2 = '" uECC_MSP430_RES0 "', '" uECC_MSP430_RES1 "', '" uECC_MSP430_RES2 "'
 
 def imm(v):
     """Immediate operand; 0xFFFF etc. as negative values so that the assembler
@@ -157,9 +162,23 @@ def func(name, comment, body):
     u = used(body)
     saved = sorted({r for r in u if int(r[1:]) <= 10}, key=lambda r: int(r[1:]))
     clob = sorted({r for r in u if r in ("r11", "r14", "r15")}, key=lambda r: int(r[1:]))
-    full = ([f"push {r}" for r in saved] + body + [f"pop {r}" for r in reversed(saved)])
     if saved:
-        full = ["/* Save the callee-saved registers used below. */"] + full
+        # CPUX: one PUSHM/POPM for r<lo>..r10 (20 bits in the large model).
+        lo = int(saved[0][1:])
+        k = 11 - lo
+        full = (["#if uECC_MSP430_CPUX",
+                 f"/* Save r{lo}..r10 (callee-saved). */",
+                 f"@RAW uECC_MSP430_MMOD_PUSHM \" #{k}, r10 \\n\\t\"",
+                 "#else",
+                 "/* Save the callee-saved registers used below. */"]
+                + [f"push {r}" for r in saved] + ["#endif"]
+                + body
+                + ["#if uECC_MSP430_CPUX",
+                   f"@RAW uECC_MSP430_MMOD_POPM \" #{k}, r10 \\n\\t\"",
+                   "#else"]
+                + [f"pop {r}" for r in reversed(saved)] + ["#endif"])
+    else:
+        full = body
     emit(comment)
     emit("__attribute__((noinline))")
     emit(f"static void vli_mmod_fast_{name}(uint16_t *result, uint16_t *product) {{")
@@ -169,6 +188,8 @@ def func(name, comment, body):
     for item in full:
         if item.startswith("#"):
             emit(item)
+        elif item.startswith("@RAW "):
+            emit("        " + item[5:])
         elif item.startswith("/*"):
             emit("        " + item)
         else:
@@ -497,19 +518,79 @@ def k1(hw):
          f"   needed. {'Uses the hardware multiplier.' if hw else 'Software multiplication by 977.'} */",
          body)
 
+
+def k1_mpy32():
+    """secp256k1 with MPY32: 32-bit columns, one 16 x 32-bit multiply (977 * a[w])
+    per column."""
+    n = 16
+    A0, A1, B = "r14", "r15", "r11"
+    H = [["r10", "r9"], ["r8", "r7"]]   # a[w] (32-bit high-half word) in H[w % 2]
+    body = GIE_OFF + ["/* OP1 = 977 (unsigned; 16 x 32-bit multiplies). */", f"mov #977, {MPY}"]
+    ptr = 0
+    def hi(k):
+        return mem("r13", 2 * (n + k) - ptr)
+    for w in range(8):
+        h, q = H[w % 2], H[(w + 1) % 2]
+        body.append(f"/* Column {w}: l[{w}] + a[{w}] * 977{f' + a[{w-1}]' if w else ''}"
+                    f"{' + carry' if w else ''} (32-bit words). */")
+        body += [f"mov {hi(2 * w)}, {h[0]}", f"mov {hi(2 * w + 1)}, {h[1]}",
+                 f"mov {h[0]}, {OP2L}", f"mov {h[1]}, {OP2H}"]
+        if w == 0:
+            body += [f"mov @r13+, {A0}", f"mov @r13+, {A1}", f"mov #0, {B}"]
+        else:
+            nA0, nA1, nB = B, A0, A1
+            body += [f"mov #0, {nA1}", f"mov #0, {nB}",
+                     f"add @r13+, {nA0}", f"addc @r13+, {nA1}", f"adc {nB}"]
+            A0, A1, B = nA0, nA1, nB
+            body += [f"add {q[0]}, {A0}", f"addc {q[1]}, {A1}", f"adc {B}"]
+        ptr += 4
+        # RES0 / RES1 / RES2 are read at least 3 / 5 / 6 cycles after the OP2H write.
+        body += [f"add {RES0}, {A0}", f"addc {RES1}, {A1}", f"addc {RES2}, {B}"]
+        if w < 7:
+            body += [f"mov {A0}, {mem('r12', 4 * w)}", f"mov {A1}, {mem('r12', 4 * w + 2)}"]
+    words = Words(n, {n - 2: A0, n - 1: A1})
+    h7 = H[1]
+    c0, c1, c2, t = B, h7[1], "r10", "r9"
+    body += ["/* c = carry + a[7], the part above 2^256 (< 2^32 + 2^11; c2 <= 1). */",
+             f"add {h7[0]}, {c0}", f"adc {c1}", f"mov #0, {c2}", f"adc {c2}",
+             "/* X = c * 977 + c * 2^32 (c2 * 977 with a mask). */",
+             f"mov {c0}, {OP2L}", f"mov {c1}, {OP2H}",
+             f"mov {c2}, {t}", f"inv {t}", f"inc {t}", f"and #977, {t}",
+             f"mov {RES0}, r13", f"mov {RES1}, {h7[0]}", f"add {RES2}, {t}"]
+    body += GIE_ON
+    body += [f"add {c0}, {t}", f"adc {c1}", f"adc {c2}"]
+    body += final_small(words, ["r13", h7[0], t, c1, c2], [977, 0, 1], c0, ["r6"], "r6")
+    func("secp256k1",
+         "/* Computes result = product % p (secp256k1), constant time.\n"
+         "   Column sums of lo + hi * 977 + hi * 2^32 (2^256 = 2^32 + 977 (mod p)) over\n"
+         "   32-bit words, with one 16 x 32-bit MPY32 multiply per column; the top carry\n"
+         "   is folded back the same way, then p is subtracted once if needed. */",
+         body)
+
 # ---------------------------------------------------------------------------
 emit("/* Copyright 2026, Kenneth MacKay. Licensed under the BSD 2-clause license. */")
 emit("")
 emit("/* Constant-time fast reductions (vli_mmod_fast) for the classic MSP430.")
 emit("   Generated by scripts/mmod_msp430.py. Each routine reduces a 2 * num_words")
 emit("   product to the fully reduced result in [0, p); result may alias product.")
-emit("   The high half is folded into the low half with 16-bit column sums, then the")
-emit("   top carry is folded back, leaving result + c2 * 2^N with c2 in {-1, 0, 1}")
-emit("   and a value in (-p, 2p); a read-only pass compares it with p and a final")
-emit("   pass adds p, subtracts p (adds 2^N - p) or adds 0, selected with masks. */")
+emit("   The high half is folded into the low half with column sums, giving")
+emit("   r + c * 2^N = r + c * (2^N - p) (mod p); a read-only pass finds the final")
+emit("   correction e in {-1, 0, 1} and one pass adds (c + e) * (2^N - p) (see")
+emit("   FINAL_COMMENT in the script). Classic MSP430 and MSP430X (CPUX), small and")
+emit("   large memory model (20-bit pointers; data may be above 64 KB). */")
 emit("")
 emit("#ifndef _UECC_ASM_MSP430_MMOD_H_")
 emit("#define _UECC_ASM_MSP430_MMOD_H_")
+emit("")
+emit("/* CPUX: callee-saved registers are saved with one PUSHM / POPM (20 bits in the")
+emit("   large model). */")
+emit("#if uECC_MSP430_LARGE")
+emit('    #define uECC_MSP430_MMOD_PUSHM "pushm.a"')
+emit('    #define uECC_MSP430_MMOD_POPM "popm.a"')
+emit("#else")
+emit('    #define uECC_MSP430_MMOD_PUSHM "pushm.w"')
+emit('    #define uECC_MSP430_MMOD_POPM "popm.w"')
+emit("#endif")
 CURVES = [
     ("uECC_SUPPORTS_secp160r1", p160),
     ("uECC_SUPPORTS_secp192r1", lambda: nist(
@@ -536,7 +617,9 @@ for cond, fn in CURVES:
     emit(f"#endif /* {cond} */")
 emit("")
 emit("#if uECC_SUPPORTS_secp256k1")
-emit("#if (uECC_MSP430_HWMULT == 16)")
+emit("#if (uECC_MSP430_HWMULT == 32)")
+k1_mpy32()
+emit("#elif (uECC_MSP430_HWMULT != 0)")
 k1(True)
 emit("#else")
 k1(False)

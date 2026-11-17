@@ -37,11 +37,11 @@ See uECC.h for documentation for each function.
 
  * **0** - Smallest code. Uses generic (bit-by-bit) modular reduction for all arithmetic; unusably slow for most applications.
  * **1** - Adds curve-specific fast reductions written in C. On non-ARM platforms, also adds Montgomery multiplication for the ECDSA arithmetic mod n and, on 16-bit, 32-bit and 64-bit platforms, constant-time (safegcd) modular inversion. On ARM, level 1 favors code size: it keeps the generic mod n arithmetic and the binary extended Euclidean inversion, uses smaller (variable-time) C reductions, and on Thumb-1 uses a compact assembly multiply.
-   * On MSP430, adds assembly loops for addition, subtraction, right shift, multiplication and squaring (product scanning with the hardware multiplier, or constant-time software multiplication).
+   * On MSP430 and MSP430X, adds assembly loops for addition, subtraction, right shift, multiplication and squaring (product scanning with the hardware multiplier, on 32-bit digits with MPY32, or constant-time software multiplication).
  * **2** - On AVR, adds unrolled assembly addition/subtraction and constant-time assembly reductions. On ARM, adds constant-time assembly reductions and Montgomery multiplication mod n; on Thumb-2 and ARM it also adds constant-time (safegcd) inversion and unrolled assembly addition/subtraction and right shift.
    * On MSP430, adds unrolled assembly addition, subtraction and right shift, and constant-time assembly reductions.
  * **3** - Adds unrolled assembly multiplication and squaring on AVR, Thumb-2 and ARM. On Thumb-1, adds unrolled assembly addition/subtraction and right shift.
-   * On MSP430, adds assembly multiplication for each curve size: unrolled product scanning with the hardware multiplier (also for squaring), or Karatsuba multiplication with software multiplication.
+   * On MSP430, adds assembly multiplication for each curve size: unrolled product scanning with the hardware multiplier (16-bit digits with MPY16; 32-bit digits with MPY32; squaring computes the cross products once), or Karatsuba multiplication with software multiplication.
  * **4** - Adds size-specialized assembly multiplication and squaring. On Thumb-2 and ARM, also inlines addition/subtraction and uses fused constant-time modular addition/subtraction. On AVR, uses fully unrolled multi-level Karatsuba multiplication for 192 and 256-bit curves (instead of 1-level Karatsuba with a shared sub-multiply).
    * On MSP430 without a hardware multiplier, unrolls the software multiplication loops.
 
@@ -54,6 +54,14 @@ See uECC.h for documentation for each function.
  * When compiling for a Thumb-1 platform, you must use the `-fomit-frame-pointer` GCC option (this is enabled by default when compiling with `-O1` or higher).
  * When compiling for an ARM/Thumb-2 platform with `uECC_OPTIMIZATION_LEVEL` >= 2, you must use the `-fomit-frame-pointer` GCC option (this is enabled by default when compiling with `-O1` or higher).
  * When compiling for AVR, you must have optimizations enabled (compile with `-O1` or higher).
- * On MSP430 (classic CPU), `uECC_MSP430_HWMULT` selects the hardware multiplier (16) or constant-time software multiplication (0). By default it is detected from the device header selected with `-mmcu` (0 if there is no device header, e.g. with only `-mcpu`); GCC's `-mhwmult` option does not affect it, so to avoid the hardware multiplier on a device that has one, define `uECC_MSP430_HWMULT=0`. `uECC_MSP430_DISABLE_INTERRUPTS` (default 1) disables interrupts while uECC uses the hardware multiplier. See uECC.h for details. When compiling the MSP430 assembly with clang, use `-fno-integrated-as` (clang's integrated MSP430 assembler rejects some valid instructions).
- * On MSP430, the uECC functions need up to about 800 bytes of stack for 256-bit curves and about 650 bytes for secp160r1 (measured with msp430-elf-gcc -Os; the largest enabled curve determines the usage). Without a hardware multiplier, levels 3 and 4 use about 20 bytes more for the Karatsuba multiplication. Add the stack needed by your own code and interrupt handlers; devices with 512 bytes of RAM or less are too small.
+ * On MSP430 (classic CPU and MSP430X, small and large memory models), `uECC_MSP430_HWMULT` selects the hardware multiplier (32 for MPY32, 16 for MPY16) or constant-time software multiplication (0). By default it is detected from the device header selected with `-mmcu` (0 if there is no device header, e.g. with only `-mcpu`); GCC's `-mhwmult` option does not affect it, so to avoid the hardware multiplier on a device that has one, define `uECC_MSP430_HWMULT=0`. The multiplier address (`uECC_MSP430_MPY_BASE`) also comes from the device header by default. `uECC_MSP430_DISABLE_INTERRUPTS` (default 1) disables interrupts while uECC uses the hardware multiplier. See uECC.h for details. When compiling the MSP430 assembly with clang, use `-fno-integrated-as` (clang's integrated MSP430 assembler rejects some valid instructions); clang does not support the MSP430X large memory model (`-mlarge`).
+ * On MSP430, the uECC functions need the following amount of stack (peak over `uECC_make_key()`, `uECC_shared_secret()`, `uECC_sign()` and `uECC_verify()`, measured with msp430-elf-gcc 9.3 `-Os`; the largest enabled curve determines the usage):
+
+   | | secp160r1 | 256-bit curves |
+   |---|---|---|
+   | MSP430 and MSP430X small model, levels 1-4 | 660 bytes | 770 bytes (800 bytes at levels 3 and 4 without a hardware multiplier) |
+   | MSP430X large model (`-mlarge`), levels 1-4 | 760 bytes | 870 bytes (920 bytes at levels 3 and 4 without a hardware multiplier) |
+   | Level 0 | 670 bytes (810 large) | 840 bytes (970 large) |
+
+   Add the stack needed by your own code (including buffers passed to uECC) and by interrupt handlers. Devices with 512 bytes of RAM or less are too small.
  * When building for Windows, you will need to link in the `advapi32.lib` system library.

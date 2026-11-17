@@ -8,11753 +8,13765 @@
  *   uECC_MSP430_MULT_N: up to 5 left words in registers (reloaded as the columns move
  *     on), right streamed with @r14+.
  *   uECC_MSP430_SQUARE_N: each column sums its cross products once and adds them twice.
+ * MPY32 (32-bit digits, RES3..RES0 as the column accumulator):
+ *   uECC_MSP430_MULT32_N: product scanning, a few left digits in registers.
+ *   uECC_MSP430_SQUARE32_N: the products of x^2 written with D = 2 * x (see
+ *     square32 in the generator), about half of those of a multiplication.
  * Software multiplication (constant-time shift and add):
  *   uECC_MSP430_SWMULT_N: subtractive Karatsuba,
  *     A * B = L + W^m (L + H - (-1)^s |A_l - A_h| |B_l - B_h|) + W^2m H,
  *     down to 2..4-word schoolbook leaves that multiply the whole left operand (in
  *     registers) by one bit of right[j] per step. Uses a stack frame per level.
- *   uECC_MSP430_SWMULT_UNROLLED_N: the same with the bit loops of the leaves unrolled.
+ *   uECC_MSP430_SWMULT_UNROLLED_N: the same with the 16 bit steps of a leaf row unrolled
+ *     (in a subroutine shared by the rows of the leaf).
  */
 
 #define uECC_MSP430_MULT_10 \
-    "mov #0x013E, r15 \n\t" \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
     "mov 8(r13), r8 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 16(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
     "mov 10(r13), r4 \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
     "mov 12(r13), r5 \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
     "mov 14(r13), r6 \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
     "mov 16(r13), r7 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
     "mov 18(r13), r8 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
     "mov @r15, r10 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov r10, 38(r12) \n\t" \
 
 #define uECC_MSP430_SQUARE_10 \
-    "mov r13, r14 \n\t" \
-    "mov #0x013E, r15 \n\t" \
+    "" uECC_MSP430_MOVA " r13, r14 \n\t" \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "add #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_ADDA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov 8(r13), &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 8(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
     "mov 10(r13), r4 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
     "mov 8(r13), r5 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
     "mov 12(r13), r6 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
     "mov 14(r13), r7 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
     "mov 16(r13), r4 \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 18(r13), r5 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov r10, 38(r12) \n\t" \
 
-#define uECC_MSP430_SWMULT_10 \
-    "call #110f \n\t" \
-    "br #99f \n\t" \
-    "110: \n\t" \
-    "sub #48, r1 \n\t" \
-    "mov r12, 42(r1) \n\t" \
-    "mov r13, 44(r1) \n\t" \
-    "mov r14, 46(r1) \n\t" \
-    "call #105f \n\t" \
-    "mov 42(r1), r12 \n\t" \
-    "add #20, r12 \n\t" \
-    "mov 44(r1), r13 \n\t" \
-    "add #10, r13 \n\t" \
-    "mov 46(r1), r14 \n\t" \
-    "add #10, r14 \n\t" \
-    "call #105f \n\t" \
-    "mov 46(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 10(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 12(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 14(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 16(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 18(r14), r8 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "xor r12, r8 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "mov r4, 10(r1) \n\t" \
-    "mov r5, 12(r1) \n\t" \
-    "mov r6, 14(r1) \n\t" \
-    "mov r7, 16(r1) \n\t" \
-    "mov r8, 18(r1) \n\t" \
-    "mov 44(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 10(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 12(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 14(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 16(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 18(r14), r8 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "xor r13, r8 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "mov r8, 8(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 40(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #20, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #10, r14 \n\t" \
-    "call #105f \n\t" \
-    "mov 42(r1), r15 \n\t" \
-    "mov 40(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "mov 24(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov 26(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 26(r1) \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "mov 32(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov 34(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 34(r1) \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 16(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov 38(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 18(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 38(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 20(r15), 20(r1) \n\t" \
-    "addc 22(r15), 22(r1) \n\t" \
-    "addc 24(r15), 24(r1) \n\t" \
-    "addc 26(r15), 26(r1) \n\t" \
-    "addc 28(r15), 28(r1) \n\t" \
-    "addc 30(r15), 30(r1) \n\t" \
-    "addc 32(r15), 32(r1) \n\t" \
-    "addc 34(r15), 34(r1) \n\t" \
-    "addc 36(r15), 36(r1) \n\t" \
-    "addc 38(r15), 38(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 20(r1), 10(r15) \n\t" \
-    "addc 22(r1), 12(r15) \n\t" \
-    "addc 24(r1), 14(r15) \n\t" \
-    "addc 26(r1), 16(r15) \n\t" \
-    "addc 28(r1), 18(r15) \n\t" \
-    "addc 30(r1), 20(r15) \n\t" \
-    "addc 32(r1), 22(r15) \n\t" \
-    "addc 34(r1), 24(r15) \n\t" \
-    "addc 36(r1), 26(r15) \n\t" \
-    "addc 38(r1), 28(r15) \n\t" \
-    "addc r14, 30(r15) \n\t" \
-    "adc 32(r15) \n\t" \
-    "adc 34(r15) \n\t" \
-    "adc 36(r15) \n\t" \
-    "adc 38(r15) \n\t" \
-    "add #48, r1 \n\t" \
-    "ret \n\t" \
-    "105: \n\t" \
-    "sub #32, r1 \n\t" \
-    "mov r12, 26(r1) \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov r14, 30(r1) \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "add #6, r13 \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #202f \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "sbc r6 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 6(r1) \n\t" \
-    "mov r5, 8(r1) \n\t" \
-    "mov r6, 10(r1) \n\t" \
-    "mov 28(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "sbc r6 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r15 \n\t" \
-    "mov 24(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 12(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 12(r1) \n\t" \
-    "mov 14(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 14(r1) \n\t" \
-    "mov 16(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 16(r1) \n\t" \
-    "mov 18(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 18(r1) \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 12(r15), 12(r1) \n\t" \
-    "addc 14(r15), 14(r1) \n\t" \
-    "addc 16(r15), 16(r1) \n\t" \
-    "addc 18(r15), 18(r1) \n\t" \
-    "adc 20(r1) \n\t" \
-    "adc 22(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 12(r1), 6(r15) \n\t" \
-    "addc 14(r1), 8(r15) \n\t" \
-    "addc 16(r1), 10(r15) \n\t" \
-    "addc 18(r1), 12(r15) \n\t" \
-    "addc 20(r1), 14(r15) \n\t" \
-    "addc 22(r1), 16(r15) \n\t" \
-    "addc r14, 18(r15) \n\t" \
-    "add #32, r1 \n\t" \
-    "ret \n\t" \
-    "203: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov r8, 6(r14) \n\t" \
-    "mov r9, 8(r14) \n\t" \
-    "mov r10, 10(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "202: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov r8, 4(r14) \n\t" \
-    "mov r9, 6(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "99: \n\t" \
-
-#define uECC_MSP430_SWMULT_UNROLLED_10 \
-    "call #110f \n\t" \
-    "br #99f \n\t" \
-    "110: \n\t" \
-    "sub #48, r1 \n\t" \
-    "mov r12, 42(r1) \n\t" \
-    "mov r13, 44(r1) \n\t" \
-    "mov r14, 46(r1) \n\t" \
-    "call #105f \n\t" \
-    "mov 42(r1), r12 \n\t" \
-    "add #20, r12 \n\t" \
-    "mov 44(r1), r13 \n\t" \
-    "add #10, r13 \n\t" \
-    "mov 46(r1), r14 \n\t" \
-    "add #10, r14 \n\t" \
-    "call #105f \n\t" \
-    "mov 46(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 10(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 12(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 14(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 16(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 18(r14), r8 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "xor r12, r8 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "mov r4, 10(r1) \n\t" \
-    "mov r5, 12(r1) \n\t" \
-    "mov r6, 14(r1) \n\t" \
-    "mov r7, 16(r1) \n\t" \
-    "mov r8, 18(r1) \n\t" \
-    "mov 44(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 10(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 12(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 14(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 16(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 18(r14), r8 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "xor r13, r8 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "mov r8, 8(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 40(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #20, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #10, r14 \n\t" \
-    "call #105f \n\t" \
-    "mov 42(r1), r15 \n\t" \
-    "mov 40(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "mov 24(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov 26(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 26(r1) \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "mov 32(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov 34(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 34(r1) \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 16(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov 38(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 18(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 38(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 20(r15), 20(r1) \n\t" \
-    "addc 22(r15), 22(r1) \n\t" \
-    "addc 24(r15), 24(r1) \n\t" \
-    "addc 26(r15), 26(r1) \n\t" \
-    "addc 28(r15), 28(r1) \n\t" \
-    "addc 30(r15), 30(r1) \n\t" \
-    "addc 32(r15), 32(r1) \n\t" \
-    "addc 34(r15), 34(r1) \n\t" \
-    "addc 36(r15), 36(r1) \n\t" \
-    "addc 38(r15), 38(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 20(r1), 10(r15) \n\t" \
-    "addc 22(r1), 12(r15) \n\t" \
-    "addc 24(r1), 14(r15) \n\t" \
-    "addc 26(r1), 16(r15) \n\t" \
-    "addc 28(r1), 18(r15) \n\t" \
-    "addc 30(r1), 20(r15) \n\t" \
-    "addc 32(r1), 22(r15) \n\t" \
-    "addc 34(r1), 24(r15) \n\t" \
-    "addc 36(r1), 26(r15) \n\t" \
-    "addc 38(r1), 28(r15) \n\t" \
-    "addc r14, 30(r15) \n\t" \
-    "adc 32(r15) \n\t" \
-    "adc 34(r15) \n\t" \
-    "adc 36(r15) \n\t" \
-    "adc 38(r15) \n\t" \
-    "add #48, r1 \n\t" \
-    "ret \n\t" \
-    "105: \n\t" \
-    "sub #32, r1 \n\t" \
-    "mov r12, 26(r1) \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov r14, 30(r1) \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "add #6, r13 \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #202f \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "sbc r6 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 6(r1) \n\t" \
-    "mov r5, 8(r1) \n\t" \
-    "mov r6, 10(r1) \n\t" \
-    "mov 28(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "sbc r6 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r15 \n\t" \
-    "mov 24(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 12(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 12(r1) \n\t" \
-    "mov 14(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 14(r1) \n\t" \
-    "mov 16(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 16(r1) \n\t" \
-    "mov 18(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 18(r1) \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 12(r15), 12(r1) \n\t" \
-    "addc 14(r15), 14(r1) \n\t" \
-    "addc 16(r15), 16(r1) \n\t" \
-    "addc 18(r15), 18(r1) \n\t" \
-    "adc 20(r1) \n\t" \
-    "adc 22(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 12(r1), 6(r15) \n\t" \
-    "addc 14(r1), 8(r15) \n\t" \
-    "addc 16(r1), 10(r15) \n\t" \
-    "addc 18(r1), 12(r15) \n\t" \
-    "addc 20(r1), 14(r15) \n\t" \
-    "addc 22(r1), 16(r15) \n\t" \
-    "addc r14, 18(r15) \n\t" \
-    "add #32, r1 \n\t" \
-    "ret \n\t" \
-    "203: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov r8, 6(r14) \n\t" \
-    "mov r9, 8(r14) \n\t" \
-    "mov r10, 10(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "202: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov r8, 4(r14) \n\t" \
-    "mov r9, 6(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "99: \n\t" \
-
-#define uECC_MSP430_MULT_12 \
-    "mov #0x013E, r15 \n\t" \
+#define uECC_MSP430_MULT32_10 \
+    "clr r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
     "mov 8(r13), r8 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
+    "mov 10(r13), r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+
+#define uECC_MSP430_SQUARE32_10 \
+    "" uECC_MSP430_SUBA " #24, r1 \n\t" \
+    "mov 0(r13), r11 \n\t" \
+    "rla r11 \n\t" \
+    "mov r11, 0(r1) \n\t" \
+    "mov 2(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 2(r1) \n\t" \
+    "mov 4(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 4(r1) \n\t" \
+    "mov 6(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 6(r1) \n\t" \
+    "mov 8(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 8(r1) \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 10(r1) \n\t" \
+    "mov 12(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 12(r1) \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 14(r1) \n\t" \
+    "mov 16(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 16(r1) \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 18(r1) \n\t" \
+    "clr r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 20(r1) \n\t" \
+    "mov #0, 22(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "clr r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov r4, " uECC_MSP430_OP2L " \n\t" \
+    "mov r5, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_ADDA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r6, " uECC_MSP430_OP2L " \n\t" \
+    "mov r7, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "" uECC_MSP430_ADDA " #24, r1 \n\t" \
+
+#define uECC_MSP430_SWMULT_10 \
+    "" uECC_MSP430_CALL " #110f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
+    "110: \n\t" \
+    "" uECC_MSP430_SUBA " #(42+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (42)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (42+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (42+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #105f \n\t" \
+    "" uECC_MSP430_MOVA " (42)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #20, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (42+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #10, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (42+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #10, r14 \n\t" \
+    "" uECC_MSP430_CALL " #105f \n\t" \
+    "" uECC_MSP430_MOVA " (42+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 10(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 12(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 14(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 16(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 18(r14), r8 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "xor r12, r8 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "mov r4, 10(r1) \n\t" \
+    "mov r5, 12(r1) \n\t" \
+    "mov r6, 14(r1) \n\t" \
+    "mov r7, 16(r1) \n\t" \
+    "mov r8, 18(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (42+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 10(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 12(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 14(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 16(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 18(r14), r8 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "xor r13, r8 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "mov r8, 8(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 40(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #20, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #10, r14 \n\t" \
+    "" uECC_MSP430_CALL " #105f \n\t" \
+    "" uECC_MSP430_MOVA " (42)(r1), r15 \n\t" \
+    "mov 40(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "mov 24(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "mov 26(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 26(r1) \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "mov 32(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "mov 34(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 34(r1) \n\t" \
+    "mov 36(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 16(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 36(r1) \n\t" \
+    "mov 38(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 18(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 38(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 20(r15), 20(r1) \n\t" \
+    "addc 22(r15), 22(r1) \n\t" \
+    "addc 24(r15), 24(r1) \n\t" \
+    "addc 26(r15), 26(r1) \n\t" \
+    "addc 28(r15), 28(r1) \n\t" \
+    "addc 30(r15), 30(r1) \n\t" \
+    "addc 32(r15), 32(r1) \n\t" \
+    "addc 34(r15), 34(r1) \n\t" \
+    "addc 36(r15), 36(r1) \n\t" \
+    "addc 38(r15), 38(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 20(r1), 10(r15) \n\t" \
+    "addc 22(r1), 12(r15) \n\t" \
+    "addc 24(r1), 14(r15) \n\t" \
+    "addc 26(r1), 16(r15) \n\t" \
+    "addc 28(r1), 18(r15) \n\t" \
+    "addc 30(r1), 20(r15) \n\t" \
+    "addc 32(r1), 22(r15) \n\t" \
+    "addc 34(r1), 24(r15) \n\t" \
+    "addc 36(r1), 26(r15) \n\t" \
+    "addc 38(r1), 28(r15) \n\t" \
+    "addc r14, 30(r15) \n\t" \
+    "adc 32(r15) \n\t" \
+    "adc 34(r15) \n\t" \
+    "adc 36(r15) \n\t" \
+    "adc 38(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(42+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "105: \n\t" \
+    "" uECC_MSP430_SUBA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (26)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (26+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (26+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #202f \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "sbc r6 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 6(r1) \n\t" \
+    "mov r5, 8(r1) \n\t" \
+    "mov r6, 10(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "sbc r6 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r15 \n\t" \
+    "mov 24(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 12(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 12(r1) \n\t" \
+    "mov 14(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 14(r1) \n\t" \
+    "mov 16(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 16(r1) \n\t" \
+    "mov 18(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 18(r1) \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 12(r15), 12(r1) \n\t" \
+    "addc 14(r15), 14(r1) \n\t" \
+    "addc 16(r15), 16(r1) \n\t" \
+    "addc 18(r15), 18(r1) \n\t" \
+    "adc 20(r1) \n\t" \
+    "adc 22(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 12(r1), 6(r15) \n\t" \
+    "addc 14(r1), 8(r15) \n\t" \
+    "addc 16(r1), 10(r15) \n\t" \
+    "addc 18(r1), 12(r15) \n\t" \
+    "addc 20(r1), 14(r15) \n\t" \
+    "addc 22(r1), 16(r15) \n\t" \
+    "addc r14, 18(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "203: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "mov r8, 6(r14) \n\t" \
+    "mov r9, 8(r14) \n\t" \
+    "mov r10, 10(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "202: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "mov r8, 4(r14) \n\t" \
+    "mov r9, 6(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "99: \n\t" \
+
+#define uECC_MSP430_SWMULT_UNROLLED_10 \
+    "" uECC_MSP430_CALL " #110f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
+    "110: \n\t" \
+    "" uECC_MSP430_SUBA " #(42+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (42)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (42+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (42+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #105f \n\t" \
+    "" uECC_MSP430_MOVA " (42)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #20, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (42+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #10, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (42+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #10, r14 \n\t" \
+    "" uECC_MSP430_CALL " #105f \n\t" \
+    "" uECC_MSP430_MOVA " (42+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 10(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 12(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 14(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 16(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 18(r14), r8 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "xor r12, r8 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "mov r4, 10(r1) \n\t" \
+    "mov r5, 12(r1) \n\t" \
+    "mov r6, 14(r1) \n\t" \
+    "mov r7, 16(r1) \n\t" \
+    "mov r8, 18(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (42+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 10(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 12(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 14(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 16(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 18(r14), r8 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "xor r13, r8 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "mov r8, 8(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 40(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #20, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #10, r14 \n\t" \
+    "" uECC_MSP430_CALL " #105f \n\t" \
+    "" uECC_MSP430_MOVA " (42)(r1), r15 \n\t" \
+    "mov 40(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "mov 24(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "mov 26(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 26(r1) \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "mov 32(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "mov 34(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 34(r1) \n\t" \
+    "mov 36(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 16(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 36(r1) \n\t" \
+    "mov 38(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 18(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 38(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 20(r15), 20(r1) \n\t" \
+    "addc 22(r15), 22(r1) \n\t" \
+    "addc 24(r15), 24(r1) \n\t" \
+    "addc 26(r15), 26(r1) \n\t" \
+    "addc 28(r15), 28(r1) \n\t" \
+    "addc 30(r15), 30(r1) \n\t" \
+    "addc 32(r15), 32(r1) \n\t" \
+    "addc 34(r15), 34(r1) \n\t" \
+    "addc 36(r15), 36(r1) \n\t" \
+    "addc 38(r15), 38(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 20(r1), 10(r15) \n\t" \
+    "addc 22(r1), 12(r15) \n\t" \
+    "addc 24(r1), 14(r15) \n\t" \
+    "addc 26(r1), 16(r15) \n\t" \
+    "addc 28(r1), 18(r15) \n\t" \
+    "addc 30(r1), 20(r15) \n\t" \
+    "addc 32(r1), 22(r15) \n\t" \
+    "addc 34(r1), 24(r15) \n\t" \
+    "addc 36(r1), 26(r15) \n\t" \
+    "addc 38(r1), 28(r15) \n\t" \
+    "addc r14, 30(r15) \n\t" \
+    "adc 32(r15) \n\t" \
+    "adc 34(r15) \n\t" \
+    "adc 36(r15) \n\t" \
+    "adc 38(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(42+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "105: \n\t" \
+    "" uECC_MSP430_SUBA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (26)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (26+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (26+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #202f \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "sbc r6 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 6(r1) \n\t" \
+    "mov r5, 8(r1) \n\t" \
+    "mov r6, 10(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "sbc r6 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r15 \n\t" \
+    "mov 24(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 12(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 12(r1) \n\t" \
+    "mov 14(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 14(r1) \n\t" \
+    "mov 16(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 16(r1) \n\t" \
+    "mov 18(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 18(r1) \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 12(r15), 12(r1) \n\t" \
+    "addc 14(r15), 14(r1) \n\t" \
+    "addc 16(r15), 16(r1) \n\t" \
+    "addc 18(r15), 18(r1) \n\t" \
+    "adc 20(r1) \n\t" \
+    "adc 22(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 12(r1), 6(r15) \n\t" \
+    "addc 14(r1), 8(r15) \n\t" \
+    "addc 16(r1), 10(r15) \n\t" \
+    "addc 18(r1), 12(r15) \n\t" \
+    "addc 20(r1), 14(r15) \n\t" \
+    "addc 22(r1), 16(r15) \n\t" \
+    "addc r14, 18(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "203: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "mov r8, 6(r14) \n\t" \
+    "mov r9, 8(r14) \n\t" \
+    "mov r10, 10(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "303: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "202: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #302f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #302f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "mov r8, 4(r14) \n\t" \
+    "mov r9, 6(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "302: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "99: \n\t" \
+
+#define uECC_MSP430_MULT_12 \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov 8(r13), r8 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 16(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
-    "sub #20, r14 \n\t" \
-    "mov 20(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
-    "sub #22, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #22, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
     "mov 10(r13), r4 \n\t" \
-    "sub #22, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #22, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
     "mov 12(r13), r5 \n\t" \
-    "sub #20, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
     "mov 14(r13), r6 \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
     "mov 16(r13), r7 \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
     "mov 18(r13), r8 \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 20(r13), r4 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
     "mov 22(r13), r5 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 38(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 40(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
     "mov @r15, r11 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 42(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 44(r12) \n\t" \
     "mov r11, 46(r12) \n\t" \
 
 #define uECC_MSP430_SQUARE_12 \
-    "mov r13, r14 \n\t" \
-    "mov #0x013E, r15 \n\t" \
+    "" uECC_MSP430_MOVA " r13, r14 \n\t" \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "add #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_ADDA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov 8(r13), &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 8(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov 10(r13), &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 10(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
     "mov 12(r13), r4 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
     "mov 8(r13), r5 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
     "mov 14(r13), r6 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
     "mov 10(r13), r7 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
     "mov 16(r13), r5 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 18(r13), r7 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov 20(r13), r4 \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 38(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 40(r12) \n\t" \
     "mov 22(r13), r6 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 42(r12) \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 44(r12) \n\t" \
     "mov r11, 46(r12) \n\t" \
 
-#define uECC_MSP430_SWMULT_12 \
-    "call #112f \n\t" \
-    "br #99f \n\t" \
-    "112: \n\t" \
-    "sub #56, r1 \n\t" \
-    "mov r12, 50(r1) \n\t" \
-    "mov r13, 52(r1) \n\t" \
-    "mov r14, 54(r1) \n\t" \
-    "call #106f \n\t" \
-    "mov 50(r1), r12 \n\t" \
-    "add #24, r12 \n\t" \
-    "mov 52(r1), r13 \n\t" \
-    "add #12, r13 \n\t" \
-    "mov 54(r1), r14 \n\t" \
-    "add #12, r14 \n\t" \
-    "call #106f \n\t" \
-    "mov 54(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 12(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 14(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 16(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 18(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 20(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 22(r14), r9 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "xor r12, r8 \n\t" \
-    "xor r12, r9 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "mov r4, 12(r1) \n\t" \
-    "mov r5, 14(r1) \n\t" \
-    "mov r6, 16(r1) \n\t" \
-    "mov r7, 18(r1) \n\t" \
-    "mov r8, 20(r1) \n\t" \
-    "mov r9, 22(r1) \n\t" \
-    "mov 52(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 12(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 14(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 16(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 18(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 20(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 22(r14), r9 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "xor r13, r8 \n\t" \
-    "xor r13, r9 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "mov r8, 8(r1) \n\t" \
-    "mov r9, 10(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 48(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #24, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #12, r14 \n\t" \
-    "call #106f \n\t" \
-    "mov 50(r1), r15 \n\t" \
-    "mov 48(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 24(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov 26(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 26(r1) \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "mov 32(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov 34(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 34(r1) \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov 38(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 38(r1) \n\t" \
-    "mov 40(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 16(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 40(r1) \n\t" \
-    "mov 42(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 18(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 42(r1) \n\t" \
-    "mov 44(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 20(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 44(r1) \n\t" \
-    "mov 46(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 22(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 46(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 24(r15), 24(r1) \n\t" \
-    "addc 26(r15), 26(r1) \n\t" \
-    "addc 28(r15), 28(r1) \n\t" \
-    "addc 30(r15), 30(r1) \n\t" \
-    "addc 32(r15), 32(r1) \n\t" \
-    "addc 34(r15), 34(r1) \n\t" \
-    "addc 36(r15), 36(r1) \n\t" \
-    "addc 38(r15), 38(r1) \n\t" \
-    "addc 40(r15), 40(r1) \n\t" \
-    "addc 42(r15), 42(r1) \n\t" \
-    "addc 44(r15), 44(r1) \n\t" \
-    "addc 46(r15), 46(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 24(r1), 12(r15) \n\t" \
-    "addc 26(r1), 14(r15) \n\t" \
-    "addc 28(r1), 16(r15) \n\t" \
-    "addc 30(r1), 18(r15) \n\t" \
-    "addc 32(r1), 20(r15) \n\t" \
-    "addc 34(r1), 22(r15) \n\t" \
-    "addc 36(r1), 24(r15) \n\t" \
-    "addc 38(r1), 26(r15) \n\t" \
-    "addc 40(r1), 28(r15) \n\t" \
-    "addc 42(r1), 30(r15) \n\t" \
-    "addc 44(r1), 32(r15) \n\t" \
-    "addc 46(r1), 34(r15) \n\t" \
-    "addc r14, 36(r15) \n\t" \
-    "adc 38(r15) \n\t" \
-    "adc 40(r15) \n\t" \
-    "adc 42(r15) \n\t" \
-    "adc 44(r15) \n\t" \
-    "adc 46(r15) \n\t" \
-    "add #56, r1 \n\t" \
-    "ret \n\t" \
-    "106: \n\t" \
-    "sub #32, r1 \n\t" \
-    "mov r12, 26(r1) \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov r14, 30(r1) \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "add #6, r13 \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 10(r14), r6 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 6(r1) \n\t" \
-    "mov r5, 8(r1) \n\t" \
-    "mov r6, 10(r1) \n\t" \
-    "mov 28(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 10(r14), r6 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r15 \n\t" \
-    "mov 24(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 12(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 12(r1) \n\t" \
-    "mov 14(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 14(r1) \n\t" \
-    "mov 16(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 16(r1) \n\t" \
-    "mov 18(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 18(r1) \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 12(r15), 12(r1) \n\t" \
-    "addc 14(r15), 14(r1) \n\t" \
-    "addc 16(r15), 16(r1) \n\t" \
-    "addc 18(r15), 18(r1) \n\t" \
-    "addc 20(r15), 20(r1) \n\t" \
-    "addc 22(r15), 22(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 12(r1), 6(r15) \n\t" \
-    "addc 14(r1), 8(r15) \n\t" \
-    "addc 16(r1), 10(r15) \n\t" \
-    "addc 18(r1), 12(r15) \n\t" \
-    "addc 20(r1), 14(r15) \n\t" \
-    "addc 22(r1), 16(r15) \n\t" \
-    "addc r14, 18(r15) \n\t" \
-    "adc 20(r15) \n\t" \
-    "adc 22(r15) \n\t" \
-    "add #32, r1 \n\t" \
-    "ret \n\t" \
-    "203: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov r8, 6(r14) \n\t" \
-    "mov r9, 8(r14) \n\t" \
-    "mov r10, 10(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "99: \n\t" \
-
-#define uECC_MSP430_SWMULT_UNROLLED_12 \
-    "call #112f \n\t" \
-    "br #99f \n\t" \
-    "112: \n\t" \
-    "sub #56, r1 \n\t" \
-    "mov r12, 50(r1) \n\t" \
-    "mov r13, 52(r1) \n\t" \
-    "mov r14, 54(r1) \n\t" \
-    "call #106f \n\t" \
-    "mov 50(r1), r12 \n\t" \
-    "add #24, r12 \n\t" \
-    "mov 52(r1), r13 \n\t" \
-    "add #12, r13 \n\t" \
-    "mov 54(r1), r14 \n\t" \
-    "add #12, r14 \n\t" \
-    "call #106f \n\t" \
-    "mov 54(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 12(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 14(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 16(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 18(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 20(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 22(r14), r9 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "xor r12, r8 \n\t" \
-    "xor r12, r9 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "mov r4, 12(r1) \n\t" \
-    "mov r5, 14(r1) \n\t" \
-    "mov r6, 16(r1) \n\t" \
-    "mov r7, 18(r1) \n\t" \
-    "mov r8, 20(r1) \n\t" \
-    "mov r9, 22(r1) \n\t" \
-    "mov 52(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 12(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 14(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 16(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 18(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 20(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 22(r14), r9 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "xor r13, r8 \n\t" \
-    "xor r13, r9 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "mov r8, 8(r1) \n\t" \
-    "mov r9, 10(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 48(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #24, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #12, r14 \n\t" \
-    "call #106f \n\t" \
-    "mov 50(r1), r15 \n\t" \
-    "mov 48(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 24(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov 26(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 26(r1) \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "mov 32(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov 34(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 34(r1) \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov 38(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 38(r1) \n\t" \
-    "mov 40(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 16(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 40(r1) \n\t" \
-    "mov 42(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 18(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 42(r1) \n\t" \
-    "mov 44(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 20(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 44(r1) \n\t" \
-    "mov 46(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 22(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 46(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 24(r15), 24(r1) \n\t" \
-    "addc 26(r15), 26(r1) \n\t" \
-    "addc 28(r15), 28(r1) \n\t" \
-    "addc 30(r15), 30(r1) \n\t" \
-    "addc 32(r15), 32(r1) \n\t" \
-    "addc 34(r15), 34(r1) \n\t" \
-    "addc 36(r15), 36(r1) \n\t" \
-    "addc 38(r15), 38(r1) \n\t" \
-    "addc 40(r15), 40(r1) \n\t" \
-    "addc 42(r15), 42(r1) \n\t" \
-    "addc 44(r15), 44(r1) \n\t" \
-    "addc 46(r15), 46(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 24(r1), 12(r15) \n\t" \
-    "addc 26(r1), 14(r15) \n\t" \
-    "addc 28(r1), 16(r15) \n\t" \
-    "addc 30(r1), 18(r15) \n\t" \
-    "addc 32(r1), 20(r15) \n\t" \
-    "addc 34(r1), 22(r15) \n\t" \
-    "addc 36(r1), 24(r15) \n\t" \
-    "addc 38(r1), 26(r15) \n\t" \
-    "addc 40(r1), 28(r15) \n\t" \
-    "addc 42(r1), 30(r15) \n\t" \
-    "addc 44(r1), 32(r15) \n\t" \
-    "addc 46(r1), 34(r15) \n\t" \
-    "addc r14, 36(r15) \n\t" \
-    "adc 38(r15) \n\t" \
-    "adc 40(r15) \n\t" \
-    "adc 42(r15) \n\t" \
-    "adc 44(r15) \n\t" \
-    "adc 46(r15) \n\t" \
-    "add #56, r1 \n\t" \
-    "ret \n\t" \
-    "106: \n\t" \
-    "sub #32, r1 \n\t" \
-    "mov r12, 26(r1) \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov r14, 30(r1) \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "add #6, r13 \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 30(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 10(r14), r6 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 6(r1) \n\t" \
-    "mov r5, 8(r1) \n\t" \
-    "mov r6, 10(r1) \n\t" \
-    "mov 28(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 6(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 8(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 10(r14), r6 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #12, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #6, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 26(r1), r15 \n\t" \
-    "mov 24(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 12(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 12(r1) \n\t" \
-    "mov 14(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 14(r1) \n\t" \
-    "mov 16(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 16(r1) \n\t" \
-    "mov 18(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 18(r1) \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 12(r15), 12(r1) \n\t" \
-    "addc 14(r15), 14(r1) \n\t" \
-    "addc 16(r15), 16(r1) \n\t" \
-    "addc 18(r15), 18(r1) \n\t" \
-    "addc 20(r15), 20(r1) \n\t" \
-    "addc 22(r15), 22(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 12(r1), 6(r15) \n\t" \
-    "addc 14(r1), 8(r15) \n\t" \
-    "addc 16(r1), 10(r15) \n\t" \
-    "addc 18(r1), 12(r15) \n\t" \
-    "addc 20(r1), 14(r15) \n\t" \
-    "addc 22(r1), 16(r15) \n\t" \
-    "addc r14, 18(r15) \n\t" \
-    "adc 20(r15) \n\t" \
-    "adc 22(r15) \n\t" \
-    "add #32, r1 \n\t" \
-    "ret \n\t" \
-    "203: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov r8, 6(r14) \n\t" \
-    "mov r9, 8(r14) \n\t" \
-    "mov r10, 10(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "99: \n\t" \
-
-#define uECC_MSP430_MULT_14 \
-    "mov #0x013E, r15 \n\t" \
+#define uECC_MSP430_MULT32_12 \
+    "clr r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
     "mov 8(r13), r8 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
+    "mov 10(r13), r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 40(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 42(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 44(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 46(r12) \n\t" \
+
+#define uECC_MSP430_SQUARE32_12 \
+    "" uECC_MSP430_SUBA " #28, r1 \n\t" \
+    "mov 0(r13), r11 \n\t" \
+    "rla r11 \n\t" \
+    "mov r11, 0(r1) \n\t" \
+    "mov 2(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 2(r1) \n\t" \
+    "mov 4(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 4(r1) \n\t" \
+    "mov 6(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 6(r1) \n\t" \
+    "mov 8(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 8(r1) \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 10(r1) \n\t" \
+    "mov 12(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 12(r1) \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 14(r1) \n\t" \
+    "mov 16(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 16(r1) \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 18(r1) \n\t" \
+    "mov 20(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 20(r1) \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 22(r1) \n\t" \
+    "clr r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 24(r1) \n\t" \
+    "mov #0, 26(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "clr r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov r4, " uECC_MSP430_OP2L " \n\t" \
+    "mov r5, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_ADDA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r6, " uECC_MSP430_OP2L " \n\t" \
+    "mov r7, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 40(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 42(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 44(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 46(r12) \n\t" \
+    "" uECC_MSP430_ADDA " #28, r1 \n\t" \
+
+#define uECC_MSP430_SWMULT_12 \
+    "" uECC_MSP430_CALL " #112f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
+    "112: \n\t" \
+    "" uECC_MSP430_SUBA " #(50+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (50)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (50+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (50+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #106f \n\t" \
+    "" uECC_MSP430_MOVA " (50)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #24, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (50+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (50+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r14 \n\t" \
+    "" uECC_MSP430_CALL " #106f \n\t" \
+    "" uECC_MSP430_MOVA " (50+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 12(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 14(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 16(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 18(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 20(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 22(r14), r9 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "xor r12, r8 \n\t" \
+    "xor r12, r9 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "mov r4, 12(r1) \n\t" \
+    "mov r5, 14(r1) \n\t" \
+    "mov r6, 16(r1) \n\t" \
+    "mov r7, 18(r1) \n\t" \
+    "mov r8, 20(r1) \n\t" \
+    "mov r9, 22(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (50+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 12(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 14(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 16(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 18(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 20(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 22(r14), r9 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "xor r13, r8 \n\t" \
+    "xor r13, r9 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "mov r8, 8(r1) \n\t" \
+    "mov r9, 10(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 48(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #24, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r14 \n\t" \
+    "" uECC_MSP430_CALL " #106f \n\t" \
+    "" uECC_MSP430_MOVA " (50)(r1), r15 \n\t" \
+    "mov 48(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 24(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "mov 26(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 26(r1) \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "mov 32(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "mov 34(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 34(r1) \n\t" \
+    "mov 36(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 36(r1) \n\t" \
+    "mov 38(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 38(r1) \n\t" \
+    "mov 40(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 16(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 40(r1) \n\t" \
+    "mov 42(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 18(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 42(r1) \n\t" \
+    "mov 44(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 20(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 44(r1) \n\t" \
+    "mov 46(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 22(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 46(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 24(r15), 24(r1) \n\t" \
+    "addc 26(r15), 26(r1) \n\t" \
+    "addc 28(r15), 28(r1) \n\t" \
+    "addc 30(r15), 30(r1) \n\t" \
+    "addc 32(r15), 32(r1) \n\t" \
+    "addc 34(r15), 34(r1) \n\t" \
+    "addc 36(r15), 36(r1) \n\t" \
+    "addc 38(r15), 38(r1) \n\t" \
+    "addc 40(r15), 40(r1) \n\t" \
+    "addc 42(r15), 42(r1) \n\t" \
+    "addc 44(r15), 44(r1) \n\t" \
+    "addc 46(r15), 46(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 24(r1), 12(r15) \n\t" \
+    "addc 26(r1), 14(r15) \n\t" \
+    "addc 28(r1), 16(r15) \n\t" \
+    "addc 30(r1), 18(r15) \n\t" \
+    "addc 32(r1), 20(r15) \n\t" \
+    "addc 34(r1), 22(r15) \n\t" \
+    "addc 36(r1), 24(r15) \n\t" \
+    "addc 38(r1), 26(r15) \n\t" \
+    "addc 40(r1), 28(r15) \n\t" \
+    "addc 42(r1), 30(r15) \n\t" \
+    "addc 44(r1), 32(r15) \n\t" \
+    "addc 46(r1), 34(r15) \n\t" \
+    "addc r14, 36(r15) \n\t" \
+    "adc 38(r15) \n\t" \
+    "adc 40(r15) \n\t" \
+    "adc 42(r15) \n\t" \
+    "adc 44(r15) \n\t" \
+    "adc 46(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(50+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "106: \n\t" \
+    "" uECC_MSP430_SUBA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (26)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (26+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (26+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 10(r14), r6 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 6(r1) \n\t" \
+    "mov r5, 8(r1) \n\t" \
+    "mov r6, 10(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 10(r14), r6 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r15 \n\t" \
+    "mov 24(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 12(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 12(r1) \n\t" \
+    "mov 14(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 14(r1) \n\t" \
+    "mov 16(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 16(r1) \n\t" \
+    "mov 18(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 18(r1) \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 12(r15), 12(r1) \n\t" \
+    "addc 14(r15), 14(r1) \n\t" \
+    "addc 16(r15), 16(r1) \n\t" \
+    "addc 18(r15), 18(r1) \n\t" \
+    "addc 20(r15), 20(r1) \n\t" \
+    "addc 22(r15), 22(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 12(r1), 6(r15) \n\t" \
+    "addc 14(r1), 8(r15) \n\t" \
+    "addc 16(r1), 10(r15) \n\t" \
+    "addc 18(r1), 12(r15) \n\t" \
+    "addc 20(r1), 14(r15) \n\t" \
+    "addc 22(r1), 16(r15) \n\t" \
+    "addc r14, 18(r15) \n\t" \
+    "adc 20(r15) \n\t" \
+    "adc 22(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "203: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "mov r8, 6(r14) \n\t" \
+    "mov r9, 8(r14) \n\t" \
+    "mov r10, 10(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "99: \n\t" \
+
+#define uECC_MSP430_SWMULT_UNROLLED_12 \
+    "" uECC_MSP430_CALL " #112f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
+    "112: \n\t" \
+    "" uECC_MSP430_SUBA " #(50+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (50)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (50+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (50+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #106f \n\t" \
+    "" uECC_MSP430_MOVA " (50)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #24, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (50+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (50+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r14 \n\t" \
+    "" uECC_MSP430_CALL " #106f \n\t" \
+    "" uECC_MSP430_MOVA " (50+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 12(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 14(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 16(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 18(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 20(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 22(r14), r9 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "xor r12, r8 \n\t" \
+    "xor r12, r9 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "mov r4, 12(r1) \n\t" \
+    "mov r5, 14(r1) \n\t" \
+    "mov r6, 16(r1) \n\t" \
+    "mov r7, 18(r1) \n\t" \
+    "mov r8, 20(r1) \n\t" \
+    "mov r9, 22(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (50+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 12(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 14(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 16(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 18(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 20(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 22(r14), r9 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "xor r13, r8 \n\t" \
+    "xor r13, r9 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "mov r8, 8(r1) \n\t" \
+    "mov r9, 10(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 48(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #24, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r14 \n\t" \
+    "" uECC_MSP430_CALL " #106f \n\t" \
+    "" uECC_MSP430_MOVA " (50)(r1), r15 \n\t" \
+    "mov 48(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 24(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "mov 26(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 26(r1) \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "mov 32(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "mov 34(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 34(r1) \n\t" \
+    "mov 36(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 36(r1) \n\t" \
+    "mov 38(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 38(r1) \n\t" \
+    "mov 40(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 16(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 40(r1) \n\t" \
+    "mov 42(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 18(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 42(r1) \n\t" \
+    "mov 44(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 20(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 44(r1) \n\t" \
+    "mov 46(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 22(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 46(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 24(r15), 24(r1) \n\t" \
+    "addc 26(r15), 26(r1) \n\t" \
+    "addc 28(r15), 28(r1) \n\t" \
+    "addc 30(r15), 30(r1) \n\t" \
+    "addc 32(r15), 32(r1) \n\t" \
+    "addc 34(r15), 34(r1) \n\t" \
+    "addc 36(r15), 36(r1) \n\t" \
+    "addc 38(r15), 38(r1) \n\t" \
+    "addc 40(r15), 40(r1) \n\t" \
+    "addc 42(r15), 42(r1) \n\t" \
+    "addc 44(r15), 44(r1) \n\t" \
+    "addc 46(r15), 46(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 24(r1), 12(r15) \n\t" \
+    "addc 26(r1), 14(r15) \n\t" \
+    "addc 28(r1), 16(r15) \n\t" \
+    "addc 30(r1), 18(r15) \n\t" \
+    "addc 32(r1), 20(r15) \n\t" \
+    "addc 34(r1), 22(r15) \n\t" \
+    "addc 36(r1), 24(r15) \n\t" \
+    "addc 38(r1), 26(r15) \n\t" \
+    "addc 40(r1), 28(r15) \n\t" \
+    "addc 42(r1), 30(r15) \n\t" \
+    "addc 44(r1), 32(r15) \n\t" \
+    "addc 46(r1), 34(r15) \n\t" \
+    "addc r14, 36(r15) \n\t" \
+    "adc 38(r15) \n\t" \
+    "adc 40(r15) \n\t" \
+    "adc 42(r15) \n\t" \
+    "adc 44(r15) \n\t" \
+    "adc 46(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(50+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "106: \n\t" \
+    "" uECC_MSP430_SUBA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (26)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (26+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (26+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 10(r14), r6 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 6(r1) \n\t" \
+    "mov r5, 8(r1) \n\t" \
+    "mov r6, 10(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (26+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 6(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 8(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 10(r14), r6 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #12, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #6, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (26)(r1), r15 \n\t" \
+    "mov 24(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 12(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 12(r1) \n\t" \
+    "mov 14(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 14(r1) \n\t" \
+    "mov 16(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 16(r1) \n\t" \
+    "mov 18(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 18(r1) \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 12(r15), 12(r1) \n\t" \
+    "addc 14(r15), 14(r1) \n\t" \
+    "addc 16(r15), 16(r1) \n\t" \
+    "addc 18(r15), 18(r1) \n\t" \
+    "addc 20(r15), 20(r1) \n\t" \
+    "addc 22(r15), 22(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 12(r1), 6(r15) \n\t" \
+    "addc 14(r1), 8(r15) \n\t" \
+    "addc 16(r1), 10(r15) \n\t" \
+    "addc 18(r1), 12(r15) \n\t" \
+    "addc 20(r1), 14(r15) \n\t" \
+    "addc 22(r1), 16(r15) \n\t" \
+    "addc r14, 18(r15) \n\t" \
+    "adc 20(r15) \n\t" \
+    "adc 22(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(26+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "203: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "mov r8, 6(r14) \n\t" \
+    "mov r9, 8(r14) \n\t" \
+    "mov r10, 10(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "303: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "99: \n\t" \
+
+#define uECC_MSP430_MULT_14 \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov 8(r13), r8 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 16(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
-    "sub #20, r14 \n\t" \
-    "mov 20(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
-    "sub #22, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #22, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
-    "sub #24, r14 \n\t" \
-    "mov 24(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 24(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
-    "sub #26, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #26, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
     "mov 10(r13), r4 \n\t" \
-    "sub #26, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #26, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
     "mov 12(r13), r5 \n\t" \
-    "sub #24, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
     "mov 14(r13), r6 \n\t" \
-    "sub #22, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #22, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 16(r13), r7 \n\t" \
-    "sub #20, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
     "mov 18(r13), r8 \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov 20(r13), r4 \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 38(r12) \n\t" \
     "mov 22(r13), r5 \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 40(r12) \n\t" \
     "mov 24(r13), r6 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 42(r12) \n\t" \
     "mov 26(r13), r7 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 44(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 46(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 48(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
     "mov @r15, r9 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 50(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 52(r12) \n\t" \
     "mov r9, 54(r12) \n\t" \
 
 #define uECC_MSP430_SQUARE_14 \
-    "mov r13, r14 \n\t" \
-    "mov #0x013E, r15 \n\t" \
+    "" uECC_MSP430_MOVA " r13, r14 \n\t" \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "add #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_ADDA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov 8(r13), &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 8(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov 10(r13), &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 10(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov 12(r13), &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 12(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
     "mov 14(r13), r4 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
     "mov 8(r13), r5 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
     "mov 16(r13), r6 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 10(r13), r7 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
     "mov 18(r13), r5 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov 20(r13), r7 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 38(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 40(r12) \n\t" \
     "mov 22(r13), r4 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 42(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 44(r12) \n\t" \
     "mov 24(r13), r6 \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 46(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 48(r12) \n\t" \
     "mov 26(r13), r5 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 50(r12) \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 52(r12) \n\t" \
     "mov r9, 54(r12) \n\t" \
 
-#define uECC_MSP430_SWMULT_14 \
-    "call #114f \n\t" \
-    "br #99f \n\t" \
-    "114: \n\t" \
-    "sub #64, r1 \n\t" \
-    "mov r12, 58(r1) \n\t" \
-    "mov r13, 60(r1) \n\t" \
-    "mov r14, 62(r1) \n\t" \
-    "call #107f \n\t" \
-    "mov 58(r1), r12 \n\t" \
-    "add #28, r12 \n\t" \
-    "mov 60(r1), r13 \n\t" \
-    "add #14, r13 \n\t" \
-    "mov 62(r1), r14 \n\t" \
-    "add #14, r14 \n\t" \
-    "call #107f \n\t" \
-    "mov 62(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 14(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 16(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 18(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 20(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 22(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 24(r14), r9 \n\t" \
-    "mov 12(r14), r10 \n\t" \
-    "subc 26(r14), r10 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "xor r12, r8 \n\t" \
-    "xor r12, r9 \n\t" \
-    "xor r12, r10 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "adc r10 \n\t" \
-    "mov r4, 14(r1) \n\t" \
-    "mov r5, 16(r1) \n\t" \
-    "mov r6, 18(r1) \n\t" \
-    "mov r7, 20(r1) \n\t" \
-    "mov r8, 22(r1) \n\t" \
-    "mov r9, 24(r1) \n\t" \
-    "mov r10, 26(r1) \n\t" \
-    "mov 60(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 14(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 16(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 18(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 20(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 22(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 24(r14), r9 \n\t" \
-    "mov 12(r14), r10 \n\t" \
-    "subc 26(r14), r10 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "xor r13, r8 \n\t" \
-    "xor r13, r9 \n\t" \
-    "xor r13, r10 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "adc r10 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "mov r8, 8(r1) \n\t" \
-    "mov r9, 10(r1) \n\t" \
-    "mov r10, 12(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 56(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #28, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #14, r14 \n\t" \
-    "call #107f \n\t" \
-    "mov 58(r1), r15 \n\t" \
-    "mov 56(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "mov 32(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov 34(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 34(r1) \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov 38(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 38(r1) \n\t" \
-    "mov 40(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 40(r1) \n\t" \
-    "mov 42(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 42(r1) \n\t" \
-    "mov 44(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 16(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 44(r1) \n\t" \
-    "mov 46(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 18(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 46(r1) \n\t" \
-    "mov 48(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 20(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 48(r1) \n\t" \
-    "mov 50(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 22(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 50(r1) \n\t" \
-    "mov 52(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 24(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 52(r1) \n\t" \
-    "mov 54(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 26(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 54(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 28(r15), 28(r1) \n\t" \
-    "addc 30(r15), 30(r1) \n\t" \
-    "addc 32(r15), 32(r1) \n\t" \
-    "addc 34(r15), 34(r1) \n\t" \
-    "addc 36(r15), 36(r1) \n\t" \
-    "addc 38(r15), 38(r1) \n\t" \
-    "addc 40(r15), 40(r1) \n\t" \
-    "addc 42(r15), 42(r1) \n\t" \
-    "addc 44(r15), 44(r1) \n\t" \
-    "addc 46(r15), 46(r1) \n\t" \
-    "addc 48(r15), 48(r1) \n\t" \
-    "addc 50(r15), 50(r1) \n\t" \
-    "addc 52(r15), 52(r1) \n\t" \
-    "addc 54(r15), 54(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 28(r1), 14(r15) \n\t" \
-    "addc 30(r1), 16(r15) \n\t" \
-    "addc 32(r1), 18(r15) \n\t" \
-    "addc 34(r1), 20(r15) \n\t" \
-    "addc 36(r1), 22(r15) \n\t" \
-    "addc 38(r1), 24(r15) \n\t" \
-    "addc 40(r1), 26(r15) \n\t" \
-    "addc 42(r1), 28(r15) \n\t" \
-    "addc 44(r1), 30(r15) \n\t" \
-    "addc 46(r1), 32(r15) \n\t" \
-    "addc 48(r1), 34(r15) \n\t" \
-    "addc 50(r1), 36(r15) \n\t" \
-    "addc 52(r1), 38(r15) \n\t" \
-    "addc 54(r1), 40(r15) \n\t" \
-    "addc r14, 42(r15) \n\t" \
-    "adc 44(r15) \n\t" \
-    "adc 46(r15) \n\t" \
-    "adc 48(r15) \n\t" \
-    "adc 50(r15) \n\t" \
-    "adc 52(r15) \n\t" \
-    "adc 54(r15) \n\t" \
-    "add #64, r1 \n\t" \
-    "ret \n\t" \
-    "107: \n\t" \
-    "sub #40, r1 \n\t" \
-    "mov r12, 34(r1) \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov r14, 38(r1) \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "add #8, r13 \n\t" \
-    "mov 38(r1), r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 38(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 8(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 10(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 12(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "sbc r7 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "mov r4, 8(r1) \n\t" \
-    "mov r5, 10(r1) \n\t" \
-    "mov r6, 12(r1) \n\t" \
-    "mov r7, 14(r1) \n\t" \
-    "mov 36(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 8(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 10(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 12(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "sbc r7 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r15 \n\t" \
-    "mov 32(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 16(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 16(r1) \n\t" \
-    "mov 18(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 18(r1) \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "mov 24(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov 26(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 26(r1) \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 16(r15), 16(r1) \n\t" \
-    "addc 18(r15), 18(r1) \n\t" \
-    "addc 20(r15), 20(r1) \n\t" \
-    "addc 22(r15), 22(r1) \n\t" \
-    "addc 24(r15), 24(r1) \n\t" \
-    "addc 26(r15), 26(r1) \n\t" \
-    "adc 28(r1) \n\t" \
-    "adc 30(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 16(r1), 8(r15) \n\t" \
-    "addc 18(r1), 10(r15) \n\t" \
-    "addc 20(r1), 12(r15) \n\t" \
-    "addc 22(r1), 14(r15) \n\t" \
-    "addc 24(r1), 16(r15) \n\t" \
-    "addc 26(r1), 18(r15) \n\t" \
-    "addc 28(r1), 20(r15) \n\t" \
-    "addc 30(r1), 22(r15) \n\t" \
-    "addc r14, 24(r15) \n\t" \
-    "adc 26(r15) \n\t" \
-    "add #40, r1 \n\t" \
-    "ret \n\t" \
-    "204: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov 6(r13), r7 \n\t" \
-    "clr r11 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 6(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 6(r14) \n\t" \
-    "mov r8, 8(r14) \n\t" \
-    "mov r9, 10(r14) \n\t" \
-    "mov r10, 12(r14) \n\t" \
-    "mov r11, 14(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "203: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "mov #4, r15 \n\t" \
-    "1: \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "dec r15 \n\t" \
-    "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov r8, 6(r14) \n\t" \
-    "mov r9, 8(r14) \n\t" \
-    "mov r10, 10(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "99: \n\t" \
-
-#define uECC_MSP430_SWMULT_UNROLLED_14 \
-    "call #114f \n\t" \
-    "br #99f \n\t" \
-    "114: \n\t" \
-    "sub #64, r1 \n\t" \
-    "mov r12, 58(r1) \n\t" \
-    "mov r13, 60(r1) \n\t" \
-    "mov r14, 62(r1) \n\t" \
-    "call #107f \n\t" \
-    "mov 58(r1), r12 \n\t" \
-    "add #28, r12 \n\t" \
-    "mov 60(r1), r13 \n\t" \
-    "add #14, r13 \n\t" \
-    "mov 62(r1), r14 \n\t" \
-    "add #14, r14 \n\t" \
-    "call #107f \n\t" \
-    "mov 62(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 14(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 16(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 18(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 20(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 22(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 24(r14), r9 \n\t" \
-    "mov 12(r14), r10 \n\t" \
-    "subc 26(r14), r10 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "xor r12, r8 \n\t" \
-    "xor r12, r9 \n\t" \
-    "xor r12, r10 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "adc r10 \n\t" \
-    "mov r4, 14(r1) \n\t" \
-    "mov r5, 16(r1) \n\t" \
-    "mov r6, 18(r1) \n\t" \
-    "mov r7, 20(r1) \n\t" \
-    "mov r8, 22(r1) \n\t" \
-    "mov r9, 24(r1) \n\t" \
-    "mov r10, 26(r1) \n\t" \
-    "mov 60(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 14(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 16(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 18(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "subc 20(r14), r7 \n\t" \
-    "mov 8(r14), r8 \n\t" \
-    "subc 22(r14), r8 \n\t" \
-    "mov 10(r14), r9 \n\t" \
-    "subc 24(r14), r9 \n\t" \
-    "mov 12(r14), r10 \n\t" \
-    "subc 26(r14), r10 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "xor r13, r8 \n\t" \
-    "xor r13, r9 \n\t" \
-    "xor r13, r10 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "adc r8 \n\t" \
-    "adc r9 \n\t" \
-    "adc r10 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "mov r8, 8(r1) \n\t" \
-    "mov r9, 10(r1) \n\t" \
-    "mov r10, 12(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 56(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #28, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #14, r14 \n\t" \
-    "call #107f \n\t" \
-    "mov 58(r1), r15 \n\t" \
-    "mov 56(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "mov 32(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov 34(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 34(r1) \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov 38(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 38(r1) \n\t" \
-    "mov 40(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 40(r1) \n\t" \
-    "mov 42(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 42(r1) \n\t" \
-    "mov 44(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 16(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 44(r1) \n\t" \
-    "mov 46(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 18(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 46(r1) \n\t" \
-    "mov 48(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 20(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 48(r1) \n\t" \
-    "mov 50(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 22(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 50(r1) \n\t" \
-    "mov 52(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 24(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 52(r1) \n\t" \
-    "mov 54(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 26(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 54(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 28(r15), 28(r1) \n\t" \
-    "addc 30(r15), 30(r1) \n\t" \
-    "addc 32(r15), 32(r1) \n\t" \
-    "addc 34(r15), 34(r1) \n\t" \
-    "addc 36(r15), 36(r1) \n\t" \
-    "addc 38(r15), 38(r1) \n\t" \
-    "addc 40(r15), 40(r1) \n\t" \
-    "addc 42(r15), 42(r1) \n\t" \
-    "addc 44(r15), 44(r1) \n\t" \
-    "addc 46(r15), 46(r1) \n\t" \
-    "addc 48(r15), 48(r1) \n\t" \
-    "addc 50(r15), 50(r1) \n\t" \
-    "addc 52(r15), 52(r1) \n\t" \
-    "addc 54(r15), 54(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 28(r1), 14(r15) \n\t" \
-    "addc 30(r1), 16(r15) \n\t" \
-    "addc 32(r1), 18(r15) \n\t" \
-    "addc 34(r1), 20(r15) \n\t" \
-    "addc 36(r1), 22(r15) \n\t" \
-    "addc 38(r1), 24(r15) \n\t" \
-    "addc 40(r1), 26(r15) \n\t" \
-    "addc 42(r1), 28(r15) \n\t" \
-    "addc 44(r1), 30(r15) \n\t" \
-    "addc 46(r1), 32(r15) \n\t" \
-    "addc 48(r1), 34(r15) \n\t" \
-    "addc 50(r1), 36(r15) \n\t" \
-    "addc 52(r1), 38(r15) \n\t" \
-    "addc 54(r1), 40(r15) \n\t" \
-    "addc r14, 42(r15) \n\t" \
-    "adc 44(r15) \n\t" \
-    "adc 46(r15) \n\t" \
-    "adc 48(r15) \n\t" \
-    "adc 50(r15) \n\t" \
-    "adc 52(r15) \n\t" \
-    "adc 54(r15) \n\t" \
-    "add #64, r1 \n\t" \
-    "ret \n\t" \
-    "107: \n\t" \
-    "sub #40, r1 \n\t" \
-    "mov r12, 34(r1) \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov r14, 38(r1) \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "add #8, r13 \n\t" \
-    "mov 38(r1), r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #203f \n\t" \
-    "mov 38(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 8(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 10(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 12(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "sbc r7 \n\t" \
-    "subc r12, r12 \n\t" \
-    "xor r12, r4 \n\t" \
-    "xor r12, r5 \n\t" \
-    "xor r12, r6 \n\t" \
-    "xor r12, r7 \n\t" \
-    "mov r12, r13 \n\t" \
-    "rra r13 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "mov r4, 8(r1) \n\t" \
-    "mov r5, 10(r1) \n\t" \
-    "mov r6, 12(r1) \n\t" \
-    "mov r7, 14(r1) \n\t" \
-    "mov 36(r1), r14 \n\t" \
-    "mov 0(r14), r4 \n\t" \
-    "sub 8(r14), r4 \n\t" \
-    "mov 2(r14), r5 \n\t" \
-    "subc 10(r14), r5 \n\t" \
-    "mov 4(r14), r6 \n\t" \
-    "subc 12(r14), r6 \n\t" \
-    "mov 6(r14), r7 \n\t" \
-    "sbc r7 \n\t" \
-    "subc r13, r13 \n\t" \
-    "xor r13, r4 \n\t" \
-    "xor r13, r5 \n\t" \
-    "xor r13, r6 \n\t" \
-    "xor r13, r7 \n\t" \
-    "mov r13, r15 \n\t" \
-    "rra r15 \n\t" \
-    "adc r4 \n\t" \
-    "adc r5 \n\t" \
-    "adc r6 \n\t" \
-    "adc r7 \n\t" \
-    "mov r4, 0(r1) \n\t" \
-    "mov r5, 2(r1) \n\t" \
-    "mov r6, 4(r1) \n\t" \
-    "mov r7, 6(r1) \n\t" \
-    "xor r12, r13 \n\t" \
-    "inv r13 \n\t" \
-    "mov r13, 32(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r15 \n\t" \
-    "mov 32(r1), r14 \n\t" \
-    "mov r14, r12 \n\t" \
-    "and #1, r12 \n\t" \
-    "mov 16(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 0(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 16(r1) \n\t" \
-    "mov 18(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 2(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 18(r1) \n\t" \
-    "mov 20(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 4(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 20(r1) \n\t" \
-    "mov 22(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 6(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 22(r1) \n\t" \
-    "mov 24(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 8(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 24(r1) \n\t" \
-    "mov 26(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 10(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 26(r1) \n\t" \
-    "mov 28(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 12(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 28(r1) \n\t" \
-    "mov 30(r1), r13 \n\t" \
-    "xor r14, r13 \n\t" \
-    "rra r12 \n\t" \
-    "addc 14(r15), r13 \n\t" \
-    "adc r12 \n\t" \
-    "mov r13, 30(r1) \n\t" \
-    "add r12, r14 \n\t" \
-    "add 16(r15), 16(r1) \n\t" \
-    "addc 18(r15), 18(r1) \n\t" \
-    "addc 20(r15), 20(r1) \n\t" \
-    "addc 22(r15), 22(r1) \n\t" \
-    "addc 24(r15), 24(r1) \n\t" \
-    "addc 26(r15), 26(r1) \n\t" \
-    "adc 28(r1) \n\t" \
-    "adc 30(r1) \n\t" \
-    "adc r14 \n\t" \
-    "add 16(r1), 8(r15) \n\t" \
-    "addc 18(r1), 10(r15) \n\t" \
-    "addc 20(r1), 12(r15) \n\t" \
-    "addc 22(r1), 14(r15) \n\t" \
-    "addc 24(r1), 16(r15) \n\t" \
-    "addc 26(r1), 18(r15) \n\t" \
-    "addc 28(r1), 20(r15) \n\t" \
-    "addc 30(r1), 22(r15) \n\t" \
-    "addc r14, 24(r15) \n\t" \
-    "adc 26(r15) \n\t" \
-    "add #40, r1 \n\t" \
-    "ret \n\t" \
-    "204: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov 6(r13), r7 \n\t" \
-    "clr r11 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 6(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 6(r14) \n\t" \
-    "mov r8, 8(r14) \n\t" \
-    "mov r9, 10(r14) \n\t" \
-    "mov r10, 12(r14) \n\t" \
-    "mov r11, 14(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "203: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
-    "mov 0(r13), r4 \n\t" \
-    "clr r8 \n\t" \
-    "mov 2(r13), r5 \n\t" \
-    "clr r9 \n\t" \
-    "mov 4(r13), r6 \n\t" \
-    "clr r10 \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 0(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 2(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
-    "mov 4(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
-    "mov r12, 4(r14) \n\t" \
-    "mov r8, 6(r14) \n\t" \
-    "mov r9, 8(r14) \n\t" \
-    "mov r10, 10(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
-    "99: \n\t" \
-
-#define uECC_MSP430_MULT_16 \
-    "mov #0x013E, r15 \n\t" \
+#define uECC_MSP430_MULT32_14 \
+    "clr r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
     "mov 8(r13), r8 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
+    "mov 10(r13), r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 40(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 42(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 44(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 46(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 48(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 50(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 52(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 54(r12) \n\t" \
+
+#define uECC_MSP430_SQUARE32_14 \
+    "" uECC_MSP430_SUBA " #32, r1 \n\t" \
+    "mov 0(r13), r11 \n\t" \
+    "rla r11 \n\t" \
+    "mov r11, 0(r1) \n\t" \
+    "mov 2(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 2(r1) \n\t" \
+    "mov 4(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 4(r1) \n\t" \
+    "mov 6(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 6(r1) \n\t" \
+    "mov 8(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 8(r1) \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 10(r1) \n\t" \
+    "mov 12(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 12(r1) \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 14(r1) \n\t" \
+    "mov 16(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 16(r1) \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 18(r1) \n\t" \
+    "mov 20(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 20(r1) \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 22(r1) \n\t" \
+    "mov 24(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 24(r1) \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 26(r1) \n\t" \
+    "clr r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 28(r1) \n\t" \
+    "mov #0, 30(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "clr r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov r4, " uECC_MSP430_OP2L " \n\t" \
+    "mov r5, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_ADDA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r6, " uECC_MSP430_OP2L " \n\t" \
+    "mov r7, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 40(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 42(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 44(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 46(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 48(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 50(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 52(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 54(r12) \n\t" \
+    "" uECC_MSP430_ADDA " #32, r1 \n\t" \
+
+#define uECC_MSP430_SWMULT_14 \
+    "" uECC_MSP430_CALL " #114f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
+    "114: \n\t" \
+    "" uECC_MSP430_SUBA " #(58+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (58)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (58+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (58+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #107f \n\t" \
+    "" uECC_MSP430_MOVA " (58)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #28, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (58+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #14, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (58+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #14, r14 \n\t" \
+    "" uECC_MSP430_CALL " #107f \n\t" \
+    "" uECC_MSP430_MOVA " (58+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 14(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 16(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 18(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 20(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 22(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 24(r14), r9 \n\t" \
+    "mov 12(r14), r10 \n\t" \
+    "subc 26(r14), r10 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "xor r12, r8 \n\t" \
+    "xor r12, r9 \n\t" \
+    "xor r12, r10 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "adc r10 \n\t" \
+    "mov r4, 14(r1) \n\t" \
+    "mov r5, 16(r1) \n\t" \
+    "mov r6, 18(r1) \n\t" \
+    "mov r7, 20(r1) \n\t" \
+    "mov r8, 22(r1) \n\t" \
+    "mov r9, 24(r1) \n\t" \
+    "mov r10, 26(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (58+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 14(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 16(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 18(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 20(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 22(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 24(r14), r9 \n\t" \
+    "mov 12(r14), r10 \n\t" \
+    "subc 26(r14), r10 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "xor r13, r8 \n\t" \
+    "xor r13, r9 \n\t" \
+    "xor r13, r10 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "adc r10 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "mov r8, 8(r1) \n\t" \
+    "mov r9, 10(r1) \n\t" \
+    "mov r10, 12(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 56(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #28, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #14, r14 \n\t" \
+    "" uECC_MSP430_CALL " #107f \n\t" \
+    "" uECC_MSP430_MOVA " (58)(r1), r15 \n\t" \
+    "mov 56(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "mov 32(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "mov 34(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 34(r1) \n\t" \
+    "mov 36(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 36(r1) \n\t" \
+    "mov 38(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 38(r1) \n\t" \
+    "mov 40(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 40(r1) \n\t" \
+    "mov 42(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 42(r1) \n\t" \
+    "mov 44(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 16(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 44(r1) \n\t" \
+    "mov 46(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 18(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 46(r1) \n\t" \
+    "mov 48(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 20(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 48(r1) \n\t" \
+    "mov 50(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 22(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 50(r1) \n\t" \
+    "mov 52(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 24(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 52(r1) \n\t" \
+    "mov 54(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 26(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 54(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 28(r15), 28(r1) \n\t" \
+    "addc 30(r15), 30(r1) \n\t" \
+    "addc 32(r15), 32(r1) \n\t" \
+    "addc 34(r15), 34(r1) \n\t" \
+    "addc 36(r15), 36(r1) \n\t" \
+    "addc 38(r15), 38(r1) \n\t" \
+    "addc 40(r15), 40(r1) \n\t" \
+    "addc 42(r15), 42(r1) \n\t" \
+    "addc 44(r15), 44(r1) \n\t" \
+    "addc 46(r15), 46(r1) \n\t" \
+    "addc 48(r15), 48(r1) \n\t" \
+    "addc 50(r15), 50(r1) \n\t" \
+    "addc 52(r15), 52(r1) \n\t" \
+    "addc 54(r15), 54(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 28(r1), 14(r15) \n\t" \
+    "addc 30(r1), 16(r15) \n\t" \
+    "addc 32(r1), 18(r15) \n\t" \
+    "addc 34(r1), 20(r15) \n\t" \
+    "addc 36(r1), 22(r15) \n\t" \
+    "addc 38(r1), 24(r15) \n\t" \
+    "addc 40(r1), 26(r15) \n\t" \
+    "addc 42(r1), 28(r15) \n\t" \
+    "addc 44(r1), 30(r15) \n\t" \
+    "addc 46(r1), 32(r15) \n\t" \
+    "addc 48(r1), 34(r15) \n\t" \
+    "addc 50(r1), 36(r15) \n\t" \
+    "addc 52(r1), 38(r15) \n\t" \
+    "addc 54(r1), 40(r15) \n\t" \
+    "addc r14, 42(r15) \n\t" \
+    "adc 44(r15) \n\t" \
+    "adc 46(r15) \n\t" \
+    "adc 48(r15) \n\t" \
+    "adc 50(r15) \n\t" \
+    "adc 52(r15) \n\t" \
+    "adc 54(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(58+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "107: \n\t" \
+    "" uECC_MSP430_SUBA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (34)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (34+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (34+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 8(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 10(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 12(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "sbc r7 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "mov r4, 8(r1) \n\t" \
+    "mov r5, 10(r1) \n\t" \
+    "mov r6, 12(r1) \n\t" \
+    "mov r7, 14(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 8(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 10(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 12(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "sbc r7 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r15 \n\t" \
+    "mov 32(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 16(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 16(r1) \n\t" \
+    "mov 18(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 18(r1) \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "mov 24(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "mov 26(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 26(r1) \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 16(r15), 16(r1) \n\t" \
+    "addc 18(r15), 18(r1) \n\t" \
+    "addc 20(r15), 20(r1) \n\t" \
+    "addc 22(r15), 22(r1) \n\t" \
+    "addc 24(r15), 24(r1) \n\t" \
+    "addc 26(r15), 26(r1) \n\t" \
+    "adc 28(r1) \n\t" \
+    "adc 30(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 16(r1), 8(r15) \n\t" \
+    "addc 18(r1), 10(r15) \n\t" \
+    "addc 20(r1), 12(r15) \n\t" \
+    "addc 22(r1), 14(r15) \n\t" \
+    "addc 24(r1), 16(r15) \n\t" \
+    "addc 26(r1), 18(r15) \n\t" \
+    "addc 28(r1), 20(r15) \n\t" \
+    "addc 30(r1), 22(r15) \n\t" \
+    "addc r14, 24(r15) \n\t" \
+    "adc 26(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "204: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "clr r11 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 6(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 6(r14) \n\t" \
+    "mov r8, 8(r14) \n\t" \
+    "mov r9, 10(r14) \n\t" \
+    "mov r10, 12(r14) \n\t" \
+    "mov r11, 14(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "203: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "mov #4, r15 \n\t" \
+    "1: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "dec r15 \n\t" \
+    "jnz 1b \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "mov r8, 6(r14) \n\t" \
+    "mov r9, 8(r14) \n\t" \
+    "mov r10, 10(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "99: \n\t" \
+
+#define uECC_MSP430_SWMULT_UNROLLED_14 \
+    "" uECC_MSP430_CALL " #114f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
+    "114: \n\t" \
+    "" uECC_MSP430_SUBA " #(58+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (58)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (58+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (58+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #107f \n\t" \
+    "" uECC_MSP430_MOVA " (58)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #28, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (58+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #14, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (58+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #14, r14 \n\t" \
+    "" uECC_MSP430_CALL " #107f \n\t" \
+    "" uECC_MSP430_MOVA " (58+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 14(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 16(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 18(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 20(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 22(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 24(r14), r9 \n\t" \
+    "mov 12(r14), r10 \n\t" \
+    "subc 26(r14), r10 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "xor r12, r8 \n\t" \
+    "xor r12, r9 \n\t" \
+    "xor r12, r10 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "adc r10 \n\t" \
+    "mov r4, 14(r1) \n\t" \
+    "mov r5, 16(r1) \n\t" \
+    "mov r6, 18(r1) \n\t" \
+    "mov r7, 20(r1) \n\t" \
+    "mov r8, 22(r1) \n\t" \
+    "mov r9, 24(r1) \n\t" \
+    "mov r10, 26(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (58+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 14(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 16(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 18(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "subc 20(r14), r7 \n\t" \
+    "mov 8(r14), r8 \n\t" \
+    "subc 22(r14), r8 \n\t" \
+    "mov 10(r14), r9 \n\t" \
+    "subc 24(r14), r9 \n\t" \
+    "mov 12(r14), r10 \n\t" \
+    "subc 26(r14), r10 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "xor r13, r8 \n\t" \
+    "xor r13, r9 \n\t" \
+    "xor r13, r10 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "adc r8 \n\t" \
+    "adc r9 \n\t" \
+    "adc r10 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "mov r8, 8(r1) \n\t" \
+    "mov r9, 10(r1) \n\t" \
+    "mov r10, 12(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 56(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #28, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #14, r14 \n\t" \
+    "" uECC_MSP430_CALL " #107f \n\t" \
+    "" uECC_MSP430_MOVA " (58)(r1), r15 \n\t" \
+    "mov 56(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "mov 32(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "mov 34(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 34(r1) \n\t" \
+    "mov 36(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 36(r1) \n\t" \
+    "mov 38(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 38(r1) \n\t" \
+    "mov 40(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 40(r1) \n\t" \
+    "mov 42(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 42(r1) \n\t" \
+    "mov 44(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 16(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 44(r1) \n\t" \
+    "mov 46(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 18(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 46(r1) \n\t" \
+    "mov 48(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 20(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 48(r1) \n\t" \
+    "mov 50(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 22(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 50(r1) \n\t" \
+    "mov 52(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 24(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 52(r1) \n\t" \
+    "mov 54(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 26(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 54(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 28(r15), 28(r1) \n\t" \
+    "addc 30(r15), 30(r1) \n\t" \
+    "addc 32(r15), 32(r1) \n\t" \
+    "addc 34(r15), 34(r1) \n\t" \
+    "addc 36(r15), 36(r1) \n\t" \
+    "addc 38(r15), 38(r1) \n\t" \
+    "addc 40(r15), 40(r1) \n\t" \
+    "addc 42(r15), 42(r1) \n\t" \
+    "addc 44(r15), 44(r1) \n\t" \
+    "addc 46(r15), 46(r1) \n\t" \
+    "addc 48(r15), 48(r1) \n\t" \
+    "addc 50(r15), 50(r1) \n\t" \
+    "addc 52(r15), 52(r1) \n\t" \
+    "addc 54(r15), 54(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 28(r1), 14(r15) \n\t" \
+    "addc 30(r1), 16(r15) \n\t" \
+    "addc 32(r1), 18(r15) \n\t" \
+    "addc 34(r1), 20(r15) \n\t" \
+    "addc 36(r1), 22(r15) \n\t" \
+    "addc 38(r1), 24(r15) \n\t" \
+    "addc 40(r1), 26(r15) \n\t" \
+    "addc 42(r1), 28(r15) \n\t" \
+    "addc 44(r1), 30(r15) \n\t" \
+    "addc 46(r1), 32(r15) \n\t" \
+    "addc 48(r1), 34(r15) \n\t" \
+    "addc 50(r1), 36(r15) \n\t" \
+    "addc 52(r1), 38(r15) \n\t" \
+    "addc 54(r1), 40(r15) \n\t" \
+    "addc r14, 42(r15) \n\t" \
+    "adc 44(r15) \n\t" \
+    "adc 46(r15) \n\t" \
+    "adc 48(r15) \n\t" \
+    "adc 50(r15) \n\t" \
+    "adc 52(r15) \n\t" \
+    "adc 54(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(58+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "107: \n\t" \
+    "" uECC_MSP430_SUBA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (34)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (34+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (34+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #203f \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 8(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 10(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 12(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "sbc r7 \n\t" \
+    "subc r12, r12 \n\t" \
+    "xor r12, r4 \n\t" \
+    "xor r12, r5 \n\t" \
+    "xor r12, r6 \n\t" \
+    "xor r12, r7 \n\t" \
+    "mov r12, r13 \n\t" \
+    "rra r13 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "mov r4, 8(r1) \n\t" \
+    "mov r5, 10(r1) \n\t" \
+    "mov r6, 12(r1) \n\t" \
+    "mov r7, 14(r1) \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "mov 0(r14), r4 \n\t" \
+    "sub 8(r14), r4 \n\t" \
+    "mov 2(r14), r5 \n\t" \
+    "subc 10(r14), r5 \n\t" \
+    "mov 4(r14), r6 \n\t" \
+    "subc 12(r14), r6 \n\t" \
+    "mov 6(r14), r7 \n\t" \
+    "sbc r7 \n\t" \
+    "subc r13, r13 \n\t" \
+    "xor r13, r4 \n\t" \
+    "xor r13, r5 \n\t" \
+    "xor r13, r6 \n\t" \
+    "xor r13, r7 \n\t" \
+    "mov r13, r15 \n\t" \
+    "rra r15 \n\t" \
+    "adc r4 \n\t" \
+    "adc r5 \n\t" \
+    "adc r6 \n\t" \
+    "adc r7 \n\t" \
+    "mov r4, 0(r1) \n\t" \
+    "mov r5, 2(r1) \n\t" \
+    "mov r6, 4(r1) \n\t" \
+    "mov r7, 6(r1) \n\t" \
+    "xor r12, r13 \n\t" \
+    "inv r13 \n\t" \
+    "mov r13, 32(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r15 \n\t" \
+    "mov 32(r1), r14 \n\t" \
+    "mov r14, r12 \n\t" \
+    "and #1, r12 \n\t" \
+    "mov 16(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 0(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 16(r1) \n\t" \
+    "mov 18(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 2(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 18(r1) \n\t" \
+    "mov 20(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 4(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 20(r1) \n\t" \
+    "mov 22(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 6(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 22(r1) \n\t" \
+    "mov 24(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 8(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 24(r1) \n\t" \
+    "mov 26(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 10(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 26(r1) \n\t" \
+    "mov 28(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 12(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 28(r1) \n\t" \
+    "mov 30(r1), r13 \n\t" \
+    "xor r14, r13 \n\t" \
+    "rra r12 \n\t" \
+    "addc 14(r15), r13 \n\t" \
+    "adc r12 \n\t" \
+    "mov r13, 30(r1) \n\t" \
+    "add r12, r14 \n\t" \
+    "add 16(r15), 16(r1) \n\t" \
+    "addc 18(r15), 18(r1) \n\t" \
+    "addc 20(r15), 20(r1) \n\t" \
+    "addc 22(r15), 22(r1) \n\t" \
+    "addc 24(r15), 24(r1) \n\t" \
+    "addc 26(r15), 26(r1) \n\t" \
+    "adc 28(r1) \n\t" \
+    "adc 30(r1) \n\t" \
+    "adc r14 \n\t" \
+    "add 16(r1), 8(r15) \n\t" \
+    "addc 18(r1), 10(r15) \n\t" \
+    "addc 20(r1), 12(r15) \n\t" \
+    "addc 22(r1), 14(r15) \n\t" \
+    "addc 24(r1), 16(r15) \n\t" \
+    "addc 26(r1), 18(r15) \n\t" \
+    "addc 28(r1), 20(r15) \n\t" \
+    "addc 30(r1), 22(r15) \n\t" \
+    "addc r14, 24(r15) \n\t" \
+    "adc 26(r15) \n\t" \
+    "" uECC_MSP430_ADDA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "204: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "clr r11 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 6(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 6(r14) \n\t" \
+    "mov r8, 8(r14) \n\t" \
+    "mov r9, 10(r14) \n\t" \
+    "mov r10, 12(r14) \n\t" \
+    "mov r11, 14(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "304: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "203: \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "clr r8 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "clr r9 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "clr r10 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 0(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 0(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 2(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 2(r14) \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
+    "mov 4(r14), r12 \n\t" \
+    "" uECC_MSP430_CALL " #303f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
+    "mov r12, 4(r14) \n\t" \
+    "mov r8, 6(r14) \n\t" \
+    "mov r9, 8(r14) \n\t" \
+    "mov r10, 10(r14) \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "303: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "99: \n\t" \
+
+#define uECC_MSP430_MULT_16 \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov 8(r13), r8 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r8, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 16(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 18(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 18(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
-    "sub #20, r14 \n\t" \
-    "mov 20(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
-    "sub #22, r14 \n\t" \
-    "mov 22(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #22, r14 \n\t" \
+    "mov 22(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
-    "sub #24, r14 \n\t" \
-    "mov 24(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 24(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
-    "sub #26, r14 \n\t" \
-    "mov 26(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #26, r14 \n\t" \
+    "mov 26(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
-    "sub #28, r14 \n\t" \
-    "mov 28(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #28, r14 \n\t" \
+    "mov 28(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
-    "sub #30, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #30, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
     "mov 10(r13), r4 \n\t" \
-    "sub #30, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #30, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 12(r13), r5 \n\t" \
-    "sub #28, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #28, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
     "mov 14(r13), r6 \n\t" \
-    "sub #26, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #26, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 16(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 16(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov 16(r13), r7 \n\t" \
-    "sub #24, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 18(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 18(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 38(r12) \n\t" \
     "mov 18(r13), r8 \n\t" \
-    "sub #22, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #22, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 20(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 20(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 40(r12) \n\t" \
     "mov 20(r13), r4 \n\t" \
-    "sub #20, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 22(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 22(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 42(r12) \n\t" \
     "mov 22(r13), r5 \n\t" \
-    "sub #18, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #18, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 24(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 24(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 44(r12) \n\t" \
     "mov 24(r13), r6 \n\t" \
-    "sub #16, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 26(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 26(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 46(r12) \n\t" \
     "mov 26(r13), r7 \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 28(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 28(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 48(r12) \n\t" \
     "mov 28(r13), r8 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 30(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 30(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 50(r12) \n\t" \
     "mov 30(r13), r4 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r10 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r10 \n\t" \
     "mov r11, 52(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r11 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r11 \n\t" \
     "mov r9, 54(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r9 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r9 \n\t" \
     "mov r10, 56(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r8, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r8, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
     "mov @r15, r10 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 58(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 60(r12) \n\t" \
     "mov r10, 62(r12) \n\t" \
 
 #define uECC_MSP430_SQUARE_16 \
-    "mov r13, r14 \n\t" \
-    "mov #0x013E, r15 \n\t" \
+    "" uECC_MSP430_MOVA " r13, r14 \n\t" \
+    "mov " uECC_MSP430_SUMEXT_IMM ", r15 \n\t" \
     "mov 0(r13), r4 \n\t" \
     "mov 2(r13), r5 \n\t" \
     "mov 4(r13), r6 \n\t" \
     "mov 6(r13), r7 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "mov &0x013A, 0(r12) \n\t" \
-    "mov &0x013C, r10 \n\t" \
-    "add #2, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "mov &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "mov " uECC_MSP430_RESLO ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RESHI ", r10 \n\t" \
+    "" uECC_MSP430_ADDA " #2, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "mov " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 2(r12) \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 4(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 6(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 8(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 10(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 12(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 14(r12) \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov 8(r13), &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 8(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 16(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 18(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov 8(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov 10(r13), &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 10(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 20(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 22(r12) \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov 10(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov 10(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov 12(r13), &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 12(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 24(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 26(r12) \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov 12(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov 14(r13), &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov 14(r13), " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 28(r12) \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 30(r12) \n\t" \
     "mov 16(r13), r4 \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov 14(r13), &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov 14(r13), " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 8(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 8(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 32(r12) \n\t" \
     "mov 8(r13), r5 \n\t" \
-    "sub #14, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #14, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 34(r12) \n\t" \
     "mov 18(r13), r6 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 10(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 10(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 36(r12) \n\t" \
     "mov 10(r13), r7 \n\t" \
-    "sub #12, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 38(r12) \n\t" \
     "mov 20(r13), r5 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 40(r12) \n\t" \
     "mov 14(r13), r7 \n\t" \
-    "sub #10, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #10, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 12(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 12(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 42(r12) \n\t" \
     "mov 22(r13), r7 \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov 14(r13), &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov 14(r13), " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 44(r12) \n\t" \
-    "sub #8, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
     "add @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
     "mov r11, 46(r12) \n\t" \
     "mov 24(r13), r4 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r6, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r6, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov r4, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov r4, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 48(r12) \n\t" \
     "mov 26(r13), r6 \n\t" \
-    "sub #6, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r5, &0x0134 \n\t" \
+    "" uECC_MSP430_SUBA " #6, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r5, " uECC_MSP430_MAC " \n\t" \
     "mov @r15, r8 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
     "add @r15, r8 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "rla r8 \n\t" \
     "add r8, r9 \n\t" \
     "mov r10, 50(r12) \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r4, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r7, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r4, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r7, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "rla r8 \n\t" \
     "add r8, r10 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov r6, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov r6, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 52(r12) \n\t" \
     "mov 28(r13), r5 \n\t" \
-    "sub #4, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "mov r4, &0x0134 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "" uECC_MSP430_MPY16_GAP " \n\t" \
+    "mov r4, " uECC_MSP430_MAC " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov @r15, r8 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "adc r11 \n\t" \
     "rla r8 \n\t" \
     "add r8, r11 \n\t" \
     "mov r9, 54(r12) \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r6, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "clr r9 \n\t" \
     "adc r9 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov r5, &0x0138 \n\t" \
-    "add &0x013A, r10 \n\t" \
-    "addc &0x013C, r11 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov r5, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r10 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r11 \n\t" \
     "adc r9 \n\t" \
     "mov r10, 56(r12) \n\t" \
     "mov 30(r13), r7 \n\t" \
-    "sub #2, r14 \n\t" \
-    "mov r5, &0x0130 \n\t" \
-    "mov @r14+, &0x0138 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "" uECC_MSP430_SUBA " #2, r14 \n\t" \
+    "mov r5, " uECC_MSP430_MPY " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "clr r10 \n\t" \
     "adc r10 \n\t" \
-    "add &0x013A, r11 \n\t" \
-    "addc &0x013C, r9 \n\t" \
+    "add " uECC_MSP430_RESLO ", r11 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r9 \n\t" \
     "adc r10 \n\t" \
     "mov r11, 58(r12) \n\t" \
-    "mov r7, &0x0130 \n\t" \
-    "mov r7, &0x0138 \n\t" \
-    "add &0x013A, r9 \n\t" \
-    "addc &0x013C, r10 \n\t" \
+    "mov r7, " uECC_MSP430_MPY " \n\t" \
+    "mov r7, " uECC_MSP430_OP2 " \n\t" \
+    "add " uECC_MSP430_RESLO ", r9 \n\t" \
+    "addc " uECC_MSP430_RESHI ", r10 \n\t" \
     "clr r11 \n\t" \
     "adc r11 \n\t" \
     "mov r9, 60(r12) \n\t" \
     "mov r10, 62(r12) \n\t" \
 
+#define uECC_MSP430_MULT32_16 \
+    "clr r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov 8(r13), r8 \n\t" \
+    "mov 10(r13), r9 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #28, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #28, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #24, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r8, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r9, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #20, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 40(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 42(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 44(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 46(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 48(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 50(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 52(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 54(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 56(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 58(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 60(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 62(r12) \n\t" \
+
+#define uECC_MSP430_SQUARE32_16 \
+    "" uECC_MSP430_SUBA " #36, r1 \n\t" \
+    "mov 0(r13), r11 \n\t" \
+    "rla r11 \n\t" \
+    "mov r11, 0(r1) \n\t" \
+    "mov 2(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 2(r1) \n\t" \
+    "mov 4(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 4(r1) \n\t" \
+    "mov 6(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 6(r1) \n\t" \
+    "mov 8(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 8(r1) \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 10(r1) \n\t" \
+    "mov 12(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 12(r1) \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 14(r1) \n\t" \
+    "mov 16(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 16(r1) \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 18(r1) \n\t" \
+    "mov 20(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 20(r1) \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 22(r1) \n\t" \
+    "mov 24(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 24(r1) \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 26(r1) \n\t" \
+    "mov 28(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 28(r1) \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 30(r1) \n\t" \
+    "clr r11 \n\t" \
+    "rlc r11 \n\t" \
+    "mov r11, 32(r1) \n\t" \
+    "mov #0, 34(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "clr r15 \n\t" \
+    "mov 0(r13), r4 \n\t" \
+    "mov 2(r13), r5 \n\t" \
+    "mov 4(r13), r6 \n\t" \
+    "mov 6(r13), r7 \n\t" \
+    "mov r4, " uECC_MSP430_MPY32L " \n\t" \
+    "mov r5, " uECC_MSP430_MPY32H " \n\t" \
+    "mov r4, " uECC_MSP430_OP2L " \n\t" \
+    "mov r5, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "mov " uECC_MSP430_RES0 ", 0(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 2(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov #0, " uECC_MSP430_RES2 " \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_ADDA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 4(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 6(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r6, " uECC_MSP430_OP2L " \n\t" \
+    "mov r7, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 8(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 10(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 12(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 14(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 16(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 18(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 20(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 22(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 24(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 26(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 28(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 30(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r4, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r5, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 32(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 34(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #16, r14 \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r6, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r7, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 36(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 38(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 8(r13), r10 \n\t" \
+    "mov 10(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 40(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 42(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #12, r14 \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 12(r13), r10 \n\t" \
+    "mov 14(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 44(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 46(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 16(r13), r10 \n\t" \
+    "mov 18(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 48(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 50(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #8, r14 \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "mov @r14+, r8 \n\t" \
+    "bic #1, r8 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r8, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "mov 20(r13), r10 \n\t" \
+    "mov 22(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 52(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 54(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "" uECC_MSP430_SUBA " #4, r14 \n\t" \
+    "mov 28(r13), r10 \n\t" \
+    "mov 30(r13), r11 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov r10, " uECC_MSP430_OP2L " \n\t" \
+    "mov r11, " uECC_MSP430_OP2H " \n\t" \
+    "mov 24(r13), r10 \n\t" \
+    "mov 26(r13), r11 \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov r10, " uECC_MSP430_MAC32L " \n\t" \
+    "mov r11, " uECC_MSP430_MAC32H " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2L " \n\t" \
+    "mov @r14+, " uECC_MSP430_OP2H " \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "nop \n\t" \
+    "add " uECC_MSP430_SUMEXT ", r15 \n\t" \
+    "mov " uECC_MSP430_RES0 ", 56(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 58(r12) \n\t" \
+    "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t" \
+    "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t" \
+    "mov r15, " uECC_MSP430_RES2 " \n\t" \
+    "clr r15 \n\t" \
+    "mov #0, " uECC_MSP430_RES3 " \n\t" \
+    "mov " uECC_MSP430_RES0 ", 60(r12) \n\t" \
+    "mov " uECC_MSP430_RES1 ", 62(r12) \n\t" \
+    "" uECC_MSP430_ADDA " #36, r1 \n\t" \
+
 #define uECC_MSP430_SWMULT_16 \
-    "call #116f \n\t" \
-    "br #99f \n\t" \
+    "" uECC_MSP430_CALL " #116f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
     "116: \n\t" \
-    "sub #72, r1 \n\t" \
-    "mov r12, 66(r1) \n\t" \
-    "mov r13, 68(r1) \n\t" \
-    "mov r14, 70(r1) \n\t" \
-    "call #108f \n\t" \
-    "mov 66(r1), r12 \n\t" \
-    "add #32, r12 \n\t" \
-    "mov 68(r1), r13 \n\t" \
-    "add #16, r13 \n\t" \
-    "mov 70(r1), r14 \n\t" \
-    "add #16, r14 \n\t" \
-    "call #108f \n\t" \
-    "mov 70(r1), r14 \n\t" \
+    "" uECC_MSP430_SUBA " #(66+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (66)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (66+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (66+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #108f \n\t" \
+    "" uECC_MSP430_MOVA " (66)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #32, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (66+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (66+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r14 \n\t" \
+    "" uECC_MSP430_CALL " #108f \n\t" \
+    "" uECC_MSP430_MOVA " (66+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 16(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -11798,7 +13810,7 @@
     "mov r9, 26(r1) \n\t" \
     "mov r10, 28(r1) \n\t" \
     "mov r11, 30(r1) \n\t" \
-    "mov 68(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " (66+" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 16(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -11845,14 +13857,14 @@
     "xor r12, r13 \n\t" \
     "inv r13 \n\t" \
     "mov r13, 64(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #32, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #16, r14 \n\t" \
-    "call #108f \n\t" \
-    "mov 66(r1), r15 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #32, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r14 \n\t" \
+    "" uECC_MSP430_CALL " #108f \n\t" \
+    "" uECC_MSP430_MOVA " (66)(r1), r15 \n\t" \
     "mov 64(r1), r14 \n\t" \
     "mov r14, r12 \n\t" \
     "and #1, r12 \n\t" \
@@ -11994,22 +14006,22 @@
     "adc 58(r15) \n\t" \
     "adc 60(r15) \n\t" \
     "adc 62(r15) \n\t" \
-    "add #72, r1 \n\t" \
-    "ret \n\t" \
+    "" uECC_MSP430_ADDA " #(66+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
     "108: \n\t" \
-    "sub #40, r1 \n\t" \
-    "mov r12, 34(r1) \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov r14, 38(r1) \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "add #8, r13 \n\t" \
-    "mov 38(r1), r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #204f \n\t" \
-    "mov 38(r1), r14 \n\t" \
+    "" uECC_MSP430_SUBA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (34)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (34+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (34+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 8(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -12033,7 +14045,7 @@
     "mov r5, 10(r1) \n\t" \
     "mov r6, 12(r1) \n\t" \
     "mov r7, 14(r1) \n\t" \
-    "mov 36(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 8(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -12060,14 +14072,14 @@
     "xor r12, r13 \n\t" \
     "inv r13 \n\t" \
     "mov r13, 32(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r15 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r15 \n\t" \
     "mov 32(r1), r14 \n\t" \
     "mov r14, r12 \n\t" \
     "and #1, r12 \n\t" \
@@ -12141,11 +14153,11 @@
     "adc 26(r15) \n\t" \
     "adc 28(r15) \n\t" \
     "adc 30(r15) \n\t" \
-    "add #40, r1 \n\t" \
-    "ret \n\t" \
+    "" uECC_MSP430_ADDA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
     "204: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
     "mov 0(r13), r4 \n\t" \
     "clr r8 \n\t" \
     "mov 2(r13), r5 \n\t" \
@@ -12154,7 +14166,7 @@
     "clr r10 \n\t" \
     "mov 6(r13), r7 \n\t" \
     "clr r11 \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 0(r14), r12 \n\t" \
     "mov #4, r15 \n\t" \
     "1: \n\t" \
@@ -12236,9 +14248,9 @@
     "rrc r12 \n\t" \
     "dec r15 \n\t" \
     "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 2(r14), r12 \n\t" \
     "mov #4, r15 \n\t" \
     "1: \n\t" \
@@ -12320,9 +14332,9 @@
     "rrc r12 \n\t" \
     "dec r15 \n\t" \
     "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 4(r14), r12 \n\t" \
     "mov #4, r15 \n\t" \
     "1: \n\t" \
@@ -12404,9 +14416,9 @@
     "rrc r12 \n\t" \
     "dec r15 \n\t" \
     "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 4(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 6(r14), r12 \n\t" \
     "mov #4, r15 \n\t" \
     "1: \n\t" \
@@ -12488,33 +14500,33 @@
     "rrc r12 \n\t" \
     "dec r15 \n\t" \
     "jnz 1b \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 6(r14) \n\t" \
     "mov r8, 8(r14) \n\t" \
     "mov r9, 10(r14) \n\t" \
     "mov r10, 12(r14) \n\t" \
     "mov r11, 14(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
     "99: \n\t" \
 
 #define uECC_MSP430_SWMULT_UNROLLED_16 \
-    "call #116f \n\t" \
-    "br #99f \n\t" \
+    "" uECC_MSP430_CALL " #116f \n\t" \
+    "" uECC_MSP430_BR " #99f \n\t" \
     "116: \n\t" \
-    "sub #72, r1 \n\t" \
-    "mov r12, 66(r1) \n\t" \
-    "mov r13, 68(r1) \n\t" \
-    "mov r14, 70(r1) \n\t" \
-    "call #108f \n\t" \
-    "mov 66(r1), r12 \n\t" \
-    "add #32, r12 \n\t" \
-    "mov 68(r1), r13 \n\t" \
-    "add #16, r13 \n\t" \
-    "mov 70(r1), r14 \n\t" \
-    "add #16, r14 \n\t" \
-    "call #108f \n\t" \
-    "mov 70(r1), r14 \n\t" \
+    "" uECC_MSP430_SUBA " #(66+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (66)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (66+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (66+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #108f \n\t" \
+    "" uECC_MSP430_MOVA " (66)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #32, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (66+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (66+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r14 \n\t" \
+    "" uECC_MSP430_CALL " #108f \n\t" \
+    "" uECC_MSP430_MOVA " (66+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 16(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -12558,7 +14570,7 @@
     "mov r9, 26(r1) \n\t" \
     "mov r10, 28(r1) \n\t" \
     "mov r11, 30(r1) \n\t" \
-    "mov 68(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " (66+" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 16(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -12605,14 +14617,14 @@
     "xor r12, r13 \n\t" \
     "inv r13 \n\t" \
     "mov r13, 64(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #32, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #16, r14 \n\t" \
-    "call #108f \n\t" \
-    "mov 66(r1), r15 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #32, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r14 \n\t" \
+    "" uECC_MSP430_CALL " #108f \n\t" \
+    "" uECC_MSP430_MOVA " (66)(r1), r15 \n\t" \
     "mov 64(r1), r14 \n\t" \
     "mov r14, r12 \n\t" \
     "and #1, r12 \n\t" \
@@ -12754,22 +14766,22 @@
     "adc 58(r15) \n\t" \
     "adc 60(r15) \n\t" \
     "adc 62(r15) \n\t" \
-    "add #72, r1 \n\t" \
-    "ret \n\t" \
+    "" uECC_MSP430_ADDA " #(66+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
     "108: \n\t" \
-    "sub #40, r1 \n\t" \
-    "mov r12, 34(r1) \n\t" \
-    "mov r13, 36(r1) \n\t" \
-    "mov r14, 38(r1) \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov 36(r1), r13 \n\t" \
-    "add #8, r13 \n\t" \
-    "mov 38(r1), r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #204f \n\t" \
-    "mov 38(r1), r14 \n\t" \
+    "" uECC_MSP430_SUBA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_MOVA " r12, (34)(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r13, (34+" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_MOVA " r14, (34+2*" uECC_MSP430_PS ")(r1) \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r13 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r13 \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34+2*" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 8(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -12793,7 +14805,7 @@
     "mov r5, 10(r1) \n\t" \
     "mov r6, 12(r1) \n\t" \
     "mov r7, 14(r1) \n\t" \
-    "mov 36(r1), r14 \n\t" \
+    "" uECC_MSP430_MOVA " (34+" uECC_MSP430_PS ")(r1), r14 \n\t" \
     "mov 0(r14), r4 \n\t" \
     "sub 8(r14), r4 \n\t" \
     "mov 2(r14), r5 \n\t" \
@@ -12820,14 +14832,14 @@
     "xor r12, r13 \n\t" \
     "inv r13 \n\t" \
     "mov r13, 32(r1) \n\t" \
-    "mov r1, r12 \n\t" \
-    "add #16, r12 \n\t" \
-    "mov r1, r13 \n\t" \
-    "add #0, r13 \n\t" \
-    "mov r1, r14 \n\t" \
-    "add #8, r14 \n\t" \
-    "call #204f \n\t" \
-    "mov 34(r1), r15 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r12 \n\t" \
+    "" uECC_MSP430_ADDA " #16, r12 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r13 \n\t" \
+    "" uECC_MSP430_ADDA " #0, r13 \n\t" \
+    "" uECC_MSP430_MOVA " r1, r14 \n\t" \
+    "" uECC_MSP430_ADDA " #8, r14 \n\t" \
+    "" uECC_MSP430_CALL " #204f \n\t" \
+    "" uECC_MSP430_MOVA " (34)(r1), r15 \n\t" \
     "mov 32(r1), r14 \n\t" \
     "mov r14, r12 \n\t" \
     "and #1, r12 \n\t" \
@@ -12901,11 +14913,11 @@
     "adc 26(r15) \n\t" \
     "adc 28(r15) \n\t" \
     "adc 30(r15) \n\t" \
-    "add #40, r1 \n\t" \
-    "ret \n\t" \
+    "" uECC_MSP430_ADDA " #(34+3*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
     "204: \n\t" \
-    "push r12 \n\t" \
-    "push r14 \n\t" \
+    "" uECC_MSP430_PUSH("r12") " \n\t" \
+    "" uECC_MSP430_PUSH("r14") " \n\t" \
     "mov 0(r13), r4 \n\t" \
     "clr r8 \n\t" \
     "mov 2(r13), r5 \n\t" \
@@ -12914,1243 +14926,337 @@
     "clr r10 \n\t" \
     "mov 6(r13), r7 \n\t" \
     "clr r11 \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 0(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 0(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 2(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 2(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 4(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 4(r14) \n\t" \
-    "mov @r1, r14 \n\t" \
+    "" uECC_MSP430_MOVA " @r1, r14 \n\t" \
     "mov 6(r14), r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "bit #1, r12 \n\t" \
-    "subc r13, r13 \n\t" \
-    "mov r4, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "add r14, r8 \n\t" \
-    "mov r5, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r9 \n\t" \
-    "mov r6, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r10 \n\t" \
-    "mov r7, r14 \n\t" \
-    "bic r13, r14 \n\t" \
-    "addc r14, r11 \n\t" \
-    "rrc r11 \n\t" \
-    "rrc r10 \n\t" \
-    "rrc r9 \n\t" \
-    "rrc r8 \n\t" \
-    "rrc r12 \n\t" \
-    "mov 2(r1), r14 \n\t" \
+    "" uECC_MSP430_CALL " #304f \n\t" \
+    "" uECC_MSP430_MOVA " " uECC_MSP430_PS "(r1), r14 \n\t" \
     "mov r12, 6(r14) \n\t" \
     "mov r8, 8(r14) \n\t" \
     "mov r9, 10(r14) \n\t" \
     "mov r10, 12(r14) \n\t" \
     "mov r11, 14(r14) \n\t" \
-    "add #4, r1 \n\t" \
-    "ret \n\t" \
+    "" uECC_MSP430_ADDA " #(2*" uECC_MSP430_PS "), r1 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
+    "304: \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "bit #1, r12 \n\t" \
+    "subc r13, r13 \n\t" \
+    "mov r4, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "add r14, r8 \n\t" \
+    "mov r5, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r9 \n\t" \
+    "mov r6, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r10 \n\t" \
+    "mov r7, r14 \n\t" \
+    "bic r13, r14 \n\t" \
+    "addc r14, r11 \n\t" \
+    "rrc r11 \n\t" \
+    "rrc r10 \n\t" \
+    "rrc r9 \n\t" \
+    "rrc r8 \n\t" \
+    "rrc r12 \n\t" \
+    "" uECC_MSP430_RET " \n\t" \
     "99: \n\t" \
 

@@ -50,25 +50,37 @@ platform: 1, except at optimization level 0 (smallest code), at level 1 on ARM, 
 platforms and Thumb-1, where it is 0, and with 16-bit words (uECC_WORD_SIZE == 2), where it
 is 2. */
 
-/* uECC_MSP430_HWMULT - MSP430 (classic CPU) only: selects how uECC multiplies (the assembly
-   multiplication, reductions and inversion helpers, and the multiplications in the C code that
-   can involve secret data):
+/* MSP430 and MSP430X (CPUX; small and large memory models, selected with the compiler
+options) use the same platform, uECC_msp430, with assembly code. */
+
+/* uECC_MSP430_HWMULT - MSP430 only: selects how uECC multiplies (the assembly multiplication,
+   reductions and inversion helpers, and the multiplications in the C code that can involve
+   secret data):
+   32 - the 32x32-bit hardware multiplier (MPY32).
    16 - the 16x16-bit hardware multiplier (MPY, or the MPY16-compatible registers of MPY32).
    0  - constant-time software multiplication.
 If uECC_MSP430_HWMULT is not explicitly defined then it is set from the device header
-(<msp430.h>, selected with -mmcu): 16 if the device has MPY or MPY32, otherwise 0 (also 0 if
-there is no device header, e.g. when compiling with only -mcpu). GCC's -mhwmult option does not
-affect it; -mhwmult only selects the multiplication routines used by compiler-generated code.
-To avoid using the hardware multiplier on a device that has one, define uECC_MSP430_HWMULT as 0
-(and optionally compile with -mhwmult=none). */
+(<msp430.h>, selected with -mmcu): 32 if the device has MPY32, 16 if it has MPY, otherwise 0
+(also 0 if there is no device header, e.g. when compiling with only -mcpu). GCC's -mhwmult option
+does not affect it; -mhwmult only selects the multiplication routines used by compiler-generated
+code. To avoid using the hardware multiplier on a device that has one, define
+uECC_MSP430_HWMULT as 0 (and optionally compile with -mhwmult=none). */
 
-/* uECC_MSP430_DISABLE_INTERRUPTS - MSP430 only, with uECC_MSP430_HWMULT == 16. If enabled
+/* uECC_MSP430_MPY_BASE - MSP430 only: address of the multiplier registers (MPY at +0, MPYS +2,
+MAC +4, MACS +6, OP2 +8, RESLO +0xA, RESHI +0xC, SUMEXT +0xE, and for MPY32 the registers from
+MPY32L at +0x10 to MPY32CTL0 at +0x2C). If not explicitly defined, it is taken from the device
+header when that defines it (0x04C0 on F5xx/F6xx/FRxx devices), otherwise it is 0x0130 (the
+address on all classic MSP430 devices and on the F2xx/F4xx MSP430X devices). The device header
+is also read for this when uECC_MSP430_HWMULT is defined explicitly. */
+
+/* uECC_MSP430_DISABLE_INTERRUPTS - MSP430 only, with a hardware multiplier. If enabled
 (defined as nonzero, the default), the assembly code disables interrupts while it uses the
 hardware multiplier, since an interrupt handler that also uses the multiplier would corrupt
 the result. SR is saved and restored, so GIE returns to its previous state. This delays
-interrupts by up to one multiplication: for 256-bit curves, about 3,500 cycles at optimization
-levels 3 and 4, and about 5,300 cycles at levels 1 and 2. Define it as 0 if no interrupt
-handler uses the multiplier (or if they save and restore its state). */
+interrupts by up to one multiplication: for 256-bit curves on the classic CPU with MPY16, about
+3,500 cycles at optimization levels 3 and 4, and about 5,300 cycles at levels 1 and 2 (less with
+MPY32). Define it as 0 if no interrupt handler uses the multiplier (or if they save and restore
+its state). */
 
 /* uECC_VLI_NATIVE_LITTLE_ENDIAN - If enabled (defined as nonzero), this will switch to native
 little-endian format for *all* arrays passed in and out of the public API. This includes public

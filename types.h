@@ -12,7 +12,7 @@
         #define uECC_PLATFORM uECC_arm_thumb
     #elif defined(__arm__) || defined(_M_ARM)
         #define uECC_PLATFORM uECC_arm
-    #elif defined(__MSP430__) && !defined(__MSP430X__)
+    #elif defined(__MSP430__) /* classic MSP430 and MSP430X (small and large models) */
         #define uECC_PLATFORM uECC_msp430
     #elif defined(__aarch64__)
         #define uECC_PLATFORM uECC_arm64

@@ -3,11 +3,12 @@
 #ifndef _UECC_ASM_MSP430_H_
 #define _UECC_ASM_MSP430_H_
 
-/* Hardware multiplier selection (see uECC_MSP430_HWMULT in uECC.h): 16 uses the MPY16
-   peripheral (also present, register-compatible, on MPY32 devices); 0 uses software
-   multiplication. By default it is detected from the device header. */
-#ifndef uECC_MSP430_HWMULT
-    /* Generic CPU builds (-mcpu without -mmcu) have no device header. */
+/* Hardware multiplier selection (see uECC_MSP430_HWMULT in uECC.h): 32 uses the MPY32
+   peripheral, 16 the MPY16 one (MPY32 has MPY16-compatible registers, so 32 implies 16),
+   0 software multiplication. By default it is detected from the device header. */
+/* The device header (if any) gives the defaults for the multiplier type and address.
+   Generic CPU builds (-mcpu without -mmcu) have no device header. */
+#if !defined(uECC_MSP430_HWMULT) || !defined(uECC_MSP430_MPY_BASE)
     #if defined(__has_include) && !defined(__MSP430GENERIC__) && \
         !defined(__MSP430I2XXGENERIC__) && !defined(__MSP430i2XXGENERIC__)
         #if __has_include(<msp430.h>)
@@ -19,10 +20,38 @@
             #undef V
         #endif
     #endif
-    #if defined(__MSP430_HAS_MPY__) || defined(__MSP430_HAS_MPY32__)
+#endif
+#ifndef uECC_MSP430_HWMULT
+    #if defined(__MSP430_HAS_MPY32__)
+        #define uECC_MSP430_HWMULT 32
+    #elif defined(__MSP430_HAS_MPY__)
         #define uECC_MSP430_HWMULT 16
     #else
         #define uECC_MSP430_HWMULT 0
+    #endif
+#endif
+
+/* CPU variant: MSP430X (CPUX) instructions available, and the large memory model (20-bit
+   pointers; data, stack and code may be above 64 KB). */
+#if defined(__MSP430X__)
+    #define uECC_MSP430_CPUX 1
+#else
+    #define uECC_MSP430_CPUX 0
+#endif
+#if defined(__MSP430X_LARGE__)
+    #define uECC_MSP430_LARGE 1
+#else
+    #define uECC_MSP430_LARGE 0
+#endif
+
+/* Address of the multiplier register block (see uECC.h). */
+#ifndef uECC_MSP430_MPY_BASE
+    #if defined(__MSP430_BASEADDRESS_MPY32__)
+        #define uECC_MSP430_MPY_BASE __MSP430_BASEADDRESS_MPY32__
+    #elif defined(__MSP430_BASEADDRESS_MPY__)
+        #define uECC_MSP430_MPY_BASE __MSP430_BASEADDRESS_MPY__
+    #else
+        #define uECC_MSP430_MPY_BASE 0x0130
     #endif
 #endif
 
@@ -74,18 +103,83 @@ static inline uint32_t uECC_msp430_mul16(uint16_t a, uint16_t b) {
 
 #if (uECC_OPTIMIZATION_LEVEL >= 1)
 
-/* MPY16 registers (the same addresses on every classic device with MPY or MPY32). */
-#define uECC_MSP430_MPY    "&0x0130"
-#define uECC_MSP430_MAC    "&0x0134"
-#define uECC_MSP430_OP2    "&0x0138"
-#define uECC_MSP430_RESLO  "&0x013A"
-#define uECC_MSP430_RESHI  "&0x013C"
-#define uECC_MSP430_SUMEXT "&0x013E"
+#define uECC_MSP430_STR2(a) #a
+#define uECC_MSP430_STR(a) uECC_MSP430_STR2(a)
+
+/* MPY16 register operands, as assembler expressions on uECC_MSP430_MPY_BASE (for example
+   "&(0x0130+4)" for MAC). */
+#define uECC_MSP430_MPY_REG(off) "&((" uECC_MSP430_STR(uECC_MSP430_MPY_BASE) ")+" #off ")"
+#define uECC_MSP430_MPY        uECC_MSP430_MPY_REG(0)
+#define uECC_MSP430_MPYS       uECC_MSP430_MPY_REG(2)
+#define uECC_MSP430_MAC        uECC_MSP430_MPY_REG(4)
+#define uECC_MSP430_OP2        uECC_MSP430_MPY_REG(8)
+#define uECC_MSP430_RESLO      uECC_MSP430_MPY_REG(10)
+#define uECC_MSP430_RESHI      uECC_MSP430_MPY_REG(12)
+#define uECC_MSP430_SUMEXT     uECC_MSP430_MPY_REG(14)
+/* Address of SUMEXT as an immediate, to load a pointer register. */
+#define uECC_MSP430_SUMEXT_IMM "#((" uECC_MSP430_STR(uECC_MSP430_MPY_BASE) ")+14)"
+/* MPY32 registers (uECC_MSP430_HWMULT == 32). */
+#define uECC_MSP430_MPY32L     uECC_MSP430_MPY_REG(0x10)
+#define uECC_MSP430_MPY32H     uECC_MSP430_MPY_REG(0x12)
+#define uECC_MSP430_MPYS32L    uECC_MSP430_MPY_REG(0x14)
+#define uECC_MSP430_MPYS32H    uECC_MSP430_MPY_REG(0x16)
+#define uECC_MSP430_MAC32L     uECC_MSP430_MPY_REG(0x18)
+#define uECC_MSP430_MAC32H     uECC_MSP430_MPY_REG(0x1A)
+#define uECC_MSP430_MACS32L    uECC_MSP430_MPY_REG(0x1C)
+#define uECC_MSP430_MACS32H    uECC_MSP430_MPY_REG(0x1E)
+#define uECC_MSP430_OP2L       uECC_MSP430_MPY_REG(0x20)
+#define uECC_MSP430_OP2H       uECC_MSP430_MPY_REG(0x22)
+#define uECC_MSP430_RES0       uECC_MSP430_MPY_REG(0x24)
+#define uECC_MSP430_RES1       uECC_MSP430_MPY_REG(0x26)
+#define uECC_MSP430_RES2       uECC_MSP430_MPY_REG(0x28)
+#define uECC_MSP430_RES3       uECC_MSP430_MPY_REG(0x2A)
+#define uECC_MSP430_MPY32CTL0  uECC_MSP430_MPY_REG(0x2C)
+
+/* On MPY32 hardware a 16x16 operation completes 4 cycles after the OP2 write (SLAU208 Table
+   25-1), so the 16-bit multiplier code (uECC_MSP430_HWMULT == 16 on a CPUX device that is not
+   known to have only MPY16) waits one more cycle before an operand write that would follow
+   the OP2 write too soon. */
+#if uECC_MSP430_CPUX && (uECC_MSP430_HWMULT == 16) && \
+    !(defined(__MSP430_HAS_MPY__) && !defined(__MSP430_HAS_MPY32__))
+    #define uECC_MSP430_MPY16_GAP "nop"
+#else
+    #define uECC_MSP430_MPY16_GAP ""
+#endif
+
+/* Large memory model: registers that hold pointers are copied/changed with the 20-bit
+   address instructions (16-bit register writes clear bits 19:16), pointers and saved
+   registers take 4 bytes on the stack, and internal subroutines use CALLA/RETA. Plain
+   @Rn, @Rn+ and x(Rn) memory operands are fine for data above 64 KB, since no object
+   straddles 0x10000 (the interrupt vectors are at 0xFF80-0xFFFF). */
+#if uECC_MSP430_LARGE
+    #define uECC_MSP430_MOVA "mova"
+    #define uECC_MSP430_ADDA "adda"
+    #define uECC_MSP430_SUBA "suba"
+    #define uECC_MSP430_CMPA "cmpa"
+    #define uECC_MSP430_CALL "calla"
+    #define uECC_MSP430_RET  "reta"
+    #define uECC_MSP430_BR   "bra"
+    #define uECC_MSP430_PUSH(r) "pushm.a #1, " r " \n\t"
+    #define uECC_MSP430_POP(r)  "popm.a #1, " r " \n\t"
+    #define uECC_MSP430_PTR_SIZE 4
+#else
+    #define uECC_MSP430_MOVA "mov"
+    #define uECC_MSP430_ADDA "add"
+    #define uECC_MSP430_SUBA "sub"
+    #define uECC_MSP430_CMPA "cmp"
+    #define uECC_MSP430_CALL "call"
+    #define uECC_MSP430_RET  "ret"
+    #define uECC_MSP430_BR   "br"
+    #define uECC_MSP430_PUSH(r) "push " r " \n\t"
+    #define uECC_MSP430_POP(r)  "pop " r " \n\t"
+    #define uECC_MSP430_PTR_SIZE 2
+#endif
+#define uECC_MSP430_PS uECC_MSP430_STR(uECC_MSP430_PTR_SIZE)
 
 /* Brackets for asm that uses the hardware multiplier: save SR and disable interrupts (the
    nop covers the instruction after dint, which can still be interrupted), then restore SR,
    which returns GIE to its previous state. */
-#if (uECC_MSP430_HWMULT == 16) && uECC_MSP430_DISABLE_INTERRUPTS
+#if (uECC_MSP430_HWMULT != 0) && uECC_MSP430_DISABLE_INTERRUPTS
     #define uECC_MSP430_DINT "push r2 \n\t" "dint \n\t" "nop \n\t"
     #define uECC_MSP430_RINT "pop r2 \n\t"
 #else
@@ -98,7 +192,7 @@ static inline uint32_t uECC_msp430_mul16(uint16_t a, uint16_t b) {
    and at level 3 and up as the fallback for sizes without unrolled code (which only the
    uECC_ENABLE_VLI_API functions use, e.g. 11 words for the secp160r1 order). */
 
-#if (uECC_OPTIMIZATION_LEVEL >= 3) && (uECC_MSP430_HWMULT == 16)
+#if (uECC_OPTIMIZATION_LEVEL >= 3) && (uECC_MSP430_HWMULT != 0)
     #define uECC_MSP430_LOOPED(name) static void vli_##name##_loop
     #define uECC_MSP430_LOOPED_SQUARE uECC_ENABLE_VLI_API
 #else
@@ -121,7 +215,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    register uint16_t r12 __asm__("r12") = (uint16_t)result;
+    register uECC_word_t *r12 __asm__("r12") = result;
     register const uECC_word_t *r13 __asm__("r13") = left;
     register const uECC_word_t *r14 __asm__("r14") = right;
     register uint16_t r15 __asm__("r15") = (uint16_t)num_words;
@@ -133,7 +227,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "addc @r14+, r10 \n\t"
         "mov r10, 0(r12) \n\t"
         "adc r11 \n\t"          /* Save carry. */
-        "incd r12 \n\t"
+        uECC_MSP430_ADDA " #2, r12 \n\t"
         "dec r15 \n\t"
         "jnz 1b \n\t"
         "mov r11, r12 \n\t"
@@ -141,7 +235,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         :
         : "r10", "r11", "cc", "memory"
     );
-    return r12;
+    return (uECC_word_t)(uintptr_t)r12; /* r12 = the carry/borrow */
 }
 #define asm_add 1
 
@@ -151,7 +245,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    register uint16_t r12 __asm__("r12") = (uint16_t)result;
+    register uECC_word_t *r12 __asm__("r12") = result;
     register const uECC_word_t *r13 __asm__("r13") = left;
     register const uECC_word_t *r14 __asm__("r14") = right;
     register uint16_t r15 __asm__("r15") = (uint16_t)num_words;
@@ -163,7 +257,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "subc @r14+, r10 \n\t"
         "mov r10, 0(r12) \n\t"
         "adc r11 \n\t"
-        "incd r12 \n\t"
+        uECC_MSP430_ADDA " #2, r12 \n\t"
         "dec r15 \n\t"
         "jnz 1b \n\t"
         "mov #1, r12 \n\t"
@@ -172,7 +266,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         :
         : "r10", "r11", "cc", "memory"
     );
-    return r12;
+    return (uECC_word_t)(uintptr_t)r12; /* r12 = the carry/borrow */
 }
 #define asm_sub 1
 
@@ -201,18 +295,31 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
 #define asm_rshift1 1
 #endif /* (uECC_OPTIMIZATION_LEVEL < 2) */
 
-#if (uECC_MSP430_HWMULT == 16)
+#if (uECC_MSP430_HWMULT != 0)
 
-#if uECC_MSP430_LOOPED_MULT
+/* With MPY32 the 16-bit loops below are only used for an odd num_words (VLI API). */
+#if (uECC_MSP430_HWMULT == 32)
+    #define uECC_MSP430_LOOP16 (uECC_MSP430_LOOPED_MULT && uECC_ENABLE_VLI_API)
+    #define uECC_MSP430_MULT16_NAME static void vli_mult16_loop
+    #define uECC_MSP430_SQUARE16 (uECC_SQUARE_FUNC && uECC_ENABLE_VLI_API)
+    #define uECC_MSP430_SQUARE16_NAME static void vli_square16_loop
+#else
+    #define uECC_MSP430_LOOP16 uECC_MSP430_LOOPED_MULT
+    #define uECC_MSP430_MULT16_NAME uECC_MSP430_LOOPED_MULT_NAME
+    #define uECC_MSP430_SQUARE16 (uECC_SQUARE_FUNC && uECC_MSP430_LOOPED_SQUARE)
+    #define uECC_MSP430_SQUARE16_NAME uECC_MSP430_LOOPED(square)
+#endif
+
+#if uECC_MSP430_LOOP16
 /* Computes result = left * right. Product scanning: column k accumulates the products
    left[i] * right[k - i] in RESHI:RESLO with MAC, and the carries (SUMEXT) in r11; then
    RESLO is stored and the window shifts down one word. r13/r8 are the first left/right
    words of the column, r14 its number of products. */
 __attribute__((noinline))
-uECC_MSP430_LOOPED_MULT_NAME(uECC_word_t *result,
-                             const uECC_word_t *left,
-                             const uECC_word_t *right,
-                             wordcount_t num_words) {
+uECC_MSP430_MULT16_NAME(uECC_word_t *result,
+                        const uECC_word_t *left,
+                        const uECC_word_t *right,
+                        wordcount_t num_words) {
     register uECC_word_t *r12 __asm__("r12") = result;
     register const uECC_word_t *r13 __asm__("r13") = left;
     register const uECC_word_t *r14 __asm__("r14") = right;
@@ -223,38 +330,38 @@ uECC_MSP430_LOOPED_MULT_NAME(uECC_word_t *result,
         "rla r9 \n\t"
         "mov r9, r10 \n\t"
         "dec r10 \n\t"          /* r10 = 2n - 1 columns */
-        "add r14, r9 \n\t"
-        "decd r9 \n\t"          /* r9 = &right[n - 1] */
-        "mov r14, r8 \n\t"
+        uECC_MSP430_ADDA " r14, r9 \n\t"
+        uECC_MSP430_SUBA " #2, r9 \n\t"          /* r9 = &right[n - 1] */
+        uECC_MSP430_MOVA " r14, r8 \n\t"
         "mov #1, r14 \n\t"
         "clr r11 \n\t"
-        "mov #0x013E, r5 \n\t"   /* SUMEXT */
+        "mov " uECC_MSP430_SUMEXT_IMM ", r5 \n\t"
         "mov #0, " uECC_MSP430_RESLO " \n\t"
         "mov #0, " uECC_MSP430_RESHI " \n\t"
         "1: \n\t"
-        "mov r13, r7 \n\t"
-        "mov r8, r6 \n\t"
+        uECC_MSP430_MOVA " r13, r7 \n\t"
+        uECC_MSP430_MOVA " r8, r6 \n\t"
         "mov r14, r15 \n\t"
         "2: \n\t"
         "mov @r7+, " uECC_MSP430_MAC " \n\t"
         "mov @r6, " uECC_MSP430_OP2 " \n\t"
-        "decd r6 \n\t"        /* (not @r5 right after the OP2 write) */
+        uECC_MSP430_SUBA " #2, r6 \n\t"        /* (not @r5 right after the OP2 write) */
         "add @r5, r11 \n\t"
         "dec r15 \n\t"
         "jnz 2b \n\t"
         "mov " uECC_MSP430_RESLO ", 0(r12) \n\t"
-        "incd r12 \n\t"
+        uECC_MSP430_ADDA " #2, r12 \n\t"
         "mov " uECC_MSP430_RESHI ", " uECC_MSP430_RESLO " \n\t"
         "mov r11, " uECC_MSP430_RESHI " \n\t"
         "clr r11 \n\t"
         /* Next column: one more product until right[n - 1] is reached, then one fewer. */
-        "cmp r9, r8 \n\t"
+        uECC_MSP430_CMPA " r9, r8 \n\t"
         "jeq 3f \n\t"
-        "incd r8 \n\t"
+        uECC_MSP430_ADDA " #2, r8 \n\t"
         "inc r14 \n\t"
         "jmp 4f \n\t"
         "3: \n\t"
-        "incd r13 \n\t"
+        uECC_MSP430_ADDA " #2, r13 \n\t"
         "dec r14 \n\t"
         "4: \n\t"
         "dec r10 \n\t"
@@ -266,15 +373,15 @@ uECC_MSP430_LOOPED_MULT_NAME(uECC_word_t *result,
         : "r5", "r6", "r7", "r8", "r9", "r10", "r11", "cc", "memory"
     );
 }
-#endif /* uECC_MSP430_LOOPED_MULT */
+#endif /* uECC_MSP430_LOOP16 */
 
-#if uECC_SQUARE_FUNC && uECC_MSP430_LOOPED_SQUARE
+#if uECC_MSP430_SQUARE16
 /* Computes result = left^2. Product scanning as in uECC_vli_mult; each cross product
    left[i] * left[j] (i < j) is accumulated twice by writing OP2 twice. */
 __attribute__((noinline))
-uECC_MSP430_LOOPED(square)(uECC_word_t *result,
-                           const uECC_word_t *left,
-                           wordcount_t num_words) {
+uECC_MSP430_SQUARE16_NAME(uECC_word_t *result,
+                          const uECC_word_t *left,
+                          wordcount_t num_words) {
     register uECC_word_t *r12 __asm__("r12") = result;
     register const uECC_word_t *r13 __asm__("r13") = left;
     register uint16_t r14 __asm__("r14") = (uint16_t)num_words;
@@ -284,27 +391,27 @@ uECC_MSP430_LOOPED(square)(uECC_word_t *result,
         "rla r9 \n\t"
         "mov r9, r10 \n\t"
         "dec r10 \n\t"          /* r10 = 2n - 1 columns */
-        "add r13, r9 \n\t"
-        "decd r9 \n\t"          /* r9 = &left[n - 1] */
-        "mov r13, r8 \n\t"      /* r13/r8 = lowest/highest word of the column */
+        uECC_MSP430_ADDA " r13, r9 \n\t"
+        uECC_MSP430_SUBA " #2, r9 \n\t"          /* r9 = &left[n - 1] */
+        uECC_MSP430_MOVA " r13, r8 \n\t"      /* r13/r8 = lowest/highest word of the column */
         "clr r11 \n\t"
-        "mov #0x013E, r5 \n\t"   /* SUMEXT */
+        "mov " uECC_MSP430_SUMEXT_IMM ", r5 \n\t"
         "mov #0, " uECC_MSP430_RESLO " \n\t"
         "mov #0, " uECC_MSP430_RESHI " \n\t"
         "1: \n\t"
-        "mov r13, r7 \n\t"
-        "mov r8, r6 \n\t"
-        "cmp r6, r7 \n\t"
+        uECC_MSP430_MOVA " r13, r7 \n\t"
+        uECC_MSP430_MOVA " r8, r6 \n\t"
+        uECC_MSP430_CMPA " r6, r7 \n\t"
         "jhs 3f \n\t"
         "2: \n\t"               /* Cross products, while r7 < r6. */
         "mov @r7+, " uECC_MSP430_MAC " \n\t"
         "mov @r6, r15 \n\t"
         "mov r15, " uECC_MSP430_OP2 " \n\t"
-        "decd r6 \n\t"
+        uECC_MSP430_SUBA " #2, r6 \n\t"
         "add @r5, r11 \n\t"
         "mov r15, " uECC_MSP430_OP2 " \n\t"
         "add " uECC_MSP430_SUMEXT ", r11 \n\t"
-        "cmp r6, r7 \n\t"
+        uECC_MSP430_CMPA " r6, r7 \n\t"
         "jlo 2b \n\t"
         "3: \n\t"
         "jne 4f \n\t"           /* Even column: add the square term. */
@@ -313,16 +420,16 @@ uECC_MSP430_LOOPED(square)(uECC_word_t *result,
         "add " uECC_MSP430_SUMEXT ", r11 \n\t"
         "4: \n\t"
         "mov " uECC_MSP430_RESLO ", 0(r12) \n\t"
-        "incd r12 \n\t"
+        uECC_MSP430_ADDA " #2, r12 \n\t"
         "mov " uECC_MSP430_RESHI ", " uECC_MSP430_RESLO " \n\t"
         "mov r11, " uECC_MSP430_RESHI " \n\t"
         "clr r11 \n\t"
-        "cmp r9, r8 \n\t"
+        uECC_MSP430_CMPA " r9, r8 \n\t"
         "jeq 5f \n\t"
-        "incd r8 \n\t"
+        uECC_MSP430_ADDA " #2, r8 \n\t"
         "jmp 6f \n\t"
         "5: \n\t"
-        "incd r13 \n\t"
+        uECC_MSP430_ADDA " #2, r13 \n\t"
         "6: \n\t"
         "dec r10 \n\t"
         "jnz 1b \n\t"
@@ -333,7 +440,112 @@ uECC_MSP430_LOOPED(square)(uECC_word_t *result,
         : "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r15", "cc", "memory"
     );
 }
-#endif /* uECC_SQUARE_FUNC && uECC_MSP430_LOOPED_SQUARE */
+#endif /* uECC_MSP430_SQUARE16 */
+
+#if (uECC_MSP430_HWMULT == 32) && uECC_MSP430_LOOPED_MULT
+/* result = left * right for an even num_words, with MPY32: product scanning on 32-bit
+   digits. RES3:RES0 accumulates column k (MAC32) on top of the carried-in window, r11
+   counts the carries out of RES (SUMEXT); then RES1:RES0 is stored and RES shifts down
+   32 bits. A 32x32 result and SUMEXT are complete 6 cycles after the OP2H write; SUMEXT
+   is read in the 2nd cycle of the add, so 4 cycles are spent before it. */
+__attribute__((noinline))
+static void vli_mult32_loop(uECC_word_t *result,
+                            const uECC_word_t *left,
+                            const uECC_word_t *right,
+                            wordcount_t num_words) {
+    register uECC_word_t *r12 __asm__("r12") = result;
+    register const uECC_word_t *r13 __asm__("r13") = left;
+    register const uECC_word_t *r14 __asm__("r14") = right;
+    register uint16_t r15 __asm__("r15") = (uint16_t)num_words;
+    __asm__ volatile (
+        uECC_MSP430_DINT
+        "mov r15, r9 \n\t"
+        "rla r9 \n\t"
+        "mov r15, r10 \n\t"
+        "dec r10 \n\t"          /* r10 = 2d - 1 columns (d = n / 2 digits) */
+        uECC_MSP430_ADDA " r14, r9 \n\t"
+        uECC_MSP430_SUBA " #4, r9 \n\t"          /* r9 = &right digit d - 1 */
+        uECC_MSP430_MOVA " r14, r8 \n\t"
+        "mov #1, r14 \n\t"
+        "clr r11 \n\t"
+        "mov #0, " uECC_MSP430_RES0 " \n\t"
+        "mov #0, " uECC_MSP430_RES1 " \n\t"
+        "mov #0, " uECC_MSP430_RES2 " \n\t"
+        "mov #0, " uECC_MSP430_RES3 " \n\t"
+        "1: \n\t"
+        uECC_MSP430_MOVA " r13, r7 \n\t"
+        uECC_MSP430_MOVA " r8, r6 \n\t"
+        "mov r14, r15 \n\t"
+        "2: \n\t"
+        "mov @r7+, " uECC_MSP430_MAC32L " \n\t"
+        "mov @r7+, " uECC_MSP430_MAC32H " \n\t"
+        "mov 0(r6), " uECC_MSP430_OP2L " \n\t"
+        "mov 2(r6), " uECC_MSP430_OP2H " \n\t"
+        uECC_MSP430_SUBA " #4, r6 \n\t"
+        "nop \n\t"
+        "nop \n\t"
+        "add " uECC_MSP430_SUMEXT ", r11 \n\t"
+        "dec r15 \n\t"
+        "jnz 2b \n\t"
+        "mov " uECC_MSP430_RES0 ", 0(r12) \n\t"
+        "mov " uECC_MSP430_RES1 ", 2(r12) \n\t"
+        uECC_MSP430_ADDA " #4, r12 \n\t"
+        "mov " uECC_MSP430_RES2 ", " uECC_MSP430_RES0 " \n\t"
+        "mov " uECC_MSP430_RES3 ", " uECC_MSP430_RES1 " \n\t"
+        "mov r11, " uECC_MSP430_RES2 " \n\t"
+        "mov #0, " uECC_MSP430_RES3 " \n\t"
+        "clr r11 \n\t"
+        /* Next column: one more product until right digit d - 1 is reached, then one
+           fewer. */
+        uECC_MSP430_CMPA " r9, r8 \n\t"
+        "jeq 3f \n\t"
+        uECC_MSP430_ADDA " #4, r8 \n\t"
+        "inc r14 \n\t"
+        "jmp 4f \n\t"
+        "3: \n\t"
+        uECC_MSP430_ADDA " #4, r13 \n\t"
+        "dec r14 \n\t"
+        "4: \n\t"
+        "dec r10 \n\t"
+        "jnz 1b \n\t"
+        "mov " uECC_MSP430_RES0 ", 0(r12) \n\t"
+        "mov " uECC_MSP430_RES1 ", 2(r12) \n\t"
+        uECC_MSP430_RINT
+        : "+r" (r12), "+r" (r13), "+r" (r14), "+r" (r15)
+        :
+        : "r6", "r7", "r8", "r9", "r10", "r11", "cc", "memory"
+    );
+}
+
+/* Computes result = left * right (32-bit digits; an odd size uses the 16-bit loop). */
+uECC_MSP430_LOOPED_MULT_NAME(uECC_word_t *result,
+                             const uECC_word_t *left,
+                             const uECC_word_t *right,
+                             wordcount_t num_words) {
+#if uECC_ENABLE_VLI_API
+    if (num_words & 1) {
+        vli_mult16_loop(result, left, right, num_words);
+        return;
+    }
+#endif
+    vli_mult32_loop(result, left, right, num_words);
+}
+
+#if uECC_SQUARE_FUNC && uECC_MSP430_LOOPED_SQUARE
+/* Computes result = left^2, as left * left. */
+uECC_MSP430_LOOPED(square)(uECC_word_t *result,
+                           const uECC_word_t *left,
+                           wordcount_t num_words) {
+#if uECC_ENABLE_VLI_API
+    if (num_words & 1) {
+        vli_square16_loop(result, left, num_words);
+        return;
+    }
+#endif
+    vli_mult32_loop(result, left, left, num_words);
+}
+#endif
+#endif /* (uECC_MSP430_HWMULT == 32) && uECC_MSP430_LOOPED_MULT */
 
 #else /* uECC_MSP430_HWMULT == 0 */
 
@@ -352,19 +564,19 @@ uECC_MSP430_LOOPED_MULT_NAME(uECC_word_t *result,
     register uint16_t r15 __asm__("r15") = (uint16_t)num_words;
     __asm__ volatile (
         "push r15 \n\t"         /* row count */
-        "mov r12, r11 \n\t"     /* Clear result[0..n-1]. */
+        uECC_MSP430_MOVA " r12, r11 \n\t"     /* Clear result[0..n-1]. */
         "mov r15, r10 \n\t"
         "1: \n\t"
         "mov #0, 0(r11) \n\t"
-        "incd r11 \n\t"
+        uECC_MSP430_ADDA " #2, r11 \n\t"
         "dec r10 \n\t"
         "jnz 1b \n\t"
         "rla r15 \n\t"
-        "add r14, r15 \n\t"     /* r15 = end of right */
+        uECC_MSP430_ADDA " r14, r15 \n\t"     /* r15 = end of right */
         "2: \n\t"
         "mov @r13+, r6 \n\t"    /* a = left[i] */
-        "mov r14, r10 \n\t"
-        "mov r12, r11 \n\t"
+        uECC_MSP430_MOVA " r14, r10 \n\t"
+        uECC_MSP430_MOVA " r12, r11 \n\t"
         "clr r8 \n\t"
         "3: \n\t"
         "mov @r10+, r7 \n\t"
@@ -372,14 +584,14 @@ uECC_MSP430_LOOPED_MULT_NAME(uECC_word_t *result,
         "add 0(r11), r7 \n\t"
         "adc r8 \n\t"
         "mov r7, 0(r11) \n\t"
-        "incd r11 \n\t"
-        "cmp r15, r10 \n\t"
+        uECC_MSP430_ADDA " #2, r11 \n\t"
+        uECC_MSP430_CMPA " r15, r10 \n\t"
         "jne 3b \n\t"
         "mov r8, 0(r11) \n\t"
-        "incd r12 \n\t"
+        uECC_MSP430_ADDA " #2, r12 \n\t"
         "dec 0(r1) \n\t"
         "jnz 2b \n\t"
-        "incd r1 \n\t"
+        uECC_MSP430_ADDA " #2, r1 \n\t"
         : "+r" (r12), "+r" (r13), "+r" (r14), "+r" (r15)
         :
         : "r6", "r7", "r8", "r9", "r10", "r11", "cc", "memory"
@@ -399,28 +611,28 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     register const uECC_word_t *r13 __asm__("r13") = left;
     register uint16_t r14 __asm__("r14") = (uint16_t)num_words;
     __asm__ volatile (
-        "mov r12, r11 \n\t"     /* Clear result. */
-        "mov r14, r10 \n\t"
+        uECC_MSP430_MOVA " r12, r11 \n\t"     /* Clear result. */
+        uECC_MSP430_MOVA " r14, r10 \n\t"
         "rla r10 \n\t"
         "1: \n\t"
         "mov #0, 0(r11) \n\t"
-        "incd r11 \n\t"
+        uECC_MSP430_ADDA " #2, r11 \n\t"
         "dec r10 \n\t"
         "jnz 1b \n\t"
         "mov r14, r15 \n\t"
         "rla r15 \n\t"
-        "add r13, r15 \n\t"     /* r15 = end of left */
-        "push r13 \n\t"
-        "push r12 \n\t"
-        "incd r12 \n\t"         /* row i starts at result[2i + 1] */
-        "mov r13, r9 \n\t"
-        "incd r9 \n\t"
-        "cmp r15, r9 \n\t"
+        uECC_MSP430_ADDA " r13, r15 \n\t"     /* r15 = end of left */
+        uECC_MSP430_PUSH("r13")
+        uECC_MSP430_PUSH("r12")
+        uECC_MSP430_ADDA " #2, r12 \n\t"         /* row i starts at result[2i + 1] */
+        uECC_MSP430_MOVA " r13, r9 \n\t"
+        uECC_MSP430_ADDA " #2, r9 \n\t"
+        uECC_MSP430_CMPA " r15, r9 \n\t"
         "jeq 4f \n\t"           /* n == 1: no cross products */
         "2: \n\t"
         "mov @r13+, r6 \n\t"    /* a = left[i] */
-        "mov r13, r10 \n\t"
-        "mov r12, r11 \n\t"
+        uECC_MSP430_MOVA " r13, r10 \n\t"
+        uECC_MSP430_MOVA " r12, r11 \n\t"
         "clr r8 \n\t"
         "3: \n\t"
         "mov @r10+, r7 \n\t"
@@ -428,18 +640,18 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "add 0(r11), r7 \n\t"
         "adc r8 \n\t"
         "mov r7, 0(r11) \n\t"
-        "incd r11 \n\t"
-        "cmp r15, r10 \n\t"
+        uECC_MSP430_ADDA " #2, r11 \n\t"
+        uECC_MSP430_CMPA " r15, r10 \n\t"
         "jne 3b \n\t"
         "mov r8, 0(r11) \n\t"
-        "add #4, r12 \n\t"
-        "mov r13, r9 \n\t"
-        "incd r9 \n\t"
-        "cmp r15, r9 \n\t"
+        uECC_MSP430_ADDA " #4, r12 \n\t"
+        uECC_MSP430_MOVA " r13, r9 \n\t"
+        uECC_MSP430_ADDA " #2, r9 \n\t"
+        uECC_MSP430_CMPA " r15, r9 \n\t"
         "jne 2b \n\t"
         "4: \n\t"
-        "pop r11 \n\t"          /* result */
-        "pop r13 \n\t"          /* left */
+        uECC_MSP430_POP("r11")   /* result */
+        uECC_MSP430_POP("r13")   /* left */
         "clr r12 \n\t"
         "clr r14 \n\t"
         "5: \n\t"
@@ -459,8 +671,8 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "adc r14 \n\t"
         "mov r10, 0(r11) \n\t"
         "mov r5, 2(r11) \n\t"
-        "add #4, r11 \n\t"
-        "cmp r15, r13 \n\t"
+        uECC_MSP430_ADDA " #4, r11 \n\t"
+        uECC_MSP430_CMPA " r15, r13 \n\t"
         "jne 5b \n\t"
         : "+r" (r12), "+r" (r13), "+r" (r14)
         :
@@ -503,14 +715,13 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 /* The chains below have uECC_MAX_WORDS elements. With several sizes (always with
    secp160r1, whose order n has 11 words), they are entered at the element for num_words
    by a computed branch. */
-#define uECC_MSP430_STR2(a) #a
-#define uECC_MSP430_STR(a) uECC_MSP430_STR2(a)
 #if (uECC_MIN_WORDS == uECC_MAX_WORDS)
     #define uECC_MSP430_ONE_SIZE 1
 #else
     #define uECC_MSP430_ONE_SIZE 0
 #endif
 
+#if !uECC_MSP430_LARGE
 /* result[i] = left[i] op right[i] for every word: 8 bytes, 8 cycles per element. The
    result offsets are fixed, so for num_words < uECC_MAX_WORDS r12 is moved down by
    2 * (uECC_MAX_WORDS - num_words). */
@@ -540,13 +751,46 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "2: \n\t"
 #endif
 
+#else /* uECC_MSP430_LARGE */
+/* As above, but the result offsets are negative, from r12 = &result[num_words] (moving
+   r12 below result could cross 0x10000 and wrap). */
+#define uECC_MSP430_ADDSUB_CHAIN(op) \
+    ".set .Luecc_off, -2 * " uECC_MSP430_STR(uECC_MAX_WORDS) " \n\t" \
+    ".rept " uECC_MSP430_STR(uECC_MAX_WORDS) " \n\t" \
+    "mov @r13+, r11 \n\t" \
+    op " @r14+, r11 \n\t" \
+    "mov r11, .Luecc_off(r12) \n\t" \
+    ".set .Luecc_off, .Luecc_off + 2 \n\t" \
+    ".endr \n\t"
+
+#if uECC_MSP430_ONE_SIZE
+    #define uECC_MSP430_ADDSUB_ENTER(flag) \
+        "adda #2 * " uECC_MSP430_STR(uECC_MAX_WORDS) ", r12 \n\t" \
+        flag " \n\t"
+#else
+    #define uECC_MSP430_ADDSUB_ENTER(flag) \
+        "mov r15, r11 \n\t" \
+        "rla r11 \n\t" \
+        "adda r11, r12 \n\t" \
+        "mov #" uECC_MSP430_STR(uECC_MAX_WORDS) ", r11 \n\t" \
+        "sub r15, r11 \n\t" \
+        "rla r11 \n\t" \
+        "rla r11 \n\t" \
+        "rla r11 \n\t" \
+        "adda #2f, r11 \n\t" \
+        flag " \n\t" \
+        "bra r11 \n\t" \
+        "2: \n\t"
+#endif
+#endif /* uECC_MSP430_LARGE */
+
 /* Computes result = left + right, returning carry. Can modify in place. */
 __attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    register uint16_t r12 __asm__("r12") = (uint16_t)result;
+    register uECC_word_t *r12 __asm__("r12") = result;
     register const uECC_word_t *r13 __asm__("r13") = left;
     register const uECC_word_t *r14 __asm__("r14") = right;
     register uint16_t r15 __asm__("r15") = (uint16_t)num_words;
@@ -559,7 +803,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         :
         : "r11", "cc", "memory"
     );
-    return r12;
+    return (uECC_word_t)(uintptr_t)r12; /* r12 = the carry/borrow */
 }
 #define asm_add 1
 
@@ -569,7 +813,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    register uint16_t r12 __asm__("r12") = (uint16_t)result;
+    register uECC_word_t *r12 __asm__("r12") = result;
     register const uECC_word_t *r13 __asm__("r13") = left;
     register const uECC_word_t *r14 __asm__("r14") = right;
     register uint16_t r15 __asm__("r15") = (uint16_t)num_words;
@@ -582,7 +826,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         :
         : "r11", "cc", "memory"
     );
-    return r12;
+    return (uECC_word_t)(uintptr_t)r12; /* r12 = the carry/borrow */
 }
 #define asm_sub 1
 
@@ -594,16 +838,23 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     register uECC_word_t *r12 __asm__("r12") = vli;
     register uint16_t r13 __asm__("r13") = (uint16_t)num_words;
     __asm__ volatile (
-    #if !uECC_MSP430_ONE_SIZE
+    #if !uECC_MSP430_ONE_SIZE && uECC_MSP430_LARGE
+        "rla r13 \n\t"
+        "rla r13 \n\t"
+        "mova #3f + 4 * " uECC_MSP430_STR(uECC_MAX_WORDS) ", r14 \n\t"
+        "suba r13, r14 \n\t" /* r14 = 3: + 4 * (MAX - num_words) */
+        "clrc \n\t"
+        "bra r14 \n\t"
+    #elif !uECC_MSP430_ONE_SIZE
         "rla r13 \n\t"
         "rla r13 \n\t"
         "sub #3f + 4 * " uECC_MSP430_STR(uECC_MAX_WORDS) ", r13 \n\t"
         "inv r13 \n\t"
         "inc r13 \n\t"    /* r13 = 3: + 4 * (MAX - num_words) */
-    #endif
         "clrc \n\t"
-    #if !uECC_MSP430_ONE_SIZE
         "br r13 \n\t"
+    #else
+        "clrc \n\t"
     #endif
         "3: \n\t"
         ".set .Luecc_off, " uECC_MSP430_STR(uECC_MAX_WORDS) " * 2 - 2 \n\t"
@@ -614,7 +865,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         "2: \n\t"
         : "+r" (r12), "+r" (r13)
         :
-        : "cc", "memory"
+        : "r14", "cc", "memory"
     );
 }
 #define asm_rshift1 1
@@ -630,7 +881,11 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
    asm_msp430_mult_square.inc); squaring keeps the looped symmetric version. */
 #include "asm_msp430_mult_square.inc"
 
-#if (uECC_MSP430_HWMULT == 16)
+#if (uECC_MSP430_HWMULT == 32)
+    #define uECC_MSP430_MULT(N) uECC_MSP430_MULT32_##N
+    /* Symmetric squaring (about half the 32x32 products). */
+    #define uECC_MSP430_SQUARE(N) uECC_MSP430_SQUARE32_##N
+#elif (uECC_MSP430_HWMULT != 0)
     #define uECC_MSP430_MULT(N) uECC_MSP430_MULT_##N
     #define uECC_MSP430_SQUARE(N) uECC_MSP430_SQUARE_##N
 #elif (uECC_OPTIMIZATION_LEVEL >= 4)
@@ -648,11 +903,11 @@ static void vli_mult_##N(uECC_word_t *result, const uECC_word_t *left, \
     register const uECC_word_t *r13 __asm__("r13") = left; \
     register const uECC_word_t *r14 __asm__("r14") = right; \
     __asm__ volatile ( \
-        "push r4 \n\t" \
+        uECC_MSP430_PUSH("r4") \
         uECC_MSP430_DINT \
         uECC_MSP430_MULT(N) \
         uECC_MSP430_RINT \
-        "pop r4 \n\t" \
+        uECC_MSP430_POP("r4") \
         : "+r" (r12), "+r" (r13), "+r" (r14) \
         : \
         : "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r15", "cc", "memory" \
@@ -665,11 +920,11 @@ static void vli_square_##N(uECC_word_t *result, const uECC_word_t *left) { \
     register uECC_word_t *r12 __asm__("r12") = result; \
     register const uECC_word_t *r13 __asm__("r13") = left; \
     __asm__ volatile ( \
-        "push r4 \n\t" \
+        uECC_MSP430_PUSH("r4") \
         uECC_MSP430_DINT \
         uECC_MSP430_SQUARE(N) \
         uECC_MSP430_RINT \
-        "pop r4 \n\t" \
+        uECC_MSP430_POP("r4") \
         : "+r" (r12), "+r" (r13) \
         : \
         : "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r14", "r15", "cc", "memory" \
@@ -724,7 +979,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 }
 #define asm_mult 1
 
-#if uECC_SQUARE_FUNC && (uECC_MSP430_HWMULT == 16)
+#if uECC_SQUARE_FUNC && (uECC_MSP430_HWMULT != 0)
 #if uECC_SUPPORTS_secp160r1
 uECC_MSP430_SQUARE_FN(10)
 #endif
@@ -771,7 +1026,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 #endif
 }
 #define asm_square 1
-#endif /* uECC_SQUARE_FUNC && (uECC_MSP430_HWMULT == 16) */
+#endif /* uECC_SQUARE_FUNC && (uECC_MSP430_HWMULT != 0) */
 
 #endif /* (uECC_OPTIMIZATION_LEVEL >= 3) */
 
@@ -802,7 +1057,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         (acc) = (int32_t)(((uint32_t)s_ << 16) | hi_); \
     } while (0)
 
-#if (uECC_MSP430_HWMULT == 16)
+#if (uECC_MSP430_HWMULT != 0)
 #if uECC_MSP430_DISABLE_INTERRUPTS
     #define S14_GIE_OFF "push r2 \n\t dint \n\t nop \n\t"
     #define S14_GIE_ON "pop r2 \n\t nop \n\t"
@@ -816,10 +1071,10 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         uint16_t lo_ = (uint16_t)(acc), hi_ = (uint16_t)((uint32_t)(acc) >> 16); \
         __asm__ volatile ( \
             S14_GIE_OFF \
-            "mov %2, &0x0132 \n\t" \
-            "mov %3, &0x0138 \n\t" \
-            "add &0x013A, %0 \n\t" \
-            "addc &0x013C, %1 \n\t" \
+            "mov %2, " uECC_MSP430_MPYS " \n\t" \
+            "mov %3, " uECC_MSP430_OP2 " \n\t" \
+            "add " uECC_MSP430_RESLO ", %0 \n\t" \
+            "addc " uECC_MSP430_RESHI ", %1 \n\t" \
             S14_GIE_ON \
             : "+r" (lo_), "+r" (hi_) \
             : "r" ((int16_t)(a)), "r" ((int16_t)(b)) \
@@ -836,8 +1091,8 @@ static int32_t s14_mul_msp430(int16_t a, int16_t b) {
     register uint16_t r14 __asm__("r14");
     register uint16_t r15 __asm__("r15");
     __asm__ (
-        "push r9 \n\t"
-        "push r10 \n\t"
+        uECC_MSP430_PUSH("r9")
+        uECC_MSP430_PUSH("r10")
         /* r11 = sign of a; product = 0. */
         "mov r12, r11 \n\t"
         "rla r11 \n\t"
@@ -1019,8 +1274,8 @@ static int32_t s14_mul_msp430(int16_t a, int16_t b) {
         "and r11, r10 \n\t"
         "sub r9, r14 \n\t"
         "subc r10, r15 \n\t"
-        "pop r10 \n\t"
-        "pop r9 \n\t"
+        uECC_MSP430_POP("r10")
+        uECC_MSP430_POP("r9")
         : "+r" (r12), "+r" (r13), "=&r" (r14), "=&r" (r15)
         :
         : "r11", "cc"
