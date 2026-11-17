@@ -631,7 +631,6 @@
     "sbc r6, r27 \n\t" \
     "sbc r0, r0 \n\t" \
     "bst r0, 0 \n\t" \
-    "clr r22 \n\t" \
     /* Compute H + (l5,l6,l7,l8,l9). */ \
     "mul r23, r14 \n\t" \
     "movw r28, r0 \n\t" \
@@ -1002,10 +1001,6 @@
     "sbc r24, r0 \n\t" \
     "sbc r25, r0 \n\t" \
     "sbc r16, r0 \n\t" \
-    "std z+1, r12 \n\t" \
-    "std z+2, r13 \n\t" \
-    "std z+3, r14 \n\t" \
-    "std z+4, r15 \n\t" \
     "std z+5, r16 \n\t" \
     /* Level 1: subtract b0-b9. */ \
     "ldd r7, y+0 \n\t" \
@@ -1331,7 +1326,6 @@
     "adc r15, r30 \n\t" \
     "mul r2, r11 \n\t" \
     "mov r16, r0 \n\t" \
-    "clr r27 \n\t" \
     "mov r27, r1 \n\t" \
     "mul r2, r10 \n\t" \
     "add r15, r0 \n\t" \
@@ -2448,7 +2442,6 @@
     "adc r24, r1 \n\t" \
     "adc r25, r6 \n\t" \
     "adc r7, r31 \n\t" \
-    "clr r6 \n\t" \
     "mul r8, r18 \n\t" \
     "add r24, r0 \n\t" \
     "adc r25, r1 \n\t" \
@@ -3676,7 +3669,6 @@
     "add r23, r0 \n\t" \
     "adc r24, r1 \n\t" \
     "mov r16, r23 \n\t" \
-    "clr r25 \n\t" \
     "add r24, r17 \n\t" \
     "adc r25, r26 \n\t" \
     "mul r2, r10 \n\t" \
@@ -5766,7 +5758,6 @@
     "mul r20, r25 \n\t" \
     "add r26, r29 \n\t" \
     "adc r27, r0 \n\t" \
-    "clr r18 \n\t" \
     "adc r18, r1 \n\t" \
     "mul r20, r24 \n\t" \
     "movw r28, r0 \n\t" \
@@ -6268,7 +6259,6 @@
     "adc r24, r1 \n\t" \
     "adc r25, r6 \n\t" \
     "adc r7, r31 \n\t" \
-    "clr r6 \n\t" \
     "mul r8, r18 \n\t" \
     "add r24, r0 \n\t" \
     "adc r25, r1 \n\t" \
@@ -6906,7 +6896,6 @@
     "adc r24, r1 \n\t" \
     "adc r25, r6 \n\t" \
     "adc r7, r31 \n\t" \
-    "clr r6 \n\t" \
     "mul r8, r18 \n\t" \
     "add r24, r0 \n\t" \
     "adc r25, r1 \n\t" \
@@ -7810,7 +7799,6 @@
     "adc r24, r1 \n\t" \
     "adc r25, r6 \n\t" \
     "adc r7, r31 \n\t" \
-    "clr r6 \n\t" \
     "mul r8, r18 \n\t" \
     "add r24, r0 \n\t" \
     "adc r25, r1 \n\t" \
@@ -9219,7 +9207,6 @@
     "mul r20, r25 \n\t" \
     "add r26, r29 \n\t" \
     "adc r27, r0 \n\t" \
-    "clr r18 \n\t" \
     "adc r18, r1 \n\t" \
     "mul r20, r24 \n\t" \
     "movw r28, r0 \n\t" \
@@ -10347,7 +10334,6 @@
     "mul r20, r25 \n\t" \
     "add r26, r29 \n\t" \
     "adc r27, r0 \n\t" \
-    "clr r18 \n\t" \
     "adc r18, r1 \n\t" \
     "mul r20, r24 \n\t" \
     "movw r28, r0 \n\t" \
@@ -11590,7 +11576,6 @@
     "ldd r15, y+14 \n\t" \
     "ldd r16, y+15 \n\t" \
     "ldd r17, y+16 \n\t" \
-    "sbiw r28, 25 \n\t" \
     "sub r6, r10 \n\t" \
     "sbc r7, r11 \n\t" \
     "sbc r8, r12 \n\t" \
@@ -12060,7 +12045,6 @@
     /* Process sign bit. */ \
     "ldd r0, y+9 \n\t" \
     "com r0 \n\t" \
-    "sbiw r28, 8 \n\t" \
     "mov r1, r0 \n\t" \
     "asr r1 \n\t" \
     /* Invert all bits or do nothing. */ \
@@ -12390,7 +12374,6 @@
     "st z+, r22 \n\t" \
     "mul r2, r4 \n\t" \
     "movw r28, r0 \n\t" \
-    "clr r26 \n\t" \
     "lsl r28 \n\t" \
     "rol r29 \n\t" \
     "rol r26 \n\t" \
@@ -13590,7 +13573,6 @@
     "st z+, r22 \n\t" \
     "mul r2, r4 \n\t" \
     "movw r28, r0 \n\t" \
-    "clr r26 \n\t" \
     "lsl r28 \n\t" \
     "rol r29 \n\t" \
     "rol r26 \n\t" \
@@ -15137,24 +15119,8 @@
     "in r28, __SP_L__ \n\t" \
     "in r29, __SP_H__ \n\t" \
     /* Z = result. Add L + H - M to result[14..41]. */ \
-    "movw r26, r28 \n\t" \
-    "adiw r26, 1 \n\t" \
     "ldd r31, y+29 \n\t" \
     "ldd r30, y+30 \n\t" \
-    "ldd r2, z+14 \n\t" \
-    "ldd r3, z+15 \n\t" \
-    "ldd r4, z+16 \n\t" \
-    "ldd r5, z+17 \n\t" \
-    "ldd r6, z+18 \n\t" \
-    "ldd r7, z+19 \n\t" \
-    "ldd r8, z+20 \n\t" \
-    "ldd r9, z+21 \n\t" \
-    "ldd r10, z+22 \n\t" \
-    "ldd r11, z+23 \n\t" \
-    "ldd r12, z+24 \n\t" \
-    "ldd r13, z+25 \n\t" \
-    "ldd r14, z+26 \n\t" \
-    "ldd r15, z+27 \n\t" \
     "ldd r2, z+14 \n\t" \
     "ldd r3, z+15 \n\t" \
     "ldd r4, z+16 \n\t" \
@@ -16103,26 +16069,8 @@
     "in r28, __SP_L__ \n\t" \
     "in r29, __SP_H__ \n\t" \
     /* Z = result. Add L + H - M to result[16..47]. */ \
-    "movw r26, r28 \n\t" \
-    "adiw r26, 1 \n\t" \
     "ldd r31, y+33 \n\t" \
     "ldd r30, y+34 \n\t" \
-    "ldd r2, z+16 \n\t" \
-    "ldd r3, z+17 \n\t" \
-    "ldd r4, z+18 \n\t" \
-    "ldd r5, z+19 \n\t" \
-    "ldd r6, z+20 \n\t" \
-    "ldd r7, z+21 \n\t" \
-    "ldd r8, z+22 \n\t" \
-    "ldd r9, z+23 \n\t" \
-    "ldd r10, z+24 \n\t" \
-    "ldd r11, z+25 \n\t" \
-    "ldd r12, z+26 \n\t" \
-    "ldd r13, z+27 \n\t" \
-    "ldd r14, z+28 \n\t" \
-    "ldd r15, z+29 \n\t" \
-    "ldd r16, z+30 \n\t" \
-    "ldd r17, z+31 \n\t" \
     "ldd r2, z+16 \n\t" \
     "ldd r3, z+17 \n\t" \
     "ldd r4, z+18 \n\t" \

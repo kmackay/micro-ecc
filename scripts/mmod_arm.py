@@ -6,9 +6,6 @@ out = []
 def emit(s=""):
     out.append(s)
 
-def asm_lines(lines, indent="        "):
-    return "\n".join(f'{indent}"{l} \\n\\t"' for l in lines)
-
 def func(name, comment, body, clobbers):
     """Emits one vli_mmod_fast_<name>() wrapper around the asm body. Body items
     starting with "#" are emitted as preprocessor lines, "/*" as comments, and
@@ -121,15 +118,6 @@ def finish(fold, c2, x, t, u, undo=None):
               f"mvn {c2}, {t}, asr #31"]
     lines += (undo or fold)(c2)
     return lines
-
-def wrap(lines):  # Unused.
-    res = []
-    for l in lines:
-        if l.startswith("/*"):
-            res.append(l)
-        else:
-            res.append(l)
-    return res
 
 # ===========================================================================
 # secp256r1: result = t + 2 s1 + 2 s2 + s3 + s4 - d1 - d2 - d3 - d4
@@ -311,7 +299,6 @@ def p224():
 # ===========================================================================
 def p192():
     R = ["r2", "r3", "r4", "r5", "r6", "r7"]
-    A = ["r8", "r9", "r10", "r11", "r12", "r14"]
     body = ["/* r = t = product[0..5]; a0..a5 = product[6..11] -> r8-r12, r14. */",
             "ldm r1!, {r2-r7}",
             "ldm r1, {r8-r12, r14}",
@@ -330,19 +317,21 @@ def p192():
             "/* Fold carry: r += c * (2^64 + 1). */"]
     s, t, x, u = "r8", "r9", "r10", "r11"
     # Adds the words [c, s, c + s, s, s, s]; carry out replaces cr. Also used
-    # with cr = -1 for the undo step (adds p).
-    def fold(cr):
-        return [f"asr {s}, {cr}, #31",
-                f"add {t}, {cr}, {s}",
+    # with the mask cr in {0, -1} for the undo step (adds p): then s = cr and
+    # the carry out is not needed.
+    def fold(cr, undo=False):
+        sv = cr if undo else s
+        return ([] if undo else [f"asr {s}, {cr}, #31"]) + [
+                f"add {t}, {cr}, {sv}",
                 f"adds {R[0]}, {R[0]}, {cr}",
-                f"adcs {R[1]}, {R[1]}, {s}",
+                f"adcs {R[1]}, {R[1]}, {sv}",
                 f"adcs {R[2]}, {R[2]}, {t}",
-                f"adcs {R[3]}, {R[3]}, {s}",
-                f"adcs {R[4]}, {R[4]}, {s}",
-                f"adcs {R[5]}, {R[5]}, {s}",
-                f"adc {cr}, {s}, #0"]
+                f"adcs {R[3]}, {R[3]}, {sv}",
+                f"adcs {R[4]}, {R[4]}, {sv}",
+                f"adcs {R[5]}, {R[5]}, {sv}"] + ([] if undo else [
+                f"adc {cr}, {s}, #0"])
     body += fold("r1")
-    body += finish(fold, "r1", x, t, u)
+    body += finish(fold, "r1", x, t, u, lambda m: fold(m, True))
     body += ["stm r0, {r2-r7}"]
     func("secp192r1",
          "/* Computes result = product % p (secp192r1), constant time.\n"
@@ -383,17 +372,19 @@ def p160():
              "adcs r5, r5, #0", "adcs r6, r6, #0",
              "adc r12, r12, #0"]
     s, t, x, u = "r7", "r8", "r9", "r10"
-    # For cr in {-1, 0, 1}: adds the words [c + (c << 31), s, s, s, s].
-    def fold(cr):
-        return [f"asr {s}, {cr}, #31",
+    # For cr in {-1, 0, 1}: adds the words [c + (c << 31), s, s, s, s]. For the
+    # undo step, cr is a mask in {0, -1}: then s = cr and the carry out is not needed.
+    def fold(cr, undo=False):
+        sv = cr if undo else s
+        return ([] if undo else [f"asr {s}, {cr}, #31"]) + [
                 f"add {t}, {cr}, {cr}, lsl #31",
                 f"adds {R[0]}, {R[0]}, {t}",
-                f"adcs {R[1]}, {R[1]}, {s}",
-                f"adcs {R[2]}, {R[2]}, {s}",
-                f"adcs {R[3]}, {R[3]}, {s}",
-                f"adcs {R[4]}, {R[4]}, {s}",
-                f"adc {cr}, {s}, #0"]
-    body += finish(fold, "r12", x, t, u)
+                f"adcs {R[1]}, {R[1]}, {sv}",
+                f"adcs {R[2]}, {R[2]}, {sv}",
+                f"adcs {R[3]}, {R[3]}, {sv}",
+                f"adcs {R[4]}, {R[4]}, {sv}"] + ([] if undo else [
+                f"adc {cr}, {s}, #0"])
+    body += finish(fold, "r12", x, t, u, lambda m: fold(m, True))
     body += ["stm r0, {r2-r6}"]
     func("secp160r1",
          "/* Computes result = product % p (secp160r1), constant time.\n"
@@ -499,7 +490,7 @@ def secp256k1():
 
 T1_CLOBBERS = ["r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9"]
 
-def t1_columns(terms, n, signed=True):
+def t1_columns(terms, n):
     """Signed column sums. r0 = result, r1 = product, r2 = column low word,
     r3/r4 = carry (alternating), r5 = 0, r6 = loaded term."""
     lines = ["/* r5 = 0 (Thumb-1 adcs/sbcs take no immediate). */",
@@ -745,7 +736,7 @@ def t1_k1():
              "/* Undo (add p) if c2 == 0 and the fold did not carry: m = (c2 | carry) - 1,\n"
              "           add [m * 977, 2 * m, m, ...] = m * (2^32 + 977). */",
              "orrs r0, r4", "subs r0, r0, #1",
-             "mov r7, r9", "muls r7, r0, r7", "adds r3, r0, r0"]
+             "muls r7, r0, r7", "adds r3, r0, r0"]  # r7 is still 977.
     body += t1_chain("r1", ["r7", "r3", "r0", "r0", "r0", "r0", "r0", "r0"], "r6")
     body += ["/* Copy product[0..7] to result. */",
              "mov r0, r8",

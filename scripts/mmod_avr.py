@@ -97,15 +97,43 @@ def columns(terms, n, cache=None):
         C, H = H, C
     return lines, C
 
-def chain(xs, t="r24"):
+def chain(xs, t="r24", cached=None):
     """result[k] += xs[k] for all bytes (one carry chain); xs = list of byte
-    registers (r1 for zero). Leaves the carry in C."""
+    registers (r1 for zero). cached maps byte index -> register that already
+    holds that result byte (updated in place instead of reloaded). Leaves the
+    carry in C."""
+    cached = cached or {}
     lines = []
     for b, x in enumerate(xs):
-        lines.append(ld(t, "Y", b))
-        lines.append(f"add {t}, {x}" if b == 0 else f"adc {t}, {x}")
-        lines.append(st("Y", b, t))
+        r = cached.get(b, t)
+        if r == t:
+            lines.append(ld(t, "Y", b))
+        lines.append(f"add {r}, {x}" if b == 0 else f"adc {r}, {x}")
+        lines.append(st("Y", b, r))
     return lines
+
+def written(lines):
+    """Registers written by the given instruction lines (comments skipped)."""
+    regs = set()
+    for l in lines:
+        if l.startswith("/*"):
+            continue
+        op, _, args = l.partition(" ")
+        a = [x.strip() for x in args.split(",")]
+        if op in ("mul", "muls", "mulsu"):
+            regs |= {"r0", "r1"}
+        elif op == "movw":
+            n = int(a[0][1:])
+            regs |= {f"r{n}", f"r{n + 1}"}
+        elif op not in ("st", "std", "cp", "cpc", "cpi", "tst", "push", "out", "sbrs", "sbrc"):
+            regs.add(a[0])
+    return regs
+
+def stored_cache(regs, base, between, xs):
+    """Result bytes base.. that were stored from regs and are still in them:
+    regs not written by the lines since the store and not used as addends."""
+    w = written(between)
+    return {base + k: r for k, r in enumerate(regs) if r not in w and r not in xs}
 
 def word_bytes(spec):
     """spec: list of (lo, hi) register pairs per 32-bit word -> byte list."""
@@ -117,9 +145,11 @@ def word_bytes(spec):
 def sign(dst, src):
     return [f"mov {dst}, {src}", f"lsl {dst}", f"sbc {dst}, {dst}"]
 
-def finish(curve, c2, signed, regs):
+def finish(curve, c2, signed, regs, cached=None):
     """Constant-time final reduction. c2: register with carry in {-1,0,1} (or
-    {0,1} if not signed). result + c2 * 2^N is in (-p, 2p).
+    {0,1} if not signed). result + c2 * 2^N is in (-p, 2p). cached maps byte
+    index -> upper register (r16+) still holding that result byte; the compare
+    pass subtracts from it directly (the register is dead afterwards).
     Compares result with p (read-only pass), then adds (p & m_add) |
     ((2^N - p) & m_sub) in one pass, where m_add = (c2 < 0) and
     m_sub = (c2 > 0) | (c2 == 0 && result >= p)."""
@@ -129,9 +159,12 @@ def finish(curve, c2, signed, regs):
     regs = [r for r in regs if r not in (c2, t)]
     bm, pos = regs[0], regs[1]
     lines = ["/* Compare result with p (read-only pass): bm = 0xFF if result >= p. */"]
+    cached = {b: r for b, r in (cached or {}).items() if r != c2 and int(r[1:]) >= 16}
     for b in range(nb):
-        lines.append(ld(t, "Y", b))
-        lines.append(f"subi {t}, 0x{pb[b]:02X}" if b == 0 else f"sbci {t}, 0x{pb[b]:02X}")
+        r = cached.get(b, t)
+        if r == t:
+            lines.append(ld(t, "Y", b))
+        lines.append(f"subi {r}, 0x{pb[b]:02X}" if b == 0 else f"sbci {r}, 0x{pb[b]:02X}")
     lines += [f"sbc {bm}, {bm}", f"com {bm}"]   # bm = 0xFF if result >= p
     if signed:
         neg, msub = regs[2], regs[3]
@@ -205,14 +238,17 @@ def func(name, comment, body, clobbers, c2=None, signed=False):
     emit("}")
     emit(f"#define asm_mmod_fast_{name} 1")
 
-def finish_or_call(curve, c2, signed, regs):
+def finish_or_call(curve, c2, signed, regs, cached=None):
     """Returns (lines, c2_out): inline finish, or nothing (shared looped call).
     --looped trades speed for size by calling vli_mmod_finish_avr instead."""
     if LOOPED:
-        if not signed:
-            return [], c2
         return [], c2
-    return finish(curve, c2, signed, regs), None
+    return finish(curve, c2, signed, regs, cached), None
+
+def still_cached(cache, lines):
+    """Drop cache entries whose register is written by lines."""
+    w = written(lines)
+    return {b: r for b, r in cache.items() if r not in w}
 
 FINISH_HELPER = r'''/* Shared looped final reduction: result + c2 * 2^N is in (-p, 2p) with c2 in
    {-1, 0, 1}. Compares result with p, then adds p (c2 < 0), subtracts p
@@ -311,9 +347,14 @@ def solinas(curve, cols, n, fold_spec, comment, cache=None, signed=True):
     spec, setup, kreg = fold_spec(c, regs)
     body.append("/* Fold carry: result += c * (2^N - p), c signed. */")
     body += setup
-    body += chain(word_bytes(spec))
-    body.append(f"adc {kreg}, r1")
-    fl, c2out = finish_or_call(curve, kreg, signed, [r for r in FREE if r != kreg])
+    xs = word_bytes(spec)
+    # The last column's sum is still in L; update those bytes in place.
+    lcache = stored_cache(L, 4 * (n - 1), setup, xs)
+    body += chain(xs, cached=lcache)
+    tail = [f"adc {kreg}, r1"]
+    body += tail
+    fl, c2out = finish_or_call(curve, kreg, signed, [r for r in FREE if r != kreg],
+                               still_cached(lcache, tail))
     body += fl
     clob = CLOB_LOW + ["r16", "r17"]
     if cache:
@@ -386,6 +427,7 @@ def p160():
         body += [st("Y", 4 * j + k, r) for k, r in enumerate(L)]
         body += [f"mov {V[k]}, {U[k]}" for k in range(4)] if j < 4 else []
         C, H = H, C
+    last_store = len(body)
     # c = carry + (a4 >> 1) (< 2^31 + 3), in U
     body += ["/* c = carry + (a[4] >> 1). */",
              f"lsr {U[3]}", f"ror {U[2]}", f"ror {U[1]}", f"ror {U[0]}",
@@ -396,9 +438,13 @@ def p160():
     body += [f"lsr {Y[3]}", f"ror {Y[2]}", f"ror {Y[1]}", f"ror {Y[0]}",
              f"mov r0, {U[0]}", "lsr r0", "mov r0, r1", "ror r0",
              f"add {U[3]}, r0"] + [f"adc {Y[k]}, r1" for k in range(4)]
-    body += chain([U[0], U[1], U[2], U[3]] + Y + ["r1"] * 12, t="r0")
-    body += ["/* c2 = final carry. */", f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
-    fl, c2out = finish_or_call("secp160r1", L[0], False, [r for r in FREE if r != L[0]])
+    xs = [U[0], U[1], U[2], U[3]] + Y + ["r1"] * 12
+    cache = stored_cache(L, 16, body[last_store:], xs)
+    body += chain(xs, t="r0", cached=cache)
+    tail = [f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
+    body += ["/* c2 = final carry. */"] + tail
+    fl, c2out = finish_or_call("secp160r1", L[0], False, [r for r in FREE if r != L[0]],
+                               still_cached(cache, tail))
     body += fl
     func("secp160r1",
          "/* Computes result = product % p (secp160r1), constant time.\n"
@@ -448,6 +494,7 @@ def k1():
         body += [f"add {L[0]}, {Pr[0]}"] + [f"adc {L[k]}, {Pr[k]}" for k in (1, 2, 3)]
         body += [f"adc {H[0]}, {Pr[4]}", f"adc {H[1]}, {Pr[5]}"]
         body += [st("Y", 4 * j + k, r) for k, r in enumerate(L)]
+    last_store = len(body)
     C = Hs[0]
     A = As[0]   # a7 (B of column 7 = As[0])
     # T = a7 + carry (33 bits) in A[0..3], T4
@@ -469,9 +516,13 @@ def k1():
              f"adc {T4}, {Zr}",
              "clr r1",
              "/* result += X; c2 = final carry. */"]
-    body += chain(Pr[:4] + X4 + [T4] + ["r1"] * 23)
-    body += [f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
-    fl, c2out = finish_or_call("secp256k1", L[0], False, [r for r in FREE if r != L[0]])
+    xs = Pr[:4] + X4 + [T4] + ["r1"] * 23
+    cache = stored_cache(L, 28, body[last_store:], xs)
+    body += chain(xs, cached=cache)
+    tail = [f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
+    body += tail
+    fl, c2out = finish_or_call("secp256k1", L[0], False, [r for r in FREE if r != L[0]],
+                               still_cached(cache, tail))
     body += fl
     clob = CLOB_LOW + [f"r{i}" for i in range(2, 18)]
     func("secp256k1",

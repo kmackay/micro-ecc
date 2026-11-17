@@ -1323,10 +1323,9 @@
     "mov   r5, r8 \n\t" \
     "muls  r5, r1, r5 \n\t" \
     "adds  r5, r5, r6 \n\t" \
-    "movs  r6, #0 \n\t" \
+    /* E[9] is the top word: no carry out. */ \
     "mov   r0, lr \n\t" \
     "adds  r5, r5, r0 \n\t" \
-    "adcs  r6, r6, r7 \n\t" \
     "str   r5, [sp, #36] \n\t" \
     /* O[4..9] += A_E * B_O[4], adding the parked carry (lr) into O[8]. */ \
     "ldr   r0, [sp, #76] \n\t" \
@@ -1591,7 +1590,6 @@
     "mov   r5, r9 \n\t" \
     "adcs  r5, r5, r0 \n\t" \
     "mov   r0, r6 \n\t" \
-    "mov   r6, r0 \n\t" \
     "ldmia r0!, {r1, r2, r3} \n\t" \
     "movs  r7, #0 \n\t" \
     "adds  r1, r1, r5 \n\t" \
@@ -1633,11 +1631,10 @@
     "mov   r1, sp \n\t" \
     "stmia r1!, {r4, r5, r6, r7} \n\t" \
     "mov   r10, r0 \n\t" \
-    /* sp[16..19] = |b_lo - b_hi|; sp[32] = xor of the two sign masks. */ \
+    /* sp[16..19] = |b_lo - b_hi| (r3 is still 0); sp[32] = xor of the two sign masks. */ \
     "mov   r2, r9 \n\t" \
     "ldmia r2!, {r4, r5, r6, r7} \n\t" \
     "ldm   r2, {r0, r1, r2} \n\t" \
-    "movs  r3, #0 \n\t" \
     "subs  r4, r4, r0 \n\t" \
     "sbcs  r5, r5, r1 \n\t" \
     "sbcs  r6, r6, r2 \n\t" \

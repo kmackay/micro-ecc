@@ -329,7 +329,6 @@
     "str   r9, [r0, #12] \n\t" \
     "umaal r10, r11, r5, r2 \n\t" \
     "umaal r11, r12, r6, r2 \n\t" \
-    "movs  r8, #0 \n\t" \
     "umaal r12, lr, r7, r2 \n\t" \
     /* Pass 2: b5..b7 in r5-r7; reload columns 5..7 (column 8 is loaded in row a[3]). */ \
     "pop   {r2} \n\t" \

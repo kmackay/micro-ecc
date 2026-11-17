@@ -36,7 +36,6 @@
 #if (uECC_OPTIMIZATION_LEVEL >= 2)
 
 uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
-    volatile uECC_word_t *v = vli;
     __asm__ volatile (
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "ldi r30, pm_lo8(1f) \n\t"
@@ -48,7 +47,7 @@ uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
 
         REPEAT(uECC_MAX_WORDS, "st x+, __zero_reg__ \n\t")
         "1: \n\t"
-        : "+x" (v)
+        : "+x" (vli)
         : [num] "r" (num_words)
     /* The ':' is inside the #if since older avr-gcc rejects an empty clobber list. */
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
@@ -59,7 +58,6 @@ uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
 #define asm_clear 1
 
 uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_words) {
-    volatile uECC_word_t *d = dest;
     __asm__ volatile (
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "ldi r30, pm_lo8(1f) \n\t"
@@ -73,7 +71,7 @@ uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordco
             "ld r0, y+ \n\t"
             "st x+, r0 \n\t")
         "1: \n\t"
-        : "+x" (d), "+y" (src)
+        : "+x" (dest), "+y" (src)
         : [num] "r" ((uint8_t)(num_words * 2))
         : "r0"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
@@ -84,7 +82,6 @@ uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordco
 #define asm_set 1
 
 uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
-    volatile uECC_word_t *v = vli;
     __asm__ volatile (
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         "ldi r30, pm_lo8(1f) \n\t"
@@ -107,7 +104,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             "ror r0 \n\t"
             "st x, r0 \n\t")
         "1: \n\t"
-        : "+x" (v)
+        : "+x" (vli)
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         : [num] "r" (num_words), [jump] "r" ((uint8_t)(3 * (num_words - 1)))
         : "r0", "r30", "r31", "cc"
@@ -141,7 +138,6 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t carry;
     uint8_t right_byte;
 
@@ -218,7 +214,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "mov %[clb], __zero_reg__ \n\t"
         "adc %[clb], %[clb] \n\t" /* Store carry bit. */
 
-        : "+z" (r), "+x" (left), "+y" (right),
+        : "+z" (result), "+x" (left), "+y" (right),
           [clb] "=&r" (carry), [rb] "=&r" (right_byte)
     #if (uECC_MAX_WORDS == uECC_MIN_WORDS) || \
         ((uECC_MIN_WORDS == 20) && ((uECC_MAX_WORDS == 21) || (uECC_MAX_WORDS == 32)))
@@ -253,7 +249,6 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t carry;
     uint8_t right_byte;
 
@@ -324,7 +319,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "mov %[clb], __zero_reg__ \n\t"
         "adc %[clb], %[clb] \n\t" /* Store carry bit. */
 
-        : "+z" (r), "+x" (left), "+y" (right),
+        : "+z" (result), "+x" (left), "+y" (right),
           [clb] "=&r" (carry), [rb] "=&r" (right_byte)
     #if (uECC_MAX_WORDS == uECC_MIN_WORDS) || \
         ((uECC_MIN_WORDS == 20) && ((uECC_MAX_WORDS == 21) || (uECC_MAX_WORDS == 32)))
@@ -581,7 +576,6 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t left_byte;
     uint8_t right_byte;
 
@@ -599,7 +593,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "mov %[left], __zero_reg__ \n\t"
         "adc %[left], %[left] \n\t" /* Store carry bit. */
 
-        : "+z" (r), "+x" (left), "+y" (right), [i] "+r" (num_words),
+        : "+z" (result), "+x" (left), "+y" (right), [i] "+r" (num_words),
           [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
         : "cc"
@@ -615,7 +609,6 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
                                       const uECC_word_t *right,
                                       wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t left_byte;
     uint8_t right_byte;
 
@@ -633,7 +626,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "mov %[left], __zero_reg__ \n\t"
         "adc %[left], %[left] \n\t" /* Store carry bit in borrow. */
 
-        : "+z" (r), "+x" (left), "+y" (right), [i] "+r" (num_words),
+        : "+z" (result), "+x" (left), "+y" (right), [i] "+r" (num_words),
           [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
         : "cc"
@@ -649,7 +642,6 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
                                 const uECC_word_t *right,
                                 wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
@@ -745,7 +737,6 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
@@ -815,11 +806,10 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "cp %[k], %[max] \n\t"
         "brlo 1b \n\t" /* loop if k < num_words * 2 */
 
-        "movw r30, %[result] \n\t"  /* make z point to result */
         "st z+, %[r0] \n\t"  /* Store last result byte. */
         "eor r1, r1 \n\t" /* fix r1 to be 0 again */
 
-        : [result] "+r" (r),
+        : [result] "+r" (result),
           [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2), [zero] "+r" (zero),
           [k] "=&a" (k)
         : [orig] "r" (left), [max] "r" ((uint8_t)(2 * num_words)),

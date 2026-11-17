@@ -341,10 +341,8 @@ static void omega_mult_secp160r1(uint32_t *result, const uint32_t *right) {
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354
 
     Note that this only works if log2(omega) < log2(p) / 2 */
-#if (uECC_WORD_SIZE == 8)
-static void omega_mult_secp160r1(uECC_word_t *result, const uECC_word_t *right);
-#endif
 #if uECC_WORD_SIZE == 8
+static void omega_mult_secp160r1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
     uECC_word_t tmp[2 * num_words_secp160r1];
     uECC_word_t copy;
@@ -1496,7 +1494,6 @@ static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     }
 }
 
-#if uECC_WORD_SIZE == 8
 static void omega_mult_secp256k1(uint64_t * result, const uint64_t * right) {
     uECC_word_t r0 = 0;
     uECC_word_t r1 = 0;
@@ -1514,8 +1511,7 @@ static void omega_mult_secp256k1(uint64_t * result, const uint64_t * right) {
     result[num_words_secp256k1] = r0;
 }
 #endif /* uECC_WORD_SIZE */
-#endif /* uECC_WORD_SIZE */
-#endif /* (uECC_OPTIMIZATION_LEVEL > 0 &&  && !asm_mmod_fast_secp256k1) */
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp256k1) */
 
 #endif /* uECC_SUPPORTS_secp256k1 */
 

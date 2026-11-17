@@ -13,10 +13,7 @@
     #define uECC_VLI_API static
 #endif
 
-#if (uECC_PLATFORM == uECC_avr) || \
-    (uECC_PLATFORM == uECC_arm) || \
-    (uECC_PLATFORM == uECC_arm_thumb) || \
-    (uECC_PLATFORM == uECC_arm_thumb2)
+#if (uECC_PLATFORM == uECC_avr)
     #define CONCATX(a, ...) a ## __VA_ARGS__
     #define CONCAT(a, ...) CONCATX(a, __VA_ARGS__)
 
@@ -77,13 +74,6 @@
     #define REPEAT_0(...)
     #define REPEAT_SOME(N, stuff) DEFER(CONCAT(REPEAT_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), stuff) stuff
     #define REPEAT(N, stuff) EVAL(REPEAT_SOME(N, stuff))
-
-    #define REPEATM_NAME_0() REPEATM_0
-    #define REPEATM_NAME_SOME() REPEATM_SOME
-    #define REPEATM_0(...)
-    #define REPEATM_SOME(N, macro) macro(N) \
-        DEFER(CONCAT(REPEATM_NAME_, SOME_OR_0(DEC(N))))()(DEC(N), macro)
-    #define REPEATM(N, macro) EVAL(REPEATM_SOME(N, macro))
 #endif
 
 #include "platform-specific.inc"
@@ -193,10 +183,6 @@ static void bcopy(uint8_t *dst,
     }
 }
 #endif
-
-static cmpresult_t uECC_vli_cmp_unsafe(const uECC_word_t *left,
-                                       const uECC_word_t *right,
-                                       wordcount_t num_words);
 
 #if (uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
         uECC_PLATFORM == uECC_arm_thumb2)
@@ -390,8 +376,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 #endif /* !asm_sub */
 
 #if !asm_mult || (uECC_SQUARE_FUNC && !asm_square) || \
-    (uECC_SUPPORTS_secp256k1 && (uECC_OPTIMIZATION_LEVEL > 0) && \
-        ((uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 8)))
+    (uECC_SUPPORTS_secp256k1 && (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 8))
 static void muladd(uECC_word_t a,
                    uECC_word_t b,
                    uECC_word_t *r0,
@@ -818,6 +803,12 @@ uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
 
 #endif /* uECC_SQUARE_FUNC */
 
+#if uECC_SAFEGCD
+/* Byte k of a VLI (used by both safegcd implementations below). */
+#define VLI_BYTE(vli, k) \
+    ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
+#endif
+
 #if (uECC_SAFEGCD == 1)
 
 /* Constant-time modular inversion using the "safegcd" algorithm of Bernstein and
@@ -835,10 +826,6 @@ uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
 typedef struct {
     int32_t u, v, q, r;
 } s30_trans;
-
-/* Byte k of a VLI. */
-#define VLI_BYTE(vli, k) \
-    ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
 
 /* Converts a (num_words words) to len unsigned 30-bit limbs in r. Works a byte
    at a time so it is independent of uECC_WORD_SIZE. */
@@ -1104,10 +1091,6 @@ typedef uint32_t s14_ut;
 typedef struct {
     s14_t u, v, q, r;
 } s14_trans;
-
-/* Byte k of a VLI. */
-#define VLI_BYTE(vli, k) \
-    ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
 
 /* Converts a (num_words words) to len unsigned 14-bit limbs in r. */
 static void vli_to_s14(s14_t *r,
@@ -2220,13 +2203,11 @@ int uECC_verify(const uint8_t *public_key,
 #if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
     vli_montReduce(z, s, curve->n, num_n_words);    /* z = s / R */
     uECC_vli_modInv(z, z, curve->n, num_n_words);   /* z = R / s */
-    u1[num_n_words - 1] = 0;
     bits2int(u1, message_hash, hash_size, curve);
     vli_montMult(u1, u1, z, curve->n, num_n_words); /* u1 = e / s */
     vli_montMult(u2, r, z, curve->n, num_n_words);  /* u2 = r / s */
 #else
     uECC_vli_modInv(z, s, curve->n, num_n_words);   /* z = 1/s */
-    u1[num_n_words - 1] = 0;
     bits2int(u1, message_hash, hash_size, curve);
     uECC_vli_modMult(u1, u1, z, curve->n, num_n_words); /* u1 = e/s */
     uECC_vli_modMult(u2, r, z, curve->n, num_n_words);  /* u2 = r/s */
