@@ -48,7 +48,7 @@ static int default_RNG(uint8_t *dest, unsigned size) {
             return 0;
         }
     }
-    
+
     char *ptr = (char *)dest;
     size_t left = size;
     while (left > 0) {
@@ -60,7 +60,7 @@ static int default_RNG(uint8_t *dest, unsigned size) {
         left -= bytes_read;
         ptr += bytes_read;
     }
-    
+
     close(fd);
     return 1;
 }
@@ -81,7 +81,7 @@ static int default_RNG(uint8_t *dest, unsigned size) {
 #include "app_error.h"
 #include "nrf_crypto_rng.h"
 
-static int default_RNG(uint8_t *dest, unsigned size) 
+static int default_RNG(uint8_t *dest, unsigned size)
 {
     // make sure to call nrf_crypto_init and nrf_crypto_rng_init first
     ret_code_t ret_code = nrf_crypto_rng_vector_generate(dest, size);

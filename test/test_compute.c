@@ -19,9 +19,9 @@ int main() {
     uint8_t private[32];
     uint8_t public[64];
     uint8_t public_computed[64];
-    
+
     int c;
-    
+
     const struct uECC_Curve_t * curves[5];
     int num_curves = 0;
 #if uECC_SUPPORTS_secp160r1
@@ -45,10 +45,10 @@ int main() {
         for (i = 0; i < 256; ++i) {
             printf(".");
             fflush(stdout);
-            
+
             memset(public, 0, sizeof(public));
             memset(public_computed, 0, sizeof(public_computed));
-            
+
             if (!uECC_make_key(public, private, curves[c])) {
                 printf("uECC_make_key() failed\n");
                 continue;
@@ -65,7 +65,7 @@ int main() {
                 vli_print("Private key = ", private, sizeof(private));
             }
         }
-        
+
         printf("\n");
         printf("Testing private key = 0\n");
 
@@ -76,6 +76,6 @@ int main() {
         }
         printf("\n");
     }
-    
+
     return 0;
 }

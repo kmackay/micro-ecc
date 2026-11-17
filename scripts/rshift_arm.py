@@ -20,7 +20,10 @@ T2_REGS = ["r1", "r2", "r3", "r4", "r5", "r6", "r12", "lr"]
 def t2_rshift(n):
     regs = T2_REGS[:n - 1] + ["lr"] if n < 8 else T2_REGS
     rl = "{" + ", ".join(regs) + "}"
-    lines = [f"ldmia r0, {rl}", f"lsrs {regs[-1]}, {regs[-1]}, #1"]
+    # For n < 8, the top word goes in lr so the list stays ascending.
+    lines = [f"ldmia r0, {rl}",
+             "/* Shift the top word; rrxs shifts the carry into each lower word. */",
+             f"lsrs {regs[-1]}, {regs[-1]}, #1"]
     for r in reversed(regs[:-1]):
         lines.append(f"rrxs {r}, {r}")
     lines.append(f"stmia r0, {rl}")
@@ -28,7 +31,9 @@ def t2_rshift(n):
 
 def t1_rshift(n):
     a, b, t = "r1", "r2", "r3"
-    lines = [f"ldr {a}, [r0]"]
+    lines = [f"ldr {a}, [r0]",
+             "/* w[i] = (w[i] >> 1) | (w[i + 1] << 31), from the low word up. */"]
+    # a holds w[i], b is loaded with w[i + 1]; they swap roles each step.
     for i in range(n - 1):
         lines += [f"ldr {b}, [r0, #{4 * (i + 1)}]",
                   f"lsrs {a}, {a}, #1",
@@ -36,7 +41,8 @@ def t1_rshift(n):
                   f"orrs {a}, {t}",
                   f"str {a}, [r0, #{4 * i}]"]
         a, b = b, a
-    lines += [f"lsrs {a}, {a}, #1", f"str {a}, [r0, #{4 * (n - 1)}]"]
+    lines += ["/* Top word: shift in a zero. */",
+              f"lsrs {a}, {a}, #1", f"str {a}, [r0, #{4 * (n - 1)}]"]
     return lines
 
 SIZES = [(8, "(uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)"),
@@ -56,7 +62,10 @@ def func(gen, thumb1):
         emit("        __asm__ volatile (")
         emit('            ".syntax unified \\n\\t"')
         for l in gen(n):
-            emit(f'            "{l} \\n\\t"')
+            if l.startswith("/*"):
+                emit(f"            {l}")
+            else:
+                emit(f'            "{l} \\n\\t"')
         emit("            RESUME_SYNTAX")
         emit('            : "+l" (r0)' if thumb1 else '            : "+r" (r0)')
         emit("            :")

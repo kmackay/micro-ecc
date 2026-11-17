@@ -36,7 +36,7 @@ emit("ldi %s, 0", zero) # zero register
 if init_size > 0:
     emit("movw r28, r26") # y = x
     h = (init_size + 1)//2
-    
+
     for i in xrange(h):
         emit("ld r%s, x+", lo(i))
     emit("adiw r28, %s", size - init_size) # move y to other end
@@ -70,15 +70,15 @@ if init_size > 0:
             emit("st z+, r%s", acc[0])
             print ""
             acc = acc[1:] + acc[:1]
-        
+
         lo_r = range(2, 2 + h)
         hi_r = range(12, 12 + h)
-        
+
         # now we need to start loading more from the high end
         for r in xrange(h, init_size):
             hi_r = hi_r[1:] + hi_r[:1]
             emit("ld r%s, y+", hi_r[h-1])
-            
+
             emit("ldi r%s, 0", acc[2])
             for i in xrange(0, (r+2)//2):
                 emit("mul r%s, r%s", lo(i), hi_r[h - 1 - i])
@@ -88,12 +88,12 @@ if init_size > 0:
             emit("st z+, r%s", acc[0])
             print ""
             acc = acc[1:] + acc[:1]
-            
+
         # loaded all of the high end bytes; now need to start loading the rest of the low end
         for r in xrange(1, init_size-h):
             lo_r = lo_r[1:] + lo_r[:1]
             emit("ld r%s, x+", lo_r[h-1])
-            
+
             emit("ldi r%s, 0", acc[2])
             for i in xrange(0, (init_size+1 - r)//2):
                 emit("mul r%s, r%s", lo_r[i], hi_r[h - 1 - i])
@@ -103,10 +103,10 @@ if init_size > 0:
             emit("st z+, r%s", acc[0])
             print ""
             acc = acc[1:] + acc[:1]
-        
+
         lo_r = lo_r[1:] + lo_r[:1]
         emit("ld r%s, x+", lo_r[h-1])
-        
+
         # now we have loaded everything, and we just need to finish the last corner
         for r in xrange(init_size-h, init_size-1):
             emit("ldi r%s, 0", acc[2])
@@ -119,7 +119,7 @@ if init_size > 0:
             print ""
             acc = acc[1:] + acc[:1]
             lo_r = lo_r[1:] + lo_r[:1] # make the indexing easy
-        
+
         emit("mul r%s, r%s", lo_r[0], hi_r[h - 1])
         emit("add r%s, r0", acc[0])
         emit("adc r%s, r1", acc[1])
@@ -176,7 +176,7 @@ for i in xrange(3, s):
     tmp = [acc[1], acc[2]]
     acc = [acc[0], old_acc[0], old_acc[1]]
     old_acc = tmp
-    
+
     # gather non-equal words
     emit("mul r%s, r%s", rg(0), rg(i))
     emit("mov r%s, r0", acc[0])
@@ -190,19 +190,19 @@ for i in xrange(3, s):
     emit("lsl r%s", acc[0])
     emit("rol r%s", acc[1])
     emit("rol r%s", acc[2])
-    
+
     # add equal word (if any)
     if ((i+1) % 2) != 0:
         emit("mul r%s, r%s", rg(i//2), rg(i//2))
         emit("add r%s, r0", acc[0])
         emit("adc r%s, r1", acc[1])
         emit("adc r%s, %s", acc[2], zero)
-    
+
     # add old accumulator
     emit("add r%s, r%s", acc[0], old_acc[0])
     emit("adc r%s, r%s", acc[1], old_acc[1])
     emit("adc r%s, %s", acc[2], zero)
-    
+
     # store
     emit("st z+, r%s", acc[0])
     print ""
@@ -211,13 +211,13 @@ regs = range(2, 22)
 for i in xrange(init_size):
     regs = regs[1:] + regs[:1]
     emit("ld r%s, x+", regs[19])
-    
+
     for limit in [18, 19]:
         emit("ldi r%s, 0", old_acc[1])
         tmp = [acc[1], acc[2]]
         acc = [acc[0], old_acc[0], old_acc[1]]
         old_acc = tmp
-    
+
         # gather non-equal words
         emit("mul r%s, r%s", regs[0], regs[limit])
         emit("mov r%s, r0", acc[0])
@@ -227,29 +227,29 @@ for i in xrange(init_size):
             emit("add r%s, r0", acc[0])
             emit("adc r%s, r1", acc[1])
             emit("adc r%s, %s", acc[2], zero)
-    
+
         emit("ld r0, z") # load stored value from initial block, and add to accumulator (note z does not increment)
         emit("add r%s, r0", acc[0])
         emit("adc r%s, r25", acc[1])
         emit("adc r%s, r25", acc[2])
-    
+
         # multiply by 2
         emit("lsl r%s", acc[0])
         emit("rol r%s", acc[1])
         emit("rol r%s", acc[2])
-    
+
         # add equal word
         if limit == 18:
             emit("mul r%s, r%s", regs[9], regs[9])
             emit("add r%s, r0", acc[0])
             emit("adc r%s, r1", acc[1])
             emit("adc r%s, %s", acc[2], zero)
-    
+
         # add old accumulator
         emit("add r%s, r%s", acc[0], old_acc[0])
         emit("adc r%s, r%s", acc[1], old_acc[1])
         emit("adc r%s, %s", acc[2], zero)
-    
+
         # store
         emit("st z+, r%s", acc[0])
         print ""

@@ -50,9 +50,7 @@ uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
         "1: \n\t"
         : "+x" (v)
         : [num] "r" (num_words)
-    /* Keep the clobber ':' inside the #if so single-curve builds
-       (uECC_MAX_WORDS == uECC_MIN_WORDS) do not leave an empty clobber list,
-       which older avr-gcc versions reject. */
+    /* The ':' is inside the #if since older avr-gcc rejects an empty clobber list. */
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         : "r30", "r31", "cc"
     #endif
@@ -121,6 +119,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
 }
 #define asm_rshift1 1
 
+/* One byte of result = left + right (first byte uses add, the rest adc). */
 #define AVR_ADD_FIRST_BYTE \
     "ld %[clb], x+ \n\t"   \
     "ld %[rb], y+ \n\t"    \
@@ -133,6 +132,10 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     "adc %[clb], %[rb] \n\t" \
     "st z+, %[clb] \n\t"
 
+/* Computes result = left + right, returning carry. Can modify in place.
+   Unrolled; when several sizes are supported, the first uECC_MIN_WORDS bytes are
+   always added and the tail is selected by testing bits of num_words with
+   sbrs/sbrc + rjmp, which do not affect the carry flag. */
 __attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
                                       const uECC_word_t *left,
@@ -147,6 +150,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         AVR_ADD_FIRST_BYTE
         REPEAT(DEC(uECC_MAX_WORDS), AVR_ADC_BYTE)
     #elif (uECC_MIN_WORDS == 20) && (uECC_MAX_WORDS == 21)
+        /* secp160r1 only: 20 bytes, plus 1 more if num_words == 21. */
         AVR_ADD_FIRST_BYTE
         REPEAT(19, AVR_ADC_BYTE)
         "sbrs %[num], 0 \n\t"
@@ -154,6 +158,9 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         AVR_ADC_BYTE
         "done_%=: \n\t"
     #elif (uECC_MIN_WORDS == 20) && (uECC_MAX_WORDS == 32)
+        /* All curves: num_words is 20, 21, 24, 28 or 32. Label at_K enters a
+           32-byte chain at byte K (so 32 - K more bytes are added): 32 -> at_20,
+           28 -> at_24, 24 -> at_28, 21 -> at_31. */
         AVR_ADD_FIRST_BYTE
         REPEAT(19, AVR_ADC_BYTE)
         "sbrc %[num], 5 \n\t"
@@ -177,6 +184,8 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         AVR_ADC_BYTE
         "done_%=: \n\t"
     #else
+        /* Other size sets: add the remaining num_words - uECC_MIN_WORDS bytes
+           in chunks of 8/4/2/1 selected by its bits. */
         "subi %[num], " STR(uECC_MIN_WORDS) " \n\t"
         AVR_ADD_FIRST_BYTE
         REPEAT(DEC(uECC_MIN_WORDS), AVR_ADC_BYTE)
@@ -224,6 +233,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
 }
 #define asm_add 1
 
+/* One byte of result = left - right (first byte uses sub, the rest sbc). */
 #define AVR_SUB_FIRST_BYTE \
     "ld %[clb], x+ \n\t"   \
     "ld %[rb], y+ \n\t"    \
@@ -236,6 +246,8 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     "sbc %[clb], %[rb] \n\t" \
     "st z+, %[clb] \n\t"
 
+/* Computes result = left - right, returning borrow. Can modify in place.
+   Same size dispatch as uECC_vli_add. */
 __attribute__((noinline))
 uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
                                       const uECC_word_t *left,
@@ -329,40 +341,20 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 
 #if (uECC_OPTIMIZATION_LEVEL >= 3)
 
-/* High-speed constant-time AVR multiplication and squaring:
- *
- * Multiplication (uECC_vli_mult):
- *   - 160-bit (20 bytes): Fully unrolled 2-level branch-free subtractive
- *     Karatsuba (FAST_MULT_ASM_20), using direct 2's-complement M' accumulation
- *     at the 40-bit leaf level to avoid conditional negation of leaf products.
- *     When num_words == 21 (used by ECDSA modMult modulo secp160r1's 161-bit
- *     order n), FAST_MULT_ASM_20_EXT_21 appends the 21st border row/column so
- *     exact 21x21 multiplication is performed without reading past 21-byte
- *     inputs or overflowing 42-byte product buffers.
- *   - 192, 224, and 256-bit (24, 28, and 32 bytes): 1-level branch-free
- *     subtractive Karatsuba (FAST_MULT_ASM_24/28/32) calling a shared unrolled
- *     half-width leaf subroutine (FAST_MULT_LEAF_24/28/32) three times via
- *     rcall, trading ~2% of fully unrolled Karatsuba speed for a 55-65% Flash
- *     size reduction over unrolled schoolbook/Karatsuba code.
- *   - At uECC_OPTIMIZATION_LEVEL >= 4, 192 and 256-bit use fully unrolled
- *     2-level (192) and 3-level (256) branch-free Karatsuba instead
- *     (FAST_MULT_ASM_24/32_UNROLLED; 3008/4897 core cycles vs. 3123/5002 for
- *     the 1-level code, at a cost of ~2.3/4.1 KB). 224-bit keeps the 1-level
- *     code, since unrolling it would save only ~32 cycles for ~3.5 KB.
- *
- * Squaring (uECC_vli_square, when uECC_SQUARE_FUNC is enabled):
- *   - 160-bit (20 bytes, plus 21-byte border extension) and 192-bit (24 bytes):
- *     MOVW-aligned sliding-window squarer (FAST_SQUARE_ASM_20/24), shifting the
- *     operand window by 2 bytes at a time via single-cycle MOVW instructions
- *     while computing off-diagonal cross-products once, doubling, and adding
- *     diagonal squares.
- *   - 224 and 256-bit (28 and 32 bytes): 1-level branch-free Karatsuba squarer
- *     (FAST_SQUARE_ASM_28/32) using A^2 = A_l^2 + 2^8k(A_l^2 + A_h^2 -
- *     |A_l - A_h|^2) + 2^16k A_h^2 with three rcalls to a half-width
- *     MOVW-aligned leaf squarer (FAST_SQUARE_LEAF_28/32).
+/* Constant-time multiply and square (asm_avr_mult_square.inc):
+ *   mult 20:     2-level subtractive Karatsuba, fully unrolled; num_words == 21
+ *                (secp160r1 order n) adds a border row/column (..._EXT_21).
+ *   mult 24/28/32: 1-level subtractive Karatsuba with 3 rcalls to a shared
+ *                half-size leaf (much smaller, ~2% slower than fully unrolled).
+ *                At level 4, 24 and 32 use fully unrolled 2/3-level Karatsuba.
+ *   square 20/24: MOVW-windowed product scanning: cross products once, doubled,
+ *                plus diagonal squares (20 also has an ..._EXT_21 border).
+ *   square 28/32: 1-level Karatsuba, A^2 = L^2 + 2^8k (L^2 + H^2 - (L - H)^2)
+ *                + 2^16k H^2, with 3 rcalls to a half-size leaf squarer.
  */
 #include "asm_avr_mult_square.inc"
 
+/* Computes result = left * right. Jumps to the fixed-size multiplier for num_words. */
 __attribute((noinline))
 uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
@@ -372,11 +364,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
     register wordcount_t r18 __asm__("r18") = num_words;
 
     __asm__ volatile (
-        /* Dispatch by word count when multiple curve sizes are enabled.
-           Note: for secp160r1 alone, uECC_MIN_WORDS is 20 and uECC_MAX_WORDS
-           is 21 (for curve->n), so other curves are present iff
-           uECC_MAX_WORDS > 21. Conditional branches stay within this short
-           header while uECC_JMP spans across multi-KB curve blocks. */
+        /* Dispatch on num_words. secp160r1 alone gives MAX_WORDS == 21 (for n),
+           so other curves are present iff uECC_MAX_WORDS > 21. Short branches
+           stay in this header; uECC_JMP reaches the multi-KB curve blocks. */
 #if uECC_SUPPORTS_secp160r1 && (uECC_MAX_WORDS > 21)
         "cpi r18, 22 \n\t"
         "brlo 20f \n\t"
@@ -413,12 +403,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 
 #if uECC_SUPPORTS_secp160r1
         "20: \n\t"
-        /* secp160r1 field ops pass num_words == 20, whereas ECDSA modMult
-           modulo curve->n (161 bits) passes num_words == 21. Previously,
-           num_words == 21 fell through into the 24-byte multiplier, reading 3
-           uninitialized stack bytes and writing 48 bytes into a 42-byte
-           product buffer. Save X/Y/Z when r18 == 21 and extend the 20x20
-           product with the 21st border byte via FAST_MULT_ASM_20_EXT_21. */
+        /* num_words is 20 for field ops, 21 for ECDSA ops mod n (161 bits).
+           For 21, save X/Y/Z (restored by _EXT_21), do the 20x20 product,
+           then add the 21st border row/column. */
         "cpi r18, 21 \n\t"
         "brne 80f \n\t"
         "push r26 \n\t"
@@ -428,7 +415,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "push r30 \n\t"
         "push r31 \n\t"
         "80: \n\t"
-        "push r18 \n\t"
+        "push r18 \n\t" /* FAST_MULT_ASM_20 clobbers r18. */
         FAST_MULT_ASM_20
         "pop r18 \n\t"
         "cpi r18, 21 \n\t"
@@ -440,11 +427,8 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         uECC_JMP "99f \n\t"
     #endif
 #endif
-        /* Each 1-level Karatsuba block jumps to 99f right before its adjacent
-           leaf subroutine so rcall inside FAST_MULT_ASM_N stays well within
-           rcall's +/-4 KB displacement without executing the leaf on fallthrough.
-           At uECC_OPTIMIZATION_LEVEL >= 4 the fully unrolled multipliers have no
-           leaf subroutine. */
+        /* Each 1-level block's leaf subroutine sits right after its exit jump,
+           keeping its rcalls in range. Level 4 unrolled code has no leaf. */
 #if uECC_SUPPORTS_secp192r1
         "24: \n\t"
     #if (uECC_OPTIMIZATION_LEVEL >= 4)
@@ -473,7 +457,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
     #endif
 #endif
         "99: \n\t"
-        "eor r1, r1 \n\t"
+        "eor r1, r1 \n\t" /* Restore __zero_reg__. */
         : "+x" (left), "+y" (right), "+z" (result), "+r" (r18)
         :
         : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
@@ -484,6 +468,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 #define asm_mult 1
 
 #if uECC_SQUARE_FUNC
+/* Computes result = left^2. Jumps to the fixed-size squarer for num_words. */
 __attribute((noinline))
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   const uECC_word_t *left,
@@ -529,8 +514,8 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
 #if uECC_SUPPORTS_secp160r1
         "20: \n\t"
-        /* Support both 20-byte field elements and 21-byte secp160r1 scalars
-           (if uECC_vli_square / uECC_vli_modSquare is called with 21 words). */
+        /* Same as mult: for 21 words, save X/Z, square 20 bytes, then add the
+           21st border via FAST_SQUARE_ASM_20_EXT_21. */
         "cpi r20, 21 \n\t"
         "brne 80f \n\t"
         "push r26 \n\t"
@@ -538,7 +523,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "push r30 \n\t"
         "push r31 \n\t"
         "80: \n\t"
-        "push r20 \n\t"
+        "push r20 \n\t" /* FAST_SQUARE_ASM_20 clobbers r20. */
         FAST_SQUARE_ASM_20
         "pop r20 \n\t"
         "cpi r20, 21 \n\t"
@@ -557,8 +542,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         uECC_JMP "99f \n\t"
     #endif
 #endif
-        /* 224-bit and 256-bit 1-level Karatsuba squarers place their shared
-           half-width leaf squarer immediately after the exit jump. */
+        /* Leaf squarers sit right after their block's exit jump. */
 #if uECC_SUPPORTS_secp224r1
         "28: \n\t"
         FAST_SQUARE_ASM_28
@@ -572,7 +556,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         FAST_SQUARE_LEAF_32
 #endif
         "99: \n\t"
-        "eor r1, r1 \n\t"
+        "eor r1, r1 \n\t" /* Restore __zero_reg__. */
         : "+x" (left), "+z" (result), "+r" (r20)
         :
         : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
@@ -857,26 +841,26 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     do { \
         uint8_t zero_; \
         __asm__ ( \
-            "clr %1 \n\t"  /* r1 holds product bytes, so use our own zero */ \
-            "mul %A2, %A3 \n\t" \
+            "clr %1 \n\t"  /* r1 holds product bytes, so use our own zero. */ \
+            "mul %A2, %A3 \n\t"  /* lo * lo (unsigned) at byte 0. */ \
             "add %A0, r0 \n\t" \
             "adc %B0, r1 \n\t" \
             "adc %C0, %1 \n\t" \
             "adc %D0, %1 \n\t" \
-            "mulsu %B2, %A3 \n\t" \
+            "mulsu %B2, %A3 \n\t"  /* hi(a) * lo(b) at byte 1. */ \
             "sbc %D0, %1 \n\t" \
             "add %B0, r0 \n\t" \
             "adc %C0, r1 \n\t" \
             "adc %D0, %1 \n\t" \
-            "mulsu %B3, %A2 \n\t" \
+            "mulsu %B3, %A2 \n\t"  /* hi(b) * lo(a) at byte 1. */ \
             "sbc %D0, %1 \n\t" \
             "add %B0, r0 \n\t" \
             "adc %C0, r1 \n\t" \
             "adc %D0, %1 \n\t" \
-            "muls %B2, %B3 \n\t" \
+            "muls %B2, %B3 \n\t"  /* hi * hi (signed) at byte 2. */ \
             "add %C0, r0 \n\t" \
             "adc %D0, r1 \n\t" \
-            "clr __zero_reg__ \n\t" \
+            "clr __zero_reg__ \n\t"  /* Restore r1. */ \
             : "+r" (acc), "=&r" (zero_) \
             : "a" ((int16_t)(a)), "a" ((int16_t)(b)) \
             : "r0", "cc"); \
@@ -887,7 +871,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     do { \
         uint8_t sign_; \
         __asm__ ( \
-            "mov %1, %D0 \n\t" \
+            "mov %1, %D0 \n\t"  /* sign_ = 0x00 or 0xFF (sign of acc). */ \
             "lsl %1 \n\t" \
             "sbc %1, %1 \n\t" \
             "lsl %B0 \n\t" \
@@ -898,10 +882,10 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
             "rol %C0 \n\t" \
             "rol %D0 \n\t" \
             "rol %1 \n\t" \
-            "mov %A0, %C0 \n\t" \
+            "mov %A0, %C0 \n\t"  /* Bytes 2..4 of (acc << 2) -> acc. */ \
             "mov %B0, %D0 \n\t" \
             "mov %C0, %1 \n\t" \
-            "lsl %1 \n\t" \
+            "lsl %1 \n\t"  /* Sign-extend into the top byte. */ \
             "sbc %D0, %D0 \n\t" \
             : "+r" (acc), "=&r" (sign_) \
             : \

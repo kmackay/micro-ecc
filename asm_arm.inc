@@ -43,11 +43,9 @@
 
 #if (uECC_OPTIMIZATION_LEVEL >= 2)
 
-/* Constant-time fully unrolled add/sub. The only branches depend on the public
-   curve size (num_words); no branch depends on VLI data or carry/borrow. The
-   final carry/borrow is extracted branch-free with sbcs/adds (or sbcs/rsbs).
-   The smallest supported size (uECC_MIN_WORDS) is handled unconditionally as
-   the last case, so every path writes the result (no -Wmaybe-uninitialized). */
+/* Constant-time fully unrolled add/sub. Branches depend only on num_words (the
+   public curve size). The smallest supported size (uECC_MIN_WORDS) is handled
+   unconditionally as the last case, so every path returns a value. */
 
 #if (uECC_PLATFORM == uECC_arm_thumb)
 
@@ -55,6 +53,8 @@
    level 2 (assembly reductions) and level 3 differ. */
 #if (uECC_OPTIMIZATION_LEVEL >= 3)
 
+/* Two words per step. FIRST starts the carry chain; NEXT and LAST1 (one word)
+   continue it. ldmia / stmia do not affect the flags. */
 #define ARM_THUMB1_ADD_PAIR_FIRST \
     "ldmia %[lptr]!, {r3, r4} \n\t" \
     "ldmia %[rptr]!, {r5, r6} \n\t" \
@@ -95,6 +95,7 @@
     "sbcs  r3, r5 \n\t" \
     "str   r3, [%[dptr]] \n\t"
 
+/* r3 is used as scratch by BODY and then holds the carry / borrow output. */
 #define ARM_T1_ASM(BODY, OUT) \
     __asm__ volatile ( \
         ".syntax unified \n\t" \
@@ -106,6 +107,8 @@
         : "r4", "r5", "r6", "cc", "memory" \
     )
 
+/* Convert the C flag to 0 / 1: sbcs gives r3 = C - 1, then add 1 for the
+   carry, or negate for the borrow (C = 1 means no borrow). */
 #define ARM_T1_CARRY  "sbcs  r3, r3 \n\t" "adds  r3, #1 \n\t"
 #define ARM_T1_BORROW "sbcs  r3, r3 \n\t" "rsbs  r3, r3, #0 \n\t"
 
@@ -218,6 +221,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     #define ARM_ADDSUB_ATTR __attribute__((noinline))
 #endif
 
+/* First 4 words, starting the carry chain. */
 #define ARM_ADD_HEAD4 \
     "ldmia %[lptr]!, {r3, r4, r5, r6} \n\t" \
     "ldmia %[rptr]!, {r8, r9, r10, r12} \n\t" \
@@ -267,6 +271,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     op "  r3, r3, r4 \n\t" \
     "str   r3, [%[dptr]] \n\t"
 
+/* r3 is used as scratch by BODY and then holds the carry / borrow output. */
 #define ARM_T2_ASM(BODY, OUT) \
     __asm__ volatile ( \
         ".syntax unified \n\t" \
@@ -278,6 +283,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         : "r4", "r5", "r6", "r8", "r9", "r10", "r12", "cc", "memory" \
     )
 
+/* C flag to 0 / 1, as for ARM_T1_CARRY / ARM_T1_BORROW. */
 #define ARM_T2_CARRY  "sbcs  r3, r3, r3 \n\t" "adds  r3, r3, #1 \n\t"
 #define ARM_T2_BORROW "sbcs  r3, r3, r3 \n\t" "rsbs  r3, r3, #0 \n\t"
 
@@ -373,6 +379,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
 
 #endif /* uECC_PLATFORM == uECC_arm_thumb */
 
+/* Unrolled rshift1 (from level 3 on Thumb-1, like add/sub). */
 #if (uECC_OPTIMIZATION_LEVEL >= 3) || (uECC_PLATFORM != uECC_arm_thumb)
 #include "asm_arm_rshift.inc"
 #endif
@@ -409,7 +416,7 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
     register const uint32_t *r1 __asm__("r1") = left;
     register const uint32_t *r2 __asm__("r2") = right;
     register uint32_t r3 __asm__("r3") = num_words;
-    
+
     __asm__ volatile (
         ".syntax unified \n\t"
         FAST_MULT_ASM_LEVEL3
@@ -429,7 +436,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     register uint32_t *r0 __asm__("r0") = result;
     register const uint32_t *r1 __asm__("r1") = left;
     register uint32_t r2 __asm__("r2") = num_words;
-    
+
     __asm__ volatile (
         ".syntax unified \n\t"
         FAST_SQUARE_ASM_LEVEL3
@@ -465,8 +472,7 @@ uECC_VLI_API void uECC_vli_mult(uint32_t *result,
         return;
     }
 #endif
-    /* Note: secp160r1 has a 161-bit curve order n (num_n_words == 6 on 32-bit platforms),
-       so ECDSA signing and verification on secp160r1 invoke uECC_vli_mult with num_words == 6. */
+    /* secp160r1 also needs 6 words: its 161-bit order n has num_n_words == 6. */
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1)
     if (num_words == 6) {
         register uint32_t *r0 __asm__("r0") = result;
@@ -592,10 +598,10 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
 #if (uECC_OPTIMIZATION_LEVEL <= 3)
 
-/* Compact Word-Row Loop multiplication for Thumb-1 (ARMv6-M / Cortex-M0):
-   Hoists splitting left[i] into 16-bit halfwords (a_lo in r8, a_hi in r9) out
-   of the inner loop and uses a carry-preserving 4-muls schedule inside the
-   inner loop without high-register accumulator spills. */
+/* Computes result = left * right for Thumb-1 (Cortex-M0) with a row loop: for
+   each left[i], result[i..] += left[i] * right. muls is only 32x32->32, so each
+   word product is built from four 16x16 products; the halves of left[i] stay in
+   r8 / r9 for the whole row. Used at levels 1-3. */
 uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
                                 const uECC_word_t *right,
@@ -611,7 +617,8 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "adds %[r3], %[r1], %[r3] \n\t"
         "mov  r11, %[r3] \n\t"              /* r11 = left_end */
 
-        /* Pre-zero result[0 .. num_words - 1] */
+        /* Pre-zero result[0 .. num_words - 1]. Each row stores (not adds) its
+           top word, so the upper half needs no clearing. */
         "movs %[r4], #0 \n\t"
         "movs %[r5], %[r0] \n\t"
         "mov  %[r6], r12 \n\t"
@@ -632,7 +639,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "mov  %[r2], r12 \n\t"              /* r2 = right */
         "movs %[r4], #0 \n\t"               /* r4 = carry = 0 */
 
-        /* Inner loop over right[j] */
+        /* Inner loop over right[j]: r4:result[i + j] = left[i] * right[j] +
+           result[i + j] + r4. muls, movs #imm and mov to/from high registers
+           leave C unchanged, so the carries C_1 .. C_4 survive across them. */
         "3: \n\t"
         "ldmia %[r2]!, {%[r5]} \n\t"        /* r5 = right[j] */
         "ldr  %[r3], [%[r0]] \n\t"          /* r3 = result[i + j] */
@@ -691,6 +700,10 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 
 #include "asm_arm_mult_square.inc"
 
+/* Karatsuba sub-multiplies (3x3 and 4x4 words), called with bl from the
+   unrolled multiplies in asm_arm_mult_square.inc (shared to save flash). The
+   asm label fixes the symbol name, and "used" keeps them although they are only
+   referenced from asm. */
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1 || uECC_SUPPORTS_secp224r1)
 static __attribute__((naked, noinline, used))
 void uECC_vli_mul3_thumb1(void) __asm__("uECC_vli_mul3_thumb1");
@@ -717,6 +730,8 @@ void uECC_vli_mul4_thumb1(void) {
 }
 #endif
 
+/* Computes result = left * right using the unrolled Thumb-1 code in
+   asm_arm_mult_square.inc (level 4). r14 is clobbered by the bl calls. */
 uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
                                 const uECC_word_t *right,
@@ -791,10 +806,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 #endif /* (uECC_OPTIMIZATION_LEVEL <= 3) */
 
 #if uECC_SQUARE_FUNC
-/* Compact Word-Row Loop squaring for Thumb-1 (used for both Level 3 and Level 4):
-   Phase 1 accumulates the upper triangle (0 <= i < j < num_words) via word-row
-   scanning; Phase 2 doubles the upper triangle in a single pass while adding
-   the 3-muls diagonal squares left[i]^2. */
+/* Computes result = left^2 for Thumb-1 (levels 1-4). Phase 1 accumulates the
+   cross products left[i] * left[j] (i < j) with the row loop of uECC_vli_mult;
+   phase 2 doubles them and adds the squares left[i]^2 in a single pass. */
 uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   const uECC_word_t *left,
                                   wordcount_t num_words) {
@@ -818,7 +832,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "adds %[r3], %[r1], %[r2] \n\t"
         "mov  r12, %[r3] \n\t"              /* r12 = left_end */
 
-        /* Pre-zero result[0 .. 2*num_words - 1] */
+        /* Pre-zero result[0 .. 2*num_words - 1] (phase 2 reads all of it). */
         "movs %[r4], #0 \n\t"
         "movs %[r5], %[r0] \n\t"
         "lsls %[r6], %[r2], #1 \n\t"        /* r6 = num_words * 8 */
@@ -844,7 +858,8 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "movs %[r2], %[r1] \n\t"            /* r2 = &left[i + 1] (j = i + 1) */
         "movs %[r4], #0 \n\t"               /* r4 = carry = 0 */
 
-        /* Inner loop: j = i + 1 .. num_words - 1 */
+        /* Inner loop: j = i + 1 .. num_words - 1. Same as in uECC_vli_mult
+           (muls / movs #imm / mov high leave C unchanged). */
         "3: \n\t"
         "ldmia %[r2]!, {%[r5]} \n\t"        /* r5 = left[j] */
         "ldr  %[r3], [%[r0]] \n\t"          /* r3 = result[i + j] */
@@ -894,6 +909,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "movs %[r6], #0 \n\t"               /* r6 = carry in {0, 1, 2} */
 
         "5: \n\t"
+        /* d1:d0 = left[i]^2 = a_lo^2 + a_hi^2 << 32 + (a_lo * a_hi) << 17. */
         "ldmia %[r1]!, {%[r3]} \n\t"        /* r3 = left[i] */
         "uxth %[r2], %[r3] \n\t"            /* r2 = a_lo */
         "lsrs %[r3], %[r3], #16 \n\t"       /* r3 = a_hi */
@@ -910,6 +926,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "movs %[r6], #0 \n\t"               /* r6 = 0 (C unchanged) */
         "adcs %[r3], %[r6] \n\t"            /* d1 += C */
 
+        /* Add 2 * u1:u0, where u1:u0 = result[2i + 1]:result[2i] (cross products). */
         "ldr  %[r4], [%[r0], #0] \n\t"      /* r4 = u0 */
         "ldr  %[r5], [%[r0], #4] \n\t"      /* r5 = u1 */
         "adds %[r4], %[r4], %[r4] \n\t"     /* 2 * u0 */
@@ -981,7 +998,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
     uint32_t carry = 0;
     uint32_t left_word;
     uint32_t right_word;
-    
+
     __asm__ volatile (
         ".syntax unified \n\t"
         "1: \n\t"
@@ -1040,7 +1057,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
     uint32_t carry = 1; /* carry = 1 initially (means don't borrow) */
     uint32_t left_word;
     uint32_t right_word;
-    
+
     __asm__ volatile (
         ".syntax unified \n\t"
         "1: \n\t"
@@ -1077,26 +1094,26 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
     uint32_t k = 0;
     uint32_t i;
     uint32_t t0, t1;
-    
+
     __asm__ volatile (
         ".syntax unified \n\t"
-        
+
         "1: \n\t" /* outer loop (k < num_words) */
         "movs %[i], #0 \n\t" /* i = 0 */
         "b 3f \n\t"
-        
+
         "2: \n\t" /* outer loop (k >= num_words) */
         "movs %[i], %[k] \n\t"         /* i = k */
         "subs %[i], %[last_word] \n\t" /* i = k - (num_words - 1) (times 4) */
-        
+
         "3: \n\t" /* inner loop */
         "subs %[t0], %[k], %[i] \n\t" /* t0 = k-i */
-        
+
         "ldr %[t1], [%[right], %[t0]] \n\t" /* t1 = right[k - i] */
         "ldr %[t0], [%[left], %[i]] \n\t"   /* t0 = left[i] */
-        
+
         "umull %[t0], %[t1], %[t0], %[t1] \n\t" /* (t0, t1) = left[i] * right[k - i] */
-        
+
         "adds %[c0], %[c0], %[t0] \n\t" /* add low word to c0 */
         "adcs %[c1], %[c1], %[t1] \n\t" /* add high word to c1, including carry */
         "adcs %[c2], %[c2], #0 \n\t"    /* add carry to c2 */
@@ -1106,9 +1123,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "bgt 4f \n\t"                 /*   if so, exit the loop */
         "cmp %[i], %[k] \n\t"         /* i <= k? */
         "ble 3b \n\t"                 /*   if so, continue looping */
-        
+
         "4: \n\t" /* end inner loop */
-        
+
         "str %[c0], [%[result], %[k]] \n\t" /* result[k] = c0 */
         "mov %[c0], %[c1] \n\t"       /* c0 = c1 */
         "mov %[c1], %[c2] \n\t"       /* c1 = c2 */
@@ -1119,7 +1136,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "cmp %[k], %[last_word], lsl #1 \n\t" /* k <= (num_words * 2 - 2) (times 4) ? */
         "ble 2b \n\t"                 /*   if so, loop back, start with i = (k + 1) - num_words */
         /* end outer loop */
-        
+
         "str %[c0], [%[result], %[k]] \n\t" /* result[num_words * 2 - 1] = c0 */
         RESUME_SYNTAX
         : [c0] "+r" (c0), [c1] "+r" (c1), [c2] "+r" (c2),
@@ -1128,7 +1145,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
           [last_word] "r" ((num_words - 1) * 4)
         : "cc", "memory"
     );
-    
+
 #else /* Thumb-1 */
     uint32_t r4, r5, r6, r7;
 
@@ -1143,51 +1160,51 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "movs %[r4], #0 \n\t" /* c1 = 0 */
         "movs %[r5], #0 \n\t" /* c2 = 0 */
         "movs %[r6], #0 \n\t" /* k = 0 */
-        
+
         "push {%[r0]} \n\t" /* keep result on the stack */
-        
+
         "1: \n\t" /* outer loop (k < num_words) */
         "movs %[r7], #0 \n\t" /* r7 = i = 0 */
         "b 3f \n\t"
-        
+
         "2: \n\t" /* outer loop (k >= num_words) */
         "movs %[r7], %[r6] \n\t" /* r7 = k */
         "mov %[r0], r8 \n\t"     /* r0 = (num_words - 1) * 4 */
         "subs %[r7], %[r0] \n\t" /* r7 = i = k - (num_words - 1) (times 4) */
-        
+
         "3: \n\t" /* inner loop */
         "mov r10, %[r3] \n\t"
         "mov r11, %[r4] \n\t"
         "mov r12, %[r5] \n\t"
         "mov r14, %[r6] \n\t"
         "subs %[r0], %[r6], %[r7] \n\t"          /* r0 = k - i */
-        
+
         "ldr %[r4], [%[r2], %[r0]] \n\t" /* r4 = right[k - i] */
         "ldr %[r0], [%[r1], %[r7]] \n\t" /* r0 = left[i] */
-        
+
         "lsrs %[r3], %[r0], #16 \n\t" /* r3 = a1 */
         "uxth %[r0], %[r0] \n\t"      /* r0 = a0 */
-        
+
         "lsrs %[r5], %[r4], #16 \n\t" /* r5 = b1 */
         "uxth %[r4], %[r4] \n\t"      /* r4 = b0 */
-        
+
         "movs %[r6], %[r3] \n\t"        /* r6 = a1 */
         "muls %[r6], %[r5], %[r6] \n\t" /* r6 = a1 * b1 */
         "muls %[r3], %[r4], %[r3] \n\t" /* r3 = b0 * a1 */
         "muls %[r5], %[r0], %[r5] \n\t" /* r5 = a0 * b1 */
         "muls %[r0], %[r4], %[r0] \n\t" /* r0 = a0 * b0 */
-        
+
         /* Add middle terms */
         "lsls %[r4], %[r3], #16 \n\t"
         "lsrs %[r3], %[r3], #16 \n\t"
         "adds %[r0], %[r4] \n\t"
         "adcs %[r6], %[r3] \n\t"
-        
+
         "lsls %[r4], %[r5], #16 \n\t"
         "lsrs %[r5], %[r5], #16 \n\t"
         "adds %[r0], %[r4] \n\t"
         "adcs %[r6], %[r5] \n\t"
-        
+
         "mov %[r3], r10\n\t"
         "mov %[r4], r11\n\t"
         "mov %[r5], r12\n\t"
@@ -1195,7 +1212,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "adcs %[r4], %[r6] \n\t"         /* add high word to c1, including carry */
         "movs %[r0], #0 \n\t"            /* r0 = 0 (does not affect carry bit) */
         "adcs %[r5], %[r0] \n\t"         /* add carry to c2 */
-        
+
         "mov %[r6], r14\n\t" /* r6 = k */
 
         "adds %[r7], #4 \n\t"   /* i += 4 */
@@ -1203,11 +1220,11 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "bgt 4f \n\t"           /*   if so, exit the loop */
         "cmp %[r7], %[r6] \n\t" /* i <= k? */
         "ble 3b \n\t"           /*   if so, continue looping */
-        
+
         "4: \n\t" /* end inner loop */
-        
+
         "ldr %[r0], [sp, #0] \n\t" /* r0 = result */
-        
+
         "str %[r3], [%[r0], %[r6]] \n\t" /* result[k] = c0 */
         "mov %[r3], %[r4] \n\t"          /* c0 = c1 */
         "mov %[r4], %[r5] \n\t"          /* c1 = c2 */
@@ -1218,10 +1235,10 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "cmp %[r6], r9 \n\t"             /* k <= (num_words * 2 - 2) (times 4) ? */
         "ble 2b \n\t"                    /*   if so, loop back, with i = (k + 1) - num_words */
         /* end outer loop */
-        
+
         "str %[r3], [%[r0], %[r6]] \n\t" /* result[num_words * 2 - 1] = c0 */
         "pop {%[r0]} \n\t"               /* pop result off the stack */
-        
+
         RESUME_SYNTAX
         : [r3] "+l" (num_words), [r4] "=&l" (r4),
           [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
@@ -1245,46 +1262,46 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
     uint32_t k = 0;
     uint32_t i, tt;
     uint32_t t0, t1;
-    
+
     __asm__ volatile (
         ".syntax unified \n\t"
-        
+
         "1: \n\t" /* outer loop (k < num_words) */
         "movs %[i], #0 \n\t" /* i = 0 */
         "b 3f \n\t"
-        
+
         "2: \n\t" /* outer loop (k >= num_words) */
         "movs %[i], %[k] \n\t"         /* i = k */
         "subs %[i], %[last_word] \n\t" /* i = k - (num_words - 1) (times 4) */
-        
+
         "3: \n\t" /* inner loop */
         "subs %[tt], %[k], %[i] \n\t" /* tt = k-i */
-        
+
         "ldr %[t1], [%[left], %[tt]] \n\t" /* t1 = left[k - i] */
         "ldr %[t0], [%[left], %[i]] \n\t"  /* t0 = left[i] */
-        
+
         "umull %[t0], %[t1], %[t0], %[t1] \n\t" /* (t0, t1) = left[i] * right[k - i] */
-        
+
         "cmp %[i], %[tt] \n\t"      /* (i < k - i) ? */
         "bge 4f \n\t"               /*   if i >= k - i, skip */
         "adds %[c0], %[c0], %[t0] \n\t" /* add low word to c0 */
         "adcs %[c1], %[c1], %[t1] \n\t" /* add high word to c1, including carry */
         "adcs %[c2], %[c2], #0 \n\t"    /* add carry to c2 */
-        
+
         "4: \n\t"
         "adds %[c0], %[c0], %[t0] \n\t" /* add low word to c0 */
         "adcs %[c1], %[c1], %[t1] \n\t" /* add high word to c1, including carry */
         "adcs %[c2], %[c2], #0 \n\t"    /* add carry to c2 */
-        
+
         "adds %[i], #4 \n\t"          /* i += 4 */
         "cmp %[i], %[k] \n\t"         /* i >= k? */
         "bge 5f \n\t"                 /*   if so, exit the loop */
         "subs %[tt], %[k], %[i] \n\t" /* tt = k - i */
         "cmp %[i], %[tt] \n\t"        /* i <= k - i? */
         "ble 3b \n\t"                 /*   if so, continue looping */
-        
+
         "5: \n\t" /* end inner loop */
-        
+
         "str %[c0], [%[result], %[k]] \n\t" /* result[k] = c0 */
         "mov %[c0], %[c1] \n\t"       /* c0 = c1 */
         "mov %[c1], %[c2] \n\t"       /* c1 = c2 */
@@ -1295,7 +1312,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "cmp %[k], %[last_word], lsl #1 \n\t" /* k <= (num_words * 2 - 2) (times 4) ? */
         "ble 2b \n\t"                 /*   if so, loop back, start with i = (k + 1) - num_words */
         /* end outer loop */
-        
+
         "str %[c0], [%[result], %[k]] \n\t" /* result[num_words * 2 - 1] = c0 */
         RESUME_SYNTAX
         : [c0] "+r" (c0), [c1] "+r" (c1), [c2] "+r" (c2),
@@ -1303,7 +1320,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         : [result] "r" (result), [left] "r" (left), [last_word] "r" ((num_words - 1) * 4)
         : "cc", "memory"
     );
-    
+
 #else
     uint32_t r3, r4, r5, r6, r7;
 
@@ -1318,56 +1335,56 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "movs %[r3], #0 \n\t" /* c1 = 0 */
         "movs %[r4], #0 \n\t" /* c2 = 0 */
         "movs %[r5], #0 \n\t" /* k = 0 */
-        
+
         "push {%[r0]} \n\t" /* keep result on the stack */
-        
+
         "1: \n\t" /* outer loop (k < num_words) */
         "movs %[r6], #0 \n\t" /* r6 = i = 0 */
         "b 3f \n\t"
-        
+
         "2: \n\t" /* outer loop (k >= num_words) */
         "movs %[r6], %[r5] \n\t" /* r6 = k */
         "mov %[r0], r8 \n\t"     /* r0 = (num_words - 1) * 4 */
         "subs %[r6], %[r0] \n\t" /* r6 = i = k - (num_words - 1) (times 4) */
-        
+
         "3: \n\t" /* inner loop */
         "mov r10, %[r2] \n\t"
         "mov r11, %[r3] \n\t"
         "mov r12, %[r4] \n\t"
         "mov r14, %[r5] \n\t"
         "subs %[r7], %[r5], %[r6] \n\t"  /* r7 = k - i */
-        
+
         "ldr %[r3], [%[r1], %[r7]] \n\t" /* r3 = left[k - i] */
         "ldr %[r0], [%[r1], %[r6]] \n\t" /* r0 = left[i] */
-        
+
         "lsrs %[r2], %[r0], #16 \n\t" /* r2 = a1 */
         "uxth %[r0], %[r0] \n\t"      /* r0 = a0 */
-        
+
         "lsrs %[r4], %[r3], #16 \n\t" /* r4 = b1 */
         "uxth %[r3], %[r3] \n\t"      /* r3 = b0 */
-        
+
         "movs %[r5], %[r2] \n\t"        /* r5 = a1 */
         "muls %[r5], %[r4], %[r5] \n\t" /* r5 = a1 * b1 */
         "muls %[r2], %[r3], %[r2] \n\t" /* r2 = b0 * a1 */
         "muls %[r4], %[r0], %[r4] \n\t" /* r4 = a0 * b1 */
         "muls %[r0], %[r3], %[r0] \n\t" /* r0 = a0 * b0 */
-        
+
         /* Add middle terms */
         "lsls %[r3], %[r2], #16 \n\t"
         "lsrs %[r2], %[r2], #16 \n\t"
         "adds %[r0], %[r3] \n\t"
         "adcs %[r5], %[r2] \n\t"
-        
+
         "lsls %[r3], %[r4], #16 \n\t"
         "lsrs %[r4], %[r4], #16 \n\t"
         "adds %[r0], %[r3] \n\t"
         "adcs %[r5], %[r4] \n\t"
-        
+
         /* Add to acc, doubling if necessary */
         "mov %[r2], r10\n\t"
         "mov %[r3], r11\n\t"
         "mov %[r4], r12\n\t"
-        
+
         "cmp %[r6], %[r7] \n\t"    /* (i < k - i) ? */
         "bge 4f \n\t"            /*   if i >= k - i, skip */
         "movs %[r7], #0 \n\t"    /* r7 = 0 */
@@ -1379,20 +1396,20 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "adds %[r2], %[r0] \n\t" /* add low word to c0 */
         "adcs %[r3], %[r5] \n\t" /* add high word to c1, including carry */
         "adcs %[r4], %[r7] \n\t" /* add carry to c2 */
-        
+
         "mov %[r5], r14\n\t" /* r5 = k */
-        
+
         "adds %[r6], #4 \n\t"           /* i += 4 */
         "cmp %[r6], %[r5] \n\t"         /* i >= k? */
         "bge 5f \n\t"                   /*   if so, exit the loop */
         "subs %[r7], %[r5], %[r6] \n\t" /* r7 = k - i */
         "cmp %[r6], %[r7] \n\t"         /* i <= k - i? */
         "ble 3b \n\t"                   /*   if so, continue looping */
-        
+
         "5: \n\t" /* end inner loop */
-        
+
         "ldr %[r0], [sp, #0] \n\t" /* r0 = result */
-        
+
         "str %[r2], [%[r0], %[r5]] \n\t" /* result[k] = c0 */
         "mov %[r2], %[r3] \n\t"          /* c0 = c1 */
         "mov %[r3], %[r4] \n\t"          /* c1 = c2 */
@@ -1403,7 +1420,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "cmp %[r5], r9 \n\t"             /* k <= (num_words * 2 - 2) (times 4) ? */
         "ble 2b \n\t"                    /*   if so, loop back, with i = (k + 1) - num_words */
         /* end outer loop */
-        
+
         "str %[r2], [%[r0], %[r5]] \n\t" /* result[num_words * 2 - 1] = c0 */
         "pop {%[r0]} \n\t"               /* pop result off the stack */
 
@@ -1419,6 +1436,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 #endif
 #endif /* uECC_SQUARE_FUNC */
 
+/* Assembly matrix updates for the safegcd inversion (Thumb-2 / ARM). */
 #if (uECC_SAFEGCD == 1) && (uECC_PLATFORM != uECC_arm_thumb)
 #include "asm_arm_safegcd.inc"
 #endif

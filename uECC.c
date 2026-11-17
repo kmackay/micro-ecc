@@ -589,6 +589,8 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
 }
 #endif /* !asm_modSub */
 
+/* The generic mod-n multiplication is only needed when Montgomery multiplication
+   (below) is not used, or for the public VLI API. */
 #if uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1
 /* Computes result = product % mod, where product is 2N words long. */
 /* Currently only designed to work for curve_p or curve_n. */
@@ -633,7 +635,7 @@ uECC_VLI_API void uECC_vli_mmod(uECC_word_t *result,
     }
     uECC_vli_set(result, v[index], num_words);
 }
-#endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) */
+#endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1 */
 
 #if (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1
 /* ---- Montgomery multiplication (used for the arithmetic mod n in ECDSA) ---- */
@@ -719,6 +721,8 @@ static void vli_montMult(uECC_word_t *result,
         }
         t[num_words] += carry;
         top = (t[num_words] < carry);
+        /* t = (t + m * mod) / 2^w; the carry out of t[num_words] becomes the new
+           top word. */
         vli_montStep(t, mod, inv, num_words);
         t[num_words] += top;
     }
@@ -741,7 +745,7 @@ static void vli_montReduce(uECC_word_t *result,
     }
     vli_montFinish(result, t, mod, num_words);
 }
-#endif /* (uECC_OPTIMIZATION_LEVEL > 0) */
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0) && !uECC_ARM_COMPACT_L1 */
 
 #if uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1
 /* Computes result = (left * right) % mod. */
@@ -754,7 +758,7 @@ uECC_VLI_API void uECC_vli_modMult(uECC_word_t *result,
     uECC_vli_mult(product, left, right, num_words);
     uECC_vli_mmod(result, product, mod, num_words);
 }
-#endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) */
+#endif /* uECC_ENABLE_VLI_API || (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1 */
 
 uECC_VLI_API void uECC_vli_modMult_fast(uECC_word_t *result,
                                         const uECC_word_t *left,
@@ -827,6 +831,7 @@ uECC_VLI_API void uECC_vli_modSquare_fast(uECC_word_t *result,
 #define S30_BATCHES 20                         /* 20 * 30 = 600 >= 590 divsteps,
                                                   enough for any input < 2^256 */
 
+/* Transition matrix [u v; q r] for a batch of divsteps (scaled by 2^30). */
 typedef struct {
     int32_t u, v, q, r;
 } s30_trans;
@@ -835,6 +840,8 @@ typedef struct {
 #define VLI_BYTE(vli, k) \
     ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
 
+/* Converts a (num_words words) to len unsigned 30-bit limbs in r. Works a byte
+   at a time so it is independent of uECC_WORD_SIZE. */
 static void vli_to_s30(int32_t *r,
                        const uECC_word_t *a,
                        wordcount_t num_words,
@@ -856,7 +863,8 @@ static void vli_to_s30(int32_t *r,
     }
 }
 
-/* r must be normalized (all limbs in [0, 2^30)). */
+/* Converts len 30-bit limbs in r back to a num_words-word VLI. r must be
+   normalized (all limbs in [0, 2^30)). */
 static void s30_to_vli(uECC_word_t *result,
                        const int32_t *r,
                        wordcount_t num_words,
@@ -1025,6 +1033,7 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
     s30_trans t;
     int32_t zeta = -1;                         /* delta = 1/2 */
     uint32_t inv;
+    /* Enough 30-bit limbs for the modulus plus 2 bits of sign / range headroom. */
     const wordcount_t len = (wordcount_t)((num_words * uECC_WORD_BITS + 2 + 29) / 30);
     wordcount_t i;
 
@@ -1100,6 +1109,7 @@ typedef struct {
 #define VLI_BYTE(vli, k) \
     ((uint8_t)((vli)[(k) / uECC_WORD_SIZE] >> (8 * ((k) % uECC_WORD_SIZE))))
 
+/* Converts a (num_words words) to len unsigned 14-bit limbs in r. */
 static void vli_to_s14(s14_t *r,
                        const uECC_word_t *a,
                        wordcount_t num_words,
@@ -1121,7 +1131,8 @@ static void vli_to_s14(s14_t *r,
     }
 }
 
-/* r must be normalized (all limbs in [0, 2^14)). */
+/* Converts len 14-bit limbs in r back to a num_words-word VLI. r must be
+   normalized (all limbs in [0, 2^14)). */
 static void s14_to_vli(uECC_word_t *result,
                        const s14_t *r,
                        wordcount_t num_words,

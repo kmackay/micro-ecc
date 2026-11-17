@@ -46,7 +46,7 @@ int main() {
     uint8_t public[64] = {0};
     uint8_t hash[32] = {0};
     uint8_t sig[64] = {0};
-    
+
     uint8_t tmp[2 * SHA256_DIGEST_LENGTH + SHA256_BLOCK_LENGTH];
     SHA256_HashContext ctx = {{
         &init_SHA256,
@@ -63,7 +63,7 @@ int main() {
     curves[2] = uECC_secp224r1();
     curves[3] = uECC_secp256r1();
     curves[4] = uECC_secp256k1();
-    
+
     printf("Testing 256 signatures\n");
     for (c = 0; c < 5; ++c) {
         for (i = 0; i < 256; ++i) {
@@ -75,7 +75,7 @@ int main() {
                 return 1;
             }
             memcpy(hash, public, sizeof(hash));
-            
+
             if (!uECC_sign_deterministic(private, hash, sizeof(hash), &ctx.uECC, sig, curves[c])) {
                 printf("uECC_sign() failed\n");
                 return 1;
@@ -88,6 +88,6 @@ int main() {
         }
         printf("\n");
     }
-    
+
     return 0;
 }

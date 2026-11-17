@@ -115,7 +115,7 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
     uECC_word_t p1[uECC_MAX_WORDS] = {1};
     uECC_word_t l_result[uECC_MAX_WORDS] = {1};
     wordcount_t num_words = curve->num_words;
-    
+
     /* When curve->p == 3 (mod 4), we can compute
        sqrt(a) = a^((curve->p + 1) / 4) (mod curve->p). */
     uECC_vli_add(p1, curve->p, p1, num_words); /* p1 = curve_p + 1 */
@@ -131,17 +131,15 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
 #endif /* uECC_SUPPORT_COMPRESSED_POINT */
 
 #if (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 4)
-/* 32-bit constant-time fast reductions. Each curve-specific vli_mmod_fast
-   first folds the high half of the product into the low half using 64-bit
-   column accumulators, giving r + c * 2^N (N = 32 * num_words). With
-   d = 2^N - p (which is small and sparse for these curves), fold(r, c)
-   computes r + c * d and returns the new carry. Folding c once leaves
+/* 32-bit constant-time fast reductions. Each vli_mmod_fast first folds the high
+   half of the product into the low half with 64-bit column accumulators, giving
+   r + c * 2^N (N = 32 * num_words). With d = 2^N - p (small and sparse),
+   fold(r, c) computes r + c * d and returns the new carry. One more fold leaves
    r + c2 * 2^N with c2 in {-1, 0, 1} and a value in (-p, 2p).
 
-   Since the result fits in N bits, adding p is the same as folding -1 and
-   subtracting p is the same as folding +1 (mod 2^N). MMOD_FINISH folds
-   s = (c2 != 0 ? c2 : 1) = (c2 | 1); if c2 was 0 and that fold did not carry
-   (that is, r < p), it undoes it by folding -1. */
+   Since the result fits in N bits, folding -1 adds p and folding +1 subtracts p.
+   MMOD_FINISH folds s = (c2 | 1) (c2, or 1 if c2 == 0); if c2 was 0 and that
+   fold did not carry (that is, r < p), it undoes it by folding -1. */
 #define MMOD_FINISH(fold, r, c) do { \
     int32_t c2_ = fold((r), (c)); \
     int32_t k_ = fold((r), c2_ | 1); \
@@ -166,7 +164,9 @@ static void mod_sqrt_default(uECC_word_t *a, uECC_Curve curve) {
    time with a 16-bit accumulator: byte b of the result receives byte (b & 3)
    of each 32-bit source word listed for its word column (b >> 2). */
 
-/* terms: for each 32-bit result word, the list of source words to add
+/* Computes result = low half of product plus/minus the high-half words listed
+   in terms, one 32-bit word column at a time (with a 16-bit accumulator per byte).
+   terms: for each 32-bit result word, the list of source words to add
    (0..7) or subtract (0x80 | word), terminated by 0xFF; words with
    coefficient 2 or 3 are listed 2 or 3 times. Returns the (small, signed)
    carry out of the top byte. */
@@ -213,10 +213,10 @@ static void vli_mmod_select8(uint8_t *r, int8_t c2, int8_t cmp, const uint8_t *p
     uint8_t ge, neg, pos, m, s;
     wordcount_t b;
     ge = ~(uint8_t)cmp;                      /* 0xFF if r >= p */
-    neg = 0 - ((uint8_t)c2 >> 7);
-    pos = 0 - ((uint8_t)(0 - (uint8_t)c2) >> 7);
+    neg = 0 - ((uint8_t)c2 >> 7);            /* 0xFF if c2 < 0 */
+    pos = 0 - ((uint8_t)(0 - (uint8_t)c2) >> 7); /* 0xFF if c2 > 0 */
     s = pos | (~(neg | pos) & ge);           /* subtract p */
-    m = neg | s;
+    m = neg | s;                             /* add or subtract p */
     sum = s & 1;                             /* r + ~p + 1 = r - p */
     for (b = 0; b < num_bytes; ++b) {
         sum += r[b] + (uint8_t)((p[b] & m) ^ s);
@@ -245,7 +245,7 @@ static void vli_mmod_fold_select8(uint8_t *r, int16_t c, const int8_t *digits,
         }
         r[b] = (uint8_t)acc;
         acc >>= 8;
-        cmp += (int16_t)r[b] - p[b];
+        cmp += (int16_t)r[b] - p[b];         /* Track the borrow of r - p. */
         cmp >>= 8;
     }
     vli_mmod_select8(r, (int8_t)acc, (int8_t)cmp, p, num_bytes);
@@ -298,12 +298,12 @@ static void omega_mult_secp160r1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
     uECC_word_t tmp[2 * num_words_secp160r1];
     uECC_word_t carry;
-    
+
     uECC_vli_clear(tmp, num_words_secp160r1);
     uECC_vli_clear(tmp + num_words_secp160r1, num_words_secp160r1);
 
     omega_mult_secp160r1(tmp, product + num_words_secp160r1); /* (Rq, q) = q * c */
-    
+
     carry = uECC_vli_add(result, product, tmp, num_words_secp160r1); /* (C, r) = r + q */
     uECC_vli_clear(product, num_words_secp160r1);
     omega_mult_secp160r1(product, tmp + num_words_secp160r1); /* Rq*c */
@@ -320,12 +320,12 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
 static void omega_mult_secp160r1(uint32_t *result, const uint32_t *right) {
     uint32_t carry;
     unsigned i;
-    
+
     /* Multiply by (2^31 + 1). */
     uECC_vli_set(result + 1, right, num_words_secp160r1); /* 2^32 */
     uECC_vli_rshift1(result + 1, num_words_secp160r1); /* 2^31 */
     result[0] = right[0] << 31; /* get last bit from shift */
-    
+
     carry = uECC_vli_add(result, result, right, num_words_secp160r1); /* 2^31 + 1 */
     for (i = num_words_secp160r1; carry; ++i) {
         uint64_t sum = (uint64_t)result[i] + carry;
@@ -339,7 +339,7 @@ static void omega_mult_secp160r1(uint32_t *result, const uint32_t *right) {
 #if (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp160r1)
 /* Computes result = product % curve_p
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354
-    
+
     Note that this only works if log2(omega) < log2(p) / 2 */
 #if (uECC_WORD_SIZE == 8)
 static void omega_mult_secp160r1(uECC_word_t *result, const uECC_word_t *right);
@@ -348,12 +348,12 @@ static void omega_mult_secp160r1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
     uECC_word_t tmp[2 * num_words_secp160r1];
     uECC_word_t copy;
-    
+
     uECC_vli_clear(tmp, num_words_secp160r1);
     uECC_vli_clear(tmp + num_words_secp160r1, num_words_secp160r1);
 
     omega_mult_secp160r1(tmp, product + num_words_secp160r1 - 1); /* (Rq, q) = q * c */
-    
+
     product[num_words_secp160r1 - 1] &= 0xffffffff;
     copy = tmp[num_words_secp160r1 - 1];
     tmp[num_words_secp160r1 - 1] &= 0xffffffff;
@@ -371,7 +371,7 @@ static void vli_mmod_fast_secp160r1(uECC_word_t *result, uECC_word_t *product) {
 static void omega_mult_secp160r1(uint64_t *result, const uint64_t *right) {
     uint32_t carry;
     unsigned i;
-    
+
     /* Multiply by (2^31 + 1). */
     carry = 0;
     for (i = 0; i < num_words_secp160r1; ++i) {
@@ -399,7 +399,7 @@ static void vli_mmod_fast_secp160r1(uint32_t *result, uint32_t *product) {
     uint64_t acc;
     uint32_t c;
 
-    /* result = lo + hi + hi * 2^31 */
+    /* result = lo + hi + hi * 2^31; the part above 2^160 goes in c. */
     acc = (uint64_t)product[0] + a0 + (uint32_t)(a0 << 31);
     result[0] = (uint32_t)acc; acc >>= 32;
     acc += (uint64_t)product[1] + a1 + ((a1 << 31) | (a0 >> 1));
@@ -419,6 +419,8 @@ static void vli_mmod_fast_secp160r1(uint32_t *result, uint32_t *product) {
 #define SHL7_SECP160R1(x, i, n) \
     ((uint8_t)(((i) < (n) ? (x)[i] << 7 : 0) | ((i) > 0 ? (x)[(i) - 1] >> 1 : 0)))
 
+/* Same approach as the 32-bit version, one byte column at a time: hi * 2^31 is
+   hi * 2^7 shifted up 3 bytes. */
 static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
     const uint8_t *hi = product + 20;
     const uint8_t *p = curve_secp160r1.p;
@@ -427,7 +429,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
     int16_t cmp = 0;
     uint8_t b;
 
-    /* result = lo + hi + hi * 2^31 (2^160 = 2^31 + 1 (mod p)); carry -> c */
+    /* result = lo + hi + hi * 2^31 (2^160 = 2^31 + 1 (mod p)); carry -> c. */
     for (b = 0; b < 3; ++b) {
         acc += product[b] + hi[b];
         result[b] = (uint8_t)acc;
@@ -444,7 +446,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         acc >>= 8;
     }
 
-    /* fold the carry the same way, and compare with p */
+    /* Fold the carry the same way, tracking the borrow of r - p. */
     acc = 0;
     for (b = 0; b < 20; ++b) {
         acc += result[b];
@@ -510,24 +512,24 @@ uECC_Curve uECC_secp192r1(void) { return &curve_secp192r1; }
 static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
     uint32_t tmp[num_words_secp192r1];
     int carry;
-    
+
     uECC_vli_set(result, product, num_words_secp192r1);
-    
+
     uECC_vli_set(tmp, &product[6], num_words_secp192r1);
     carry = uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
+
     tmp[0] = tmp[1] = 0;
     tmp[2] = product[6];
     tmp[3] = product[7];
     tmp[4] = product[8];
     tmp[5] = product[9];
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
+
     tmp[0] = tmp[2] = product[10];
     tmp[1] = tmp[3] = product[11];
     tmp[4] = tmp[5] = 0;
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
+
     while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
         carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
@@ -539,6 +541,8 @@ static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
 /* Computes result = product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
 #if uECC_WORD_SIZE == 1
+/* Sums the terms column by column, then folds the carry using digits
+   (see vli_mmod_columns8 and vli_mmod_fold_select8). */
 static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
     static const uint8_t terms[] = {
         0, 4, 0xFF,
@@ -564,6 +568,7 @@ static int32_t mmod_fold_secp192r1(uint32_t *r, int64_t c) {
     return (int32_t)acc;
 }
 
+/* result = lo + hi * (2^64 + 1), computed column by column, then MMOD_FINISH. */
 static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
     const uint32_t a0 = product[6], a1 = product[7], a2 = product[8],
                    a3 = product[9], a4 = product[10], a5 = product[11];
@@ -590,21 +595,21 @@ static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
 static void vli_mmod_fast_secp192r1(uint64_t *result, uint64_t *product) {
     uint64_t tmp[num_words_secp192r1];
     int carry;
-    
+
     uECC_vli_set(result, product, num_words_secp192r1);
-    
+
     uECC_vli_set(tmp, &product[3], num_words_secp192r1);
     carry = (int)uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
+
     tmp[0] = 0;
     tmp[1] = product[3];
     tmp[2] = product[4];
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
+
     tmp[0] = tmp[1] = product[5];
     tmp[2] = 0;
     carry += uECC_vli_add(result, result, tmp, num_words_secp192r1);
-    
+
     while (carry || uECC_vli_cmp_unsafe(curve_secp192r1.p, result, num_words_secp192r1) != 1) {
         carry -= uECC_vli_sub(result, result, curve_secp192r1.p, num_words_secp192r1);
     }
@@ -838,6 +843,8 @@ static void vli_mmod_fast_secp224r1(uint32_t *result, uint32_t *product)
 /* Computes result = product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
 #if uECC_WORD_SIZE == 1
+/* Sums the terms column by column, then folds the carry using digits
+   (see vli_mmod_columns8 and vli_mmod_fold_select8). */
 static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
     static const uint8_t terms[] = {
         0x80 | 0, 0x80 | 4, 0xFF,
@@ -991,10 +998,10 @@ uECC_Curve uECC_secp256r1(void) { return &curve_secp256r1; }
 static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     uint32_t tmp[num_words_secp256r1];
     int carry;
-    
+
     /* t */
     uECC_vli_set(result, product, num_words_secp256r1);
-    
+
     /* s1 */
     tmp[0] = tmp[1] = tmp[2] = 0;
     tmp[3] = product[11];
@@ -1004,7 +1011,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[7] = product[15];
     carry = uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* s2 */
     tmp[3] = product[12];
     tmp[4] = product[13];
@@ -1013,7 +1020,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[7] = 0;
     carry += uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* s3 */
     tmp[0] = product[8];
     tmp[1] = product[9];
@@ -1022,7 +1029,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[6] = product[14];
     tmp[7] = product[15];
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* s4 */
     tmp[0] = product[9];
     tmp[1] = product[10];
@@ -1033,7 +1040,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[6] = product[13];
     tmp[7] = product[8];
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* d1 */
     tmp[0] = product[11];
     tmp[1] = product[12];
@@ -1042,7 +1049,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[6] = product[8];
     tmp[7] = product[10];
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     /* d2 */
     tmp[0] = product[12];
     tmp[1] = product[13];
@@ -1052,7 +1059,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[6] = product[9];
     tmp[7] = product[11];
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     /* d3 */
     tmp[0] = product[13];
     tmp[1] = product[14];
@@ -1063,7 +1070,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[6] = 0;
     tmp[7] = product[12];
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     /* d4 */
     tmp[0] = product[14];
     tmp[1] = product[15];
@@ -1074,7 +1081,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
     tmp[6] = 0;
     tmp[7] = product[13];
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     if (carry < 0) {
         do {
             carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
@@ -1092,6 +1099,8 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
 /* Computes result = product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
 #if uECC_WORD_SIZE == 1
+/* Sums the terms column by column, then folds the carry using digits
+   (see vli_mmod_columns8 and vli_mmod_fold_select8). */
 static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     static const uint8_t terms[] = {
         0, 1, 0x80 | 3, 0x80 | 4, 0x80 | 5, 0x80 | 6, 0xFF,
@@ -1156,10 +1165,10 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
 static void vli_mmod_fast_secp256r1(uint64_t *result, uint64_t *product) {
     uint64_t tmp[num_words_secp256r1];
     int carry;
-    
+
     /* t */
     uECC_vli_set(result, product, num_words_secp256r1);
-    
+
     /* s1 */
     tmp[0] = 0;
     tmp[1] = product[5] & 0xffffffff00000000ull;
@@ -1167,56 +1176,56 @@ static void vli_mmod_fast_secp256r1(uint64_t *result, uint64_t *product) {
     tmp[3] = product[7];
     carry = (int)uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* s2 */
     tmp[1] = product[6] << 32;
     tmp[2] = (product[6] >> 32) | (product[7] << 32);
     tmp[3] = product[7] >> 32;
     carry += uECC_vli_add(tmp, tmp, tmp, num_words_secp256r1);
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* s3 */
     tmp[0] = product[4];
     tmp[1] = product[5] & 0xffffffff;
     tmp[2] = 0;
     tmp[3] = product[7];
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* s4 */
     tmp[0] = (product[4] >> 32) | (product[5] << 32);
     tmp[1] = (product[5] >> 32) | (product[6] & 0xffffffff00000000ull);
     tmp[2] = product[7];
     tmp[3] = (product[6] >> 32) | (product[4] << 32);
     carry += uECC_vli_add(result, result, tmp, num_words_secp256r1);
-    
+
     /* d1 */
     tmp[0] = (product[5] >> 32) | (product[6] << 32);
     tmp[1] = (product[6] >> 32);
     tmp[2] = 0;
     tmp[3] = (product[4] & 0xffffffff) | (product[5] << 32);
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     /* d2 */
     tmp[0] = product[6];
     tmp[1] = product[7];
     tmp[2] = 0;
     tmp[3] = (product[4] >> 32) | (product[5] & 0xffffffff00000000ull);
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     /* d3 */
     tmp[0] = (product[6] >> 32) | (product[7] << 32);
     tmp[1] = (product[7] >> 32) | (product[4] << 32);
     tmp[2] = (product[4] >> 32) | (product[5] << 32);
     tmp[3] = (product[6] << 32);
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     /* d4 */
     tmp[0] = product[7];
     tmp[1] = product[4] & 0xffffffff00000000ull;
     tmp[2] = product[5];
     tmp[3] = product[6] & 0xffffffff00000000ull;
     carry -= uECC_vli_sub(result, result, tmp, num_words_secp256r1);
-    
+
     if (carry < 0) {
         do {
             carry += uECC_vli_add(result, result, curve_secp256r1.p, num_words_secp256r1);
@@ -1289,17 +1298,17 @@ static void double_jacobian_secp256k1(uECC_word_t * X1,
     /* t1 = X, t2 = Y, t3 = Z */
     uECC_word_t t4[num_words_secp256k1];
     uECC_word_t t5[num_words_secp256k1];
-    
+
     if (uECC_vli_isZero(Z1, num_words_secp256k1)) {
         return;
     }
-    
+
     uECC_vli_modSquare_fast(t5, Y1, curve);   /* t5 = y1^2 */
     uECC_vli_modMult_fast(t4, X1, t5, curve); /* t4 = x1*y1^2 = A */
     uECC_vli_modSquare_fast(X1, X1, curve);   /* t1 = x1^2 */
     uECC_vli_modSquare_fast(t5, t5, curve);   /* t5 = y1^4 */
     uECC_vli_modMult_fast(Z1, Y1, Z1, curve); /* t3 = y1*z1 = z3 */
-    
+
     uECC_vli_modAdd(Y1, X1, X1, curve->p, num_words_secp256k1); /* t2 = 2*x1^2 */
     uECC_vli_modAdd(Y1, Y1, X1, curve->p, num_words_secp256k1); /* t2 = 3*x1^2 */
     if (uECC_vli_testBit(Y1, 0)) {
@@ -1310,11 +1319,11 @@ static void double_jacobian_secp256k1(uECC_word_t * X1,
         uECC_vli_rshift1(Y1, num_words_secp256k1);
     }
     /* t2 = 3/2*(x1^2) = B */
-    
+
     uECC_vli_modSquare_fast(X1, Y1, curve);                     /* t1 = B^2 */
     uECC_vli_modSub(X1, X1, t4, curve->p, num_words_secp256k1); /* t1 = B^2 - A */
     uECC_vli_modSub(X1, X1, t4, curve->p, num_words_secp256k1); /* t1 = B^2 - 2A = x3 */
-    
+
     uECC_vli_modSub(t4, t4, X1, curve->p, num_words_secp256k1); /* t4 = A - x3 */
     uECC_vli_modMult_fast(Y1, Y1, t4, curve);                   /* t2 = B * (A - x3) */
     uECC_vli_modSub(Y1, Y1, t5, curve->p, num_words_secp256k1); /* t2 = B * (A - x3) - y1^4 = y3 */
@@ -1333,17 +1342,17 @@ static void omega_mult_secp256k1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     uECC_word_t tmp[2 * num_words_secp256k1];
     uECC_word_t carry;
-    
+
     uECC_vli_clear(tmp, num_words_secp256k1);
     uECC_vli_clear(tmp + num_words_secp256k1, num_words_secp256k1);
-    
+
     omega_mult_secp256k1(tmp, product + num_words_secp256k1); /* (Rq, q) = q * c */
-    
+
     carry = uECC_vli_add(result, product, tmp, num_words_secp256k1); /* (C, r) = r + q       */
     uECC_vli_clear(product, num_words_secp256k1);
     omega_mult_secp256k1(product, tmp + num_words_secp256k1); /* Rq*c */
     carry += uECC_vli_add(result, result, product, num_words_secp256k1); /* (C1, r) = r + Rq*c */
-    
+
     while (carry > 0) {
         --carry;
         uECC_vli_sub(result, result, curve_secp256k1.p, num_words_secp256k1);
@@ -1357,7 +1366,7 @@ static void omega_mult_secp256k1(uint32_t * result, const uint32_t * right) {
     /* Multiply by (2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
     uint32_t carry = 0;
     wordcount_t k;
-    
+
     for (k = 0; k < num_words_secp256k1; ++k) {
         uint64_t p = (uint64_t)0x3D1 * right[k] + carry;
         result[k] = (uint32_t) p;
@@ -1366,7 +1375,7 @@ static void omega_mult_secp256k1(uint32_t * result, const uint32_t * right) {
     result[num_words_secp256k1] = carry;
     /* add the 2^32 multiple */
     result[1 + num_words_secp256k1] =
-        uECC_vli_add(result + 1, result + 1, right, num_words_secp256k1); 
+        uECC_vli_add(result + 1, result + 1, right, num_words_secp256k1);
 }
 #define asm_mmod_fast_secp256k1 1 /* skip the constant-time C version below */
 #endif
@@ -1387,7 +1396,7 @@ static int32_t mmod_fold_secp256k1(uint32_t *r, int64_t c) {
     return (int32_t)acc;
 }
 
-/* result = lo + hi * 977 + hi * 2^32 */
+/* result = lo + hi * 977 + hi * 2^32, then MMOD_FINISH. */
 static void vli_mmod_fast_secp256k1(uint32_t *result, uint32_t *product) {
     const uint32_t a0 = product[8], a1 = product[9], a2 = product[10],
                    a3 = product[11], a4 = product[12], a5 = product[13],
@@ -1416,7 +1425,8 @@ static void vli_mmod_fast_secp256k1(uint32_t *result, uint32_t *product) {
     MMOD_FINISH(mmod_fold_secp256k1, result, c);
 }
 #elif (uECC_WORD_SIZE == 1)
-/* Byte i of x * 977 + x * 2^32 terms that land in column i (x has n bytes). */
+/* Column i of x * (2^32 + 977) before carries (x has n bytes). 977 = 0x3D1, so
+   column i gets x[i] * 0xD1 + x[i - 1] * 0x03 + x[i - 4]. */
 #define OMEGA_SECP256K1(x, i, n) \
     (((i) < (n) ? (x)[i] * (uint16_t)0xD1 : 0) + \
      ((i) >= 1 && (i) - 1 < (n) ? (x)[(i) - 1] * (uint16_t)0x03 : 0) + \
@@ -1430,7 +1440,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
     int16_t cmp = 0;
     uint8_t b;
 
-    /* result = lo + hi * 977 + hi * 2^32 (2^256 = 2^32 + 977 (mod p)) */
+    /* result = lo + hi * 977 + hi * 2^32 (2^256 = 2^32 + 977 (mod p)); carry -> c. */
     for (b = 0; b < 4; ++b) {
         acc += product[b] + OMEGA_SECP256K1(hi, b, 32);
         result[b] = (uint8_t)acc;
@@ -1447,7 +1457,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         acc >>= 8;
     }
 
-    /* fold the carry the same way, and compare with p */
+    /* Fold the carry the same way, tracking the borrow of r - p. */
     acc = 0;
     for (b = 0; b < 32; ++b) {
         acc += result[b];
@@ -1466,17 +1476,17 @@ static void omega_mult_secp256k1(uECC_word_t *result, const uECC_word_t *right);
 static void vli_mmod_fast_secp256k1(uECC_word_t *result, uECC_word_t *product) {
     uECC_word_t tmp[2 * num_words_secp256k1];
     uECC_word_t carry;
-    
+
     uECC_vli_clear(tmp, num_words_secp256k1);
     uECC_vli_clear(tmp + num_words_secp256k1, num_words_secp256k1);
-    
+
     omega_mult_secp256k1(tmp, product + num_words_secp256k1); /* (Rq, q) = q * c */
-    
+
     carry = uECC_vli_add(result, product, tmp, num_words_secp256k1); /* (C, r) = r + q       */
     uECC_vli_clear(product, num_words_secp256k1);
     omega_mult_secp256k1(product, tmp + num_words_secp256k1); /* Rq*c */
     carry += uECC_vli_add(result, result, product, num_words_secp256k1); /* (C1, r) = r + Rq*c */
-    
+
     while (carry > 0) {
         --carry;
         uECC_vli_sub(result, result, curve_secp256k1.p, num_words_secp256k1);
@@ -1492,7 +1502,7 @@ static void omega_mult_secp256k1(uint64_t * result, const uint64_t * right) {
     uECC_word_t r1 = 0;
     uECC_word_t r2 = 0;
     wordcount_t k;
-    
+
     /* Multiply by (2^32 + 2^9 + 2^8 + 2^7 + 2^6 + 2^4 + 1). */
     for (k = 0; k < num_words_secp256k1; ++k) {
         muladd(0x1000003D1ull, right[k], &r0, &r1, &r2);
@@ -1504,7 +1514,7 @@ static void omega_mult_secp256k1(uint64_t * result, const uint64_t * right) {
     result[num_words_secp256k1] = r0;
 }
 #endif /* uECC_WORD_SIZE */
-#endif /* uECC_WORD_SIZE == 4 */
+#endif /* uECC_WORD_SIZE */
 #endif /* (uECC_OPTIMIZATION_LEVEL > 0 &&  && !asm_mmod_fast_secp256k1) */
 
 #endif /* uECC_SUPPORTS_secp256k1 */

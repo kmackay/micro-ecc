@@ -17,7 +17,7 @@
    is folded back the same way, then p is subtracted once if needed. */
 static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
-        /* column 0: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry */
+        /* Column 0: p[0] + a[0] + (a[0] << 31). */
         "ld r18, Z \n\t"
         "ldd r19, Z+1 \n\t"
         "ldd r20, Z+2 \n\t"
@@ -46,7 +46,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "mov r13, r25 \n\t"
         "mov r14, r26 \n\t"
         "mov r15, r27 \n\t"
-        /* column 1: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry */
+        /* Column 1: p[1] + a[1] + ((a[1] << 31) | (a[0] >> 1)) + carry. */
         "ldd r18, Z+4 \n\t"
         "ldd r19, Z+5 \n\t"
         "ldd r20, Z+6 \n\t"
@@ -85,7 +85,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "mov r13, r25 \n\t"
         "mov r14, r26 \n\t"
         "mov r15, r27 \n\t"
-        /* column 2: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry */
+        /* Column 2: p[2] + a[2] + ((a[2] << 31) | (a[1] >> 1)) + carry. */
         "ldd r18, Z+8 \n\t"
         "ldd r19, Z+9 \n\t"
         "ldd r20, Z+10 \n\t"
@@ -124,7 +124,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "mov r13, r25 \n\t"
         "mov r14, r26 \n\t"
         "mov r15, r27 \n\t"
-        /* column 3: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry */
+        /* Column 3: p[3] + a[3] + ((a[3] << 31) | (a[2] >> 1)) + carry. */
         "ldd r18, Z+12 \n\t"
         "ldd r19, Z+13 \n\t"
         "ldd r20, Z+14 \n\t"
@@ -163,7 +163,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "mov r13, r25 \n\t"
         "mov r14, r26 \n\t"
         "mov r15, r27 \n\t"
-        /* column 4: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry */
+        /* Column 4: p[4] + a[4] + ((a[4] << 31) | (a[3] >> 1)) + carry. */
         "ldd r18, Z+16 \n\t"
         "ldd r19, Z+17 \n\t"
         "ldd r20, Z+18 \n\t"
@@ -198,7 +198,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "std Y+17, r19 \n\t"
         "std Y+18, r20 \n\t"
         "std Y+19, r21 \n\t"
-        /* c = carry + (a4 >> 1) */
+        /* c = carry + (a[4] >> 1). */
         "lsr r27 \n\t"
         "ror r26 \n\t"
         "ror r25 \n\t"
@@ -207,7 +207,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "adc r25, r1 \n\t"
         "adc r26, r1 \n\t"
         "adc r27, r1 \n\t"
-        /* fold c: result += c + c * 2^31 = c + ((c & 1) << 31) + (c >> 1) * 2^32 */
+        /* Fold c: result += c + c * 2^31 = c + ((c & 1) << 31) + (c >> 1) * 2^32. */
         "mov r12, r24 \n\t"
         "mov r13, r25 \n\t"
         "mov r14, r26 \n\t"
@@ -285,9 +285,10 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "ldd r0, Y+19 \n\t"
         "adc r0, r1 \n\t"
         "std Y+19, r0 \n\t"
+        /* c2 = final carry. */
         "mov r18, r1 \n\t"
         "adc r18, r1 \n\t"
-        /* borrow of result - p (read-only) */
+        /* Compare result with p (read-only pass): bm = 0xFF if result >= p. */
         "ld r24, Y \n\t"
         "subi r24, 0xFF \n\t"
         "ldd r24, Y+1 \n\t"
@@ -330,7 +331,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "sbci r24, 0xFF \n\t"
         "sbc r16, r16 \n\t"
         "com r16 \n\t"
-        /* m_sub = (c2 == 1) | (result >= p) */
+        /* m_sub = (c2 == 1) | (result >= p). */
         "mov r19, r18 \n\t"
         "neg r19 \n\t"
         "or r19, r16 \n\t"
@@ -338,7 +339,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "andi r20, 0x01 \n\t"
         "mov r21, r19 \n\t"
         "andi r21, 0x80 \n\t"
-        /* result += (p & m_add) | ((2^N - p) & m_sub) */
+        /* result += (p & m_add) | ((2^N - p) & m_sub). */
         "ld r24, Y \n\t"
         "add r24, r20 \n\t"
         "st Y, r24 \n\t"
@@ -413,7 +414,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
    2^192 = 2^64 + 1 (mod p), and p is added or subtracted once. */
 static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
-        /* column 0 */
+        /* Column 0: p[0] + a[0] + a[4]. */
         "ld r18, Z \n\t"
         "ldd r19, Z+1 \n\t"
         "ldd r20, Z+2 \n\t"
@@ -441,7 +442,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+1, r19 \n\t"
         "std Y+2, r20 \n\t"
         "std Y+3, r21 \n\t"
-        /* column 1 */
+        /* Column 1: p[1] + a[1] + a[5] + carry. */
         "ldd r18, Z+4 \n\t"
         "ldd r19, Z+5 \n\t"
         "ldd r20, Z+6 \n\t"
@@ -476,7 +477,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+5, r19 \n\t"
         "std Y+6, r20 \n\t"
         "std Y+7, r21 \n\t"
-        /* column 2 */
+        /* Column 2: p[2] + a[2] + a[0] + a[4] + carry. */
         "ldd r18, Z+8 \n\t"
         "ldd r19, Z+9 \n\t"
         "ldd r20, Z+10 \n\t"
@@ -520,7 +521,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+9, r19 \n\t"
         "std Y+10, r20 \n\t"
         "std Y+11, r21 \n\t"
-        /* column 3 */
+        /* Column 3: p[3] + a[3] + a[1] + a[5] + carry. */
         "ldd r18, Z+12 \n\t"
         "ldd r19, Z+13 \n\t"
         "ldd r20, Z+14 \n\t"
@@ -564,7 +565,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+13, r19 \n\t"
         "std Y+14, r20 \n\t"
         "std Y+15, r21 \n\t"
-        /* column 4 */
+        /* Column 4: p[4] + a[4] + a[2] + carry. */
         "ldd r18, Z+16 \n\t"
         "ldd r19, Z+17 \n\t"
         "ldd r20, Z+18 \n\t"
@@ -599,7 +600,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+17, r19 \n\t"
         "std Y+18, r20 \n\t"
         "std Y+19, r21 \n\t"
-        /* column 5 */
+        /* Column 5: p[5] + a[5] + a[3] + carry. */
         "ldd r18, Z+20 \n\t"
         "ldd r19, Z+21 \n\t"
         "ldd r20, Z+22 \n\t"
@@ -634,7 +635,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+21, r19 \n\t"
         "std Y+22, r20 \n\t"
         "std Y+23, r21 \n\t"
-        /* fold carry: result += c * (2^N - p) */
+        /* Fold carry: result += c * (2^N - p), c signed. */
         "mov r16, r23 \n\t"
         "lsl r16 \n\t"
         "sbc r16, r16 \n\t"
@@ -713,7 +714,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "adc r24, r16 \n\t"
         "std Y+23, r24 \n\t"
         "adc r16, r1 \n\t"
-        /* borrow of result - p (read-only) */
+        /* Compare result with p (read-only pass): bm = 0xFF if result >= p. */
         "ld r24, Y \n\t"
         "subi r24, 0xFF \n\t"
         "ldd r24, Y+1 \n\t"
@@ -764,13 +765,13 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "sbci r24, 0xFF \n\t"
         "sbc r17, r17 \n\t"
         "com r17 \n\t"
-        /* m_sub = (c2 == 1) | (result >= p) */
+        /* m_sub = (c2 == 1) | (result >= p). */
         "mov r19, r16 \n\t"
         "neg r19 \n\t"
         "or r19, r17 \n\t"
         "mov r20, r19 \n\t"
         "andi r20, 0x01 \n\t"
-        /* result += (p & m_add) | ((2^N - p) & m_sub) */
+        /* result += (p & m_add) | ((2^N - p) & m_sub). */
         "ld r24, Y \n\t"
         "add r24, r20 \n\t"
         "st Y, r24 \n\t"
@@ -857,7 +858,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
    using 2^224 = 2^96 - 1 (mod p), and p is added or subtracted once. */
 static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
-        /* column 0 */
+        /* Column 0: p[0] - a[0] - a[4]. */
         "ld r18, Z \n\t"
         "ldd r19, Z+1 \n\t"
         "ldd r20, Z+2 \n\t"
@@ -885,7 +886,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+1, r19 \n\t"
         "std Y+2, r20 \n\t"
         "std Y+3, r21 \n\t"
-        /* column 1 */
+        /* Column 1: p[1] - a[1] - a[5] + carry. */
         "ldd r18, Z+4 \n\t"
         "ldd r19, Z+5 \n\t"
         "ldd r20, Z+6 \n\t"
@@ -920,7 +921,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+5, r19 \n\t"
         "std Y+6, r20 \n\t"
         "std Y+7, r21 \n\t"
-        /* column 2 */
+        /* Column 2: p[2] - a[2] - a[6] + carry. */
         "ldd r18, Z+8 \n\t"
         "ldd r19, Z+9 \n\t"
         "ldd r20, Z+10 \n\t"
@@ -955,7 +956,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+9, r19 \n\t"
         "std Y+10, r20 \n\t"
         "std Y+11, r21 \n\t"
-        /* column 3 */
+        /* Column 3: p[3] + a[0] + a[4] - a[3] + carry. */
         "ldd r18, Z+12 \n\t"
         "ldd r19, Z+13 \n\t"
         "ldd r20, Z+14 \n\t"
@@ -999,7 +1000,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+13, r19 \n\t"
         "std Y+14, r20 \n\t"
         "std Y+15, r21 \n\t"
-        /* column 4 */
+        /* Column 4: p[4] + a[1] + a[5] - a[4] + carry. */
         "ldd r18, Z+16 \n\t"
         "ldd r19, Z+17 \n\t"
         "ldd r20, Z+18 \n\t"
@@ -1043,7 +1044,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+17, r19 \n\t"
         "std Y+18, r20 \n\t"
         "std Y+19, r21 \n\t"
-        /* column 5 */
+        /* Column 5: p[5] + a[2] + a[6] - a[5] + carry. */
         "ldd r18, Z+20 \n\t"
         "ldd r19, Z+21 \n\t"
         "ldd r20, Z+22 \n\t"
@@ -1087,7 +1088,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+21, r19 \n\t"
         "std Y+22, r20 \n\t"
         "std Y+23, r21 \n\t"
-        /* column 6 */
+        /* Column 6: p[6] + a[3] - a[6] + carry. */
         "ldd r18, Z+24 \n\t"
         "ldd r19, Z+25 \n\t"
         "ldd r20, Z+26 \n\t"
@@ -1122,7 +1123,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+25, r19 \n\t"
         "std Y+26, r20 \n\t"
         "std Y+27, r21 \n\t"
-        /* fold carry: result += c * (2^N - p) */
+        /* Fold carry: result += c * (2^N - p), c signed. */
         "mov r16, r22 \n\t"
         "lsl r16 \n\t"
         "sbc r16, r16 \n\t"
@@ -1218,7 +1219,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "adc r24, r16 \n\t"
         "std Y+27, r24 \n\t"
         "adc r16, r1 \n\t"
-        /* borrow of result - p (read-only) */
+        /* Compare result with p (read-only pass): bm = 0xFF if result >= p. */
         "ld r24, Y \n\t"
         "subi r24, 0x01 \n\t"
         "ldd r24, Y+1 \n\t"
@@ -1277,7 +1278,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "sbci r24, 0xFF \n\t"
         "sbc r17, r17 \n\t"
         "com r17 \n\t"
-        /* m_add = (c2 < 0), m_sub = (c2 > 0) | (c2 == 0 && result >= p) */
+        /* m_add = (c2 < 0), m_sub = (c2 > 0) | (c2 == 0 && result >= p). */
         "mov r19, r16 \n\t"
         "lsl r19 \n\t"
         "sbc r19, r19 \n\t"
@@ -1295,7 +1296,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "mov r22, r20 \n\t"
         "andi r22, 0xFF \n\t"
         "or r21, r22 \n\t"
-        /* result += (p & m_add) | ((2^N - p) & m_sub) */
+        /* result += (p & m_add) | ((2^N - p) & m_sub). */
         "ld r24, Y \n\t"
         "add r24, r21 \n\t"
         "st Y, r24 \n\t"
@@ -1395,27 +1396,27 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
    p is added or subtracted once. */
 static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
-        /* cache a5 */
+        /* Preload a[5]. */
         "ldd r2, Z+52 \n\t"
         "ldd r3, Z+53 \n\t"
         "ldd r4, Z+54 \n\t"
         "ldd r5, Z+55 \n\t"
-        /* cache a6 */
+        /* Preload a[6]. */
         "ldd r6, Z+56 \n\t"
         "ldd r7, Z+57 \n\t"
         "ldd r8, Z+58 \n\t"
         "ldd r9, Z+59 \n\t"
-        /* cache a7 */
+        /* Preload a[7]. */
         "ldd r10, Z+60 \n\t"
         "ldd r11, Z+61 \n\t"
         "ldd r12, Z+62 \n\t"
         "ldd r13, Z+63 \n\t"
-        /* cache a4 */
+        /* Preload a[4]. */
         "ldd r14, Z+48 \n\t"
         "ldd r15, Z+49 \n\t"
         "ldd r16, Z+50 \n\t"
         "ldd r17, Z+51 \n\t"
-        /* column 0 */
+        /* Column 0: p[0] + a[0] + a[1] - a[3] - a[4] - a[5] - a[6]. */
         "ld r18, Z \n\t"
         "ldd r19, Z+1 \n\t"
         "ldd r20, Z+2 \n\t"
@@ -1467,7 +1468,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+1, r19 \n\t"
         "std Y+2, r20 \n\t"
         "std Y+3, r21 \n\t"
-        /* column 1 */
+        /* Column 1: p[1] + a[1] + a[2] - a[4] - a[5] - a[6] - a[7] + carry. */
         "ldd r18, Z+4 \n\t"
         "ldd r19, Z+5 \n\t"
         "ldd r20, Z+6 \n\t"
@@ -1522,7 +1523,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+5, r19 \n\t"
         "std Y+6, r20 \n\t"
         "std Y+7, r21 \n\t"
-        /* column 2 */
+        /* Column 2: p[2] + a[2] + a[3] - a[5] - a[6] - a[7] + carry. */
         "ldd r18, Z+8 \n\t"
         "ldd r19, Z+9 \n\t"
         "ldd r20, Z+10 \n\t"
@@ -1572,7 +1573,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+9, r19 \n\t"
         "std Y+10, r20 \n\t"
         "std Y+11, r21 \n\t"
-        /* column 3 */
+        /* Column 3: p[3] + 2 a[3] + 2 a[4] + a[5] - a[7] - a[0] - a[1] + carry. */
         "ldd r18, Z+12 \n\t"
         "ldd r19, Z+13 \n\t"
         "ldd r20, Z+14 \n\t"
@@ -1641,7 +1642,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+13, r19 \n\t"
         "std Y+14, r20 \n\t"
         "std Y+15, r21 \n\t"
-        /* column 4 */
+        /* Column 4: p[4] + 2 a[4] + 2 a[5] + a[6] - a[1] - a[2] + carry. */
         "ldd r18, Z+16 \n\t"
         "ldd r19, Z+17 \n\t"
         "ldd r20, Z+18 \n\t"
@@ -1701,7 +1702,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+17, r19 \n\t"
         "std Y+18, r20 \n\t"
         "std Y+19, r21 \n\t"
-        /* column 5 */
+        /* Column 5: p[5] + 2 a[5] + 2 a[6] + a[7] - a[2] - a[3] + carry. */
         "ldd r18, Z+20 \n\t"
         "ldd r19, Z+21 \n\t"
         "ldd r20, Z+22 \n\t"
@@ -1761,7 +1762,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+21, r19 \n\t"
         "std Y+22, r20 \n\t"
         "std Y+23, r21 \n\t"
-        /* column 6 */
+        /* Column 6: p[6] + 3 a[6] + 2 a[7] + a[5] - a[0] - a[1] + carry. */
         "ldd r18, Z+24 \n\t"
         "ldd r19, Z+25 \n\t"
         "ldd r20, Z+26 \n\t"
@@ -1826,7 +1827,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+25, r19 \n\t"
         "std Y+26, r20 \n\t"
         "std Y+27, r21 \n\t"
-        /* column 7 */
+        /* Column 7: p[7] + 3 a[7] + a[0] - a[2] - a[3] - a[4] - a[5] + carry. */
         "ldd r18, Z+28 \n\t"
         "ldd r19, Z+29 \n\t"
         "ldd r20, Z+30 \n\t"
@@ -1895,7 +1896,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+29, r19 \n\t"
         "std Y+30, r20 \n\t"
         "std Y+31, r21 \n\t"
-        /* fold carry: result += c * (2^N - p) */
+        /* Fold carry: result += c * (2^N - p), c signed. */
         "mov r16, r23 \n\t"
         "lsl r16 \n\t"
         "sbc r16, r16 \n\t"
@@ -2006,7 +2007,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "adc r24, r16 \n\t"
         "std Y+31, r24 \n\t"
         "adc r16, r1 \n\t"
-        /* borrow of result - p (read-only) */
+        /* Compare result with p (read-only pass): bm = 0xFF if result >= p. */
         "ld r24, Y \n\t"
         "subi r24, 0xFF \n\t"
         "ldd r24, Y+1 \n\t"
@@ -2073,7 +2074,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "sbci r24, 0xFF \n\t"
         "sbc r17, r17 \n\t"
         "com r17 \n\t"
-        /* m_add = (c2 < 0), m_sub = (c2 > 0) | (c2 == 0 && result >= p) */
+        /* m_add = (c2 < 0), m_sub = (c2 > 0) | (c2 == 0 && result >= p). */
         "mov r19, r16 \n\t"
         "lsl r19 \n\t"
         "sbc r19, r19 \n\t"
@@ -2096,7 +2097,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "mov r25, r20 \n\t"
         "andi r25, 0xFE \n\t"
         "or r23, r25 \n\t"
-        /* result += (p & m_add) | ((2^N - p) & m_sub) */
+        /* result += (p & m_add) | ((2^N - p) & m_sub). */
         "ld r24, Y \n\t"
         "add r24, r21 \n\t"
         "st Y, r24 \n\t"
@@ -2208,10 +2209,11 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
    needed. */
 static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
+        /* K = 977; Zr = 0 (mul clobbers r1). */
         "ldi r24, 0xD1 \n\t"
         "ldi r25, 0x03 \n\t"
         "mov r26, r1 \n\t"
-        /* column 0: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 0: p[0] + a[0] * 977. */
         "ld r18, Z \n\t"
         "ldd r19, Z+1 \n\t"
         "ldd r20, Z+2 \n\t"
@@ -2263,7 +2265,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+1, r19 \n\t"
         "std Y+2, r20 \n\t"
         "std Y+3, r21 \n\t"
-        /* column 1: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 1: p[1] + a[1] * 977 + a[0] + carry. */
         "ldd r18, Z+4 \n\t"
         "ldd r19, Z+5 \n\t"
         "ldd r20, Z+6 \n\t"
@@ -2325,7 +2327,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+5, r19 \n\t"
         "std Y+6, r20 \n\t"
         "std Y+7, r21 \n\t"
-        /* column 2: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 2: p[2] + a[2] * 977 + a[1] + carry. */
         "ldd r18, Z+8 \n\t"
         "ldd r19, Z+9 \n\t"
         "ldd r20, Z+10 \n\t"
@@ -2387,7 +2389,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+9, r19 \n\t"
         "std Y+10, r20 \n\t"
         "std Y+11, r21 \n\t"
-        /* column 3: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 3: p[3] + a[3] * 977 + a[2] + carry. */
         "ldd r18, Z+12 \n\t"
         "ldd r19, Z+13 \n\t"
         "ldd r20, Z+14 \n\t"
@@ -2449,7 +2451,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+13, r19 \n\t"
         "std Y+14, r20 \n\t"
         "std Y+15, r21 \n\t"
-        /* column 4: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 4: p[4] + a[4] * 977 + a[3] + carry. */
         "ldd r18, Z+16 \n\t"
         "ldd r19, Z+17 \n\t"
         "ldd r20, Z+18 \n\t"
@@ -2511,7 +2513,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+17, r19 \n\t"
         "std Y+18, r20 \n\t"
         "std Y+19, r21 \n\t"
-        /* column 5: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 5: p[5] + a[5] * 977 + a[4] + carry. */
         "ldd r18, Z+20 \n\t"
         "ldd r19, Z+21 \n\t"
         "ldd r20, Z+22 \n\t"
@@ -2573,7 +2575,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+21, r19 \n\t"
         "std Y+22, r20 \n\t"
         "std Y+23, r21 \n\t"
-        /* column 6: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 6: p[6] + a[6] * 977 + a[5] + carry. */
         "ldd r18, Z+24 \n\t"
         "ldd r19, Z+25 \n\t"
         "ldd r20, Z+26 \n\t"
@@ -2635,7 +2637,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+25, r19 \n\t"
         "std Y+26, r20 \n\t"
         "std Y+27, r21 \n\t"
-        /* column 7: p[j] + a[j] * 977 + a[j-1] + carry */
+        /* Column 7: p[7] + a[7] * 977 + a[6] + carry. */
         "ldd r18, Z+28 \n\t"
         "ldd r19, Z+29 \n\t"
         "ldd r20, Z+30 \n\t"
@@ -2697,14 +2699,14 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+29, r19 \n\t"
         "std Y+30, r20 \n\t"
         "std Y+31, r21 \n\t"
-        /* T = a7 + carry (< 2^33) */
+        /* T = a[7] + carry (< 2^33). */
         "mov r27, r26 \n\t"
         "add r2, r22 \n\t"
         "adc r3, r23 \n\t"
         "adc r4, r26 \n\t"
         "adc r5, r26 \n\t"
         "adc r27, r26 \n\t"
-        /* X = T * (2^32 + 977) = T * 977 + T4 * 977 * 2^32 + T * 2^32 */
+        /* X = T * (2^32 + 977) = T * 977 + T4 * 977 * 2^32 + T * 2^32. */
         "mul r2, r24 \n\t"
         "movw r10, r0 \n\t"
         "mul r4, r24 \n\t"
@@ -2756,6 +2758,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "adc r9, r26 \n\t"
         "adc r27, r26 \n\t"
         "clr r1 \n\t"
+        /* result += X; c2 = final carry. */
         "ld r24, Y \n\t"
         "add r24, r10 \n\t"
         "st Y, r24 \n\t"
@@ -2854,7 +2857,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+31, r24 \n\t"
         "mov r18, r1 \n\t"
         "adc r18, r1 \n\t"
-        /* borrow of result - p (read-only) */
+        /* Compare result with p (read-only pass): bm = 0xFF if result >= p. */
         "ld r24, Y \n\t"
         "subi r24, 0x2F \n\t"
         "ldd r24, Y+1 \n\t"
@@ -2921,7 +2924,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "sbci r24, 0xFF \n\t"
         "sbc r16, r16 \n\t"
         "com r16 \n\t"
-        /* m_sub = (c2 == 1) | (result >= p) */
+        /* m_sub = (c2 == 1) | (result >= p). */
         "mov r19, r18 \n\t"
         "neg r19 \n\t"
         "or r19, r16 \n\t"
@@ -2931,7 +2934,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "andi r21, 0x03 \n\t"
         "mov r22, r19 \n\t"
         "andi r22, 0x01 \n\t"
-        /* result += (p & m_add) | ((2^N - p) & m_sub) */
+        /* result += (p & m_add) | ((2^N - p) & m_sub). */
         "ld r24, Y \n\t"
         "add r24, r20 \n\t"
         "st Y, r24 \n\t"

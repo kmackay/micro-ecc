@@ -51,19 +51,28 @@ def columns(terms, n, cache=None):
     register) where the carry is a small signed byte."""
     cache = cache or {}
     lines = []
+    # Words of the high half used in several columns can be preloaded into
+    # registers (cache: index -> 4 registers).
     for i, regs in cache.items():
-        lines.append(f"/* cache a{i} */")
+        lines.append(f"/* Preload a[{i}]. */")
         lines += [ld(r, "Z", 4 * (n + i) + k) for k, r in enumerate(regs)]
+    # C holds the previous column's signed carry byte, H accumulates this
+    # column's carry; they swap roles each column.
     C, H = "r23", "r22"
     for j, col in enumerate(terms):
-        lines.append(f"/* column {j} */")
+        desc = "".join(f" {'+' if c > 0 else '-'} {str(abs(c)) + ' ' if abs(c) > 1 else ''}a[{i}]"
+                       for c, i in col)
+        lines.append(f"/* Column {j}: p[{j}]{desc}{' + carry' if j else ''}. */")
         lines += [ld(r, "Z", 4 * j + k) for k, r in enumerate(L)]
         if j == 0:
             lines.append(f"mov {H}, r1")
         else:
+            # Sign-extend the previous carry C (H = 0x00 or 0xFF), add it, and
+            # start this column's carry at H + carry-out.
             lines += [f"mov {H}, {C}", f"lsl {H}", f"sbc {H}, {H}",
                       f"add {L[0]}, {C}", f"adc {L[1]}, {H}", f"adc {L[2]}, {H}",
                       f"adc {L[3]}, {H}", f"adc {H}, r1"]
+        # Merge repeated terms so each a[i] is loaded once per column.
         coefs, order = {}, []
         for coef, i in col:
             if i not in coefs:
@@ -76,6 +85,7 @@ def columns(terms, n, cache=None):
             else:
                 X = T
                 lines += [ld(r, "Z", 4 * (n + i) + k) for k, r in enumerate(T)]
+            # Coefficient k is applied as k repeated adds (or subtracts).
             for _ in range(abs(coef)):
                 if coef > 0:
                     lines += [f"add {L[0]}, {X[0]}"] + [f"adc {L[k]}, {X[k]}" for k in (1, 2, 3)]
@@ -118,14 +128,14 @@ def finish(curve, c2, signed, regs):
     t = "r24"
     regs = [r for r in regs if r not in (c2, t)]
     bm, pos = regs[0], regs[1]
-    lines = ["/* borrow of result - p (read-only) */"]
+    lines = ["/* Compare result with p (read-only pass): bm = 0xFF if result >= p. */"]
     for b in range(nb):
         lines.append(ld(t, "Y", b))
         lines.append(f"subi {t}, 0x{pb[b]:02X}" if b == 0 else f"sbci {t}, 0x{pb[b]:02X}")
     lines += [f"sbc {bm}, {bm}", f"com {bm}"]   # bm = 0xFF if result >= p
     if signed:
         neg, msub = regs[2], regs[3]
-        lines += ["/* m_add = (c2 < 0), m_sub = (c2 > 0) | (c2 == 0 && result >= p) */"]
+        lines += ["/* m_add = (c2 < 0), m_sub = (c2 > 0) | (c2 == 0 && result >= p). */"]
         lines += sign(neg, c2)
         lines += [f"mov {pos}, {c2}", f"neg {pos}", f"lsl {pos}", f"sbc {pos}, {pos}",
                   f"mov {msub}, {neg}", f"or {msub}, {pos}", f"com {msub}",   # zero mask
@@ -133,10 +143,12 @@ def finish(curve, c2, signed, regs):
         madd = neg
     else:
         msub = regs[2]
-        lines += ["/* m_sub = (c2 == 1) | (result >= p) */",
+        lines += ["/* m_sub = (c2 == 1) | (result >= p). */",
                   f"mov {msub}, {c2}", f"neg {msub}", f"or {msub}, {bm}"]
         madd = None
-    # X bytes: (p_k & m_add) | (d_k & m_sub)
+    # X bytes: (p_k & m_add) | (d_k & m_sub). Each distinct (p_k, d_k) pair
+    # gets one register (computed once); 0x00 and 0xFF bytes reuse r1 or the
+    # mask registers directly.
     free = [r for r in regs[4 if signed else 3:] if int(r[1:]) >= 16]
     cachex = {}
     xs = []
@@ -163,7 +175,7 @@ def finish(curve, c2, signed, regs):
                 else:
                     lines += [f"mov {x}, {msub}", f"andi {x}, 0x{dk:02X}"]
         xs.append(cachex[key])
-    lines.append("/* result += (p & m_add) | ((2^N - p) & m_sub) */")
+    lines.append("/* result += (p & m_add) | ((2^N - p) & m_sub). */")
     lines += chain(xs, t)
     return lines
 
@@ -194,7 +206,8 @@ def func(name, comment, body, clobbers, c2=None, signed=False):
     emit(f"#define asm_mmod_fast_{name} 1")
 
 def finish_or_call(curve, c2, signed, regs):
-    """Returns (lines, c2_out): inline finish, or nothing (shared looped call)."""
+    """Returns (lines, c2_out): inline finish, or nothing (shared looped call).
+    --looped trades speed for size by calling vli_mmod_finish_avr instead."""
     if LOOPED:
         if not signed:
             return [], c2
@@ -288,11 +301,15 @@ P256_COLS = [
     [(3, 7), (1, 0), (-1, 2), (-1, 3), (-1, 4), (-1, 5)],
 ]
 
+# Solinas reduction: cols lists, per result word j, the (coef, i) terms of
+# product[n + i] added to product[j]. fold_spec(c, regs) returns the per-word
+# (lo, hi) byte registers of c * (2^N - p), the setup code computing them, and
+# the register that receives the final carry.
 def solinas(curve, cols, n, fold_spec, comment, cache=None, signed=True):
     body, c = columns(cols, n, cache)
     regs = [r for r in FREE if r != c]
     spec, setup, kreg = fold_spec(c, regs)
-    body.append("/* fold carry: result += c * (2^N - p) */")
+    body.append("/* Fold carry: result += c * (2^N - p), c signed. */")
     body += setup
     body += chain(word_bytes(spec))
     body.append(f"adc {kreg}, r1")
@@ -348,7 +365,11 @@ def p160():
     body = []
     C, H = "r23", "r22"
     for j in range(5):
-        body.append(f"/* column {j}: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry */")
+        # a * 2^31 is formed on the fly: word j of it is (a[j] << 31) | (a[j-1] >> 1).
+        if j == 0:
+            body.append("/* Column 0: p[0] + a[0] + (a[0] << 31). */")
+        else:
+            body.append(f"/* Column {j}: p[{j}] + a[{j}] + ((a[{j}] << 31) | (a[{j-1}] >> 1)) + carry. */")
         body += [ld(r, "Z", 4 * j + k) for k, r in enumerate(L)]
         body.append(f"mov {H}, r1")
         if j > 0:
@@ -356,7 +377,7 @@ def p160():
                      f"adc {L[3]}, r1", f"adc {H}, r1"]
         body += [ld(r, "Z", 20 + 4 * j + k) for k, r in enumerate(U)]
         body += [f"add {L[0]}, {U[0]}"] + [f"adc {L[k]}, {U[k]}" for k in (1, 2, 3)] + [f"adc {H}, r1"]
-        body += [f"mov r0, {U[0]}", "lsr r0"]
+        body += [f"mov r0, {U[0]}", "lsr r0"]   # C = low bit of a[j], shifted into V
         if j == 0:
             body += ["mov r0, r1", "ror r0", f"add {L[3]}, r0", f"adc {H}, r1"]
         else:
@@ -366,17 +387,17 @@ def p160():
         body += [f"mov {V[k]}, {U[k]}" for k in range(4)] if j < 4 else []
         C, H = H, C
     # c = carry + (a4 >> 1) (< 2^31 + 3), in U
-    body += ["/* c = carry + (a4 >> 1) */",
+    body += ["/* c = carry + (a[4] >> 1). */",
              f"lsr {U[3]}", f"ror {U[2]}", f"ror {U[1]}", f"ror {U[0]}",
              f"add {U[0]}, {C}", f"adc {U[1]}, r1", f"adc {U[2]}, r1", f"adc {U[3]}, r1",
-             "/* fold c: result += c + c * 2^31 = c + ((c & 1) << 31) + (c >> 1) * 2^32 */"]
+             "/* Fold c: result += c + c * 2^31 = c + ((c & 1) << 31) + (c >> 1) * 2^32. */"]
     Y = ["r12", "r13", "r14", "r15"]
     body += [f"mov {Y[k]}, {U[k]}" for k in range(4)]
     body += [f"lsr {Y[3]}", f"ror {Y[2]}", f"ror {Y[1]}", f"ror {Y[0]}",
              f"mov r0, {U[0]}", "lsr r0", "mov r0, r1", "ror r0",
              f"add {U[3]}, r0"] + [f"adc {Y[k]}, r1" for k in range(4)]
     body += chain([U[0], U[1], U[2], U[3]] + Y + ["r1"] * 12, t="r0")
-    body += [f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
+    body += ["/* c2 = final carry. */", f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
     fl, c2out = finish_or_call("secp160r1", L[0], False, [r for r in FREE if r != L[0]])
     body += fl
     func("secp160r1",
@@ -394,6 +415,7 @@ def k1():
     As = [["r2", "r3", "r4", "r5"], ["r6", "r7", "r8", "r9"]]
     Pr = ["r10", "r11", "r12", "r13", "r14", "r15"]
     K0, K1, Zr = "r24", "r25", "r26"
+    # p[0..5] = b[0..3] * 977 (K1:K0 = 0x03:0xD1), 8 mul instructions.
     def mul977(b, p):
         return [f"mul {b[0]}, {K0}", f"movw {p[0]}, r0",
                 f"mul {b[2]}, {K0}", f"movw {p[2]}, r0",
@@ -406,11 +428,15 @@ def k1():
                 f"adc {p[5]}, {Zr}",
                 f"mul {b[2]}, {K1}", f"add {p[3]}, r0", f"adc {p[4]}, r1", f"adc {p[5]}, {Zr}",
                 f"mul {b[3]}, {K1}", f"add {p[4]}, r0", f"adc {p[5]}, r1"]
-    body = [f"ldi {K0}, 0xD1", f"ldi {K1}, 0x03", f"mov {Zr}, r1"]
+    body = ["/* K = 977; Zr = 0 (mul clobbers r1). */",
+            f"ldi {K0}, 0xD1", f"ldi {K1}, 0x03", f"mov {Zr}, r1"]
     for j in range(8):
         C, H = Hs[j % 2], Hs[(j + 1) % 2]
         A, B = As[j % 2], As[(j + 1) % 2]   # A = a[j-1], B = a[j]
-        body.append(f"/* column {j}: p[j] + a[j] * 977 + a[j-1] + carry */")
+        if j == 0:
+            body.append("/* Column 0: p[0] + a[0] * 977. */")
+        else:
+            body.append(f"/* Column {j}: p[{j}] + a[{j}] * 977 + a[{j-1}] + carry. */")
         body += [ld(r, "Z", 4 * j + k) for k, r in enumerate(L)]
         body += [f"mov {H[0]}, {Zr}", f"mov {H[1]}, {Zr}"]
         if j > 0:
@@ -426,11 +452,11 @@ def k1():
     A = As[0]   # a7 (B of column 7 = As[0])
     # T = a7 + carry (33 bits) in A[0..3], T4
     T4 = "r27"
-    body += ["/* T = a7 + carry (< 2^33) */",
+    body += ["/* T = a[7] + carry (< 2^33). */",
              f"mov {T4}, {Zr}",
              f"add {A[0]}, {C[0]}", f"adc {A[1]}, {C[1]}", f"adc {A[2]}, {Zr}", f"adc {A[3]}, {Zr}",
              f"adc {T4}, {Zr}",
-             "/* X = T * (2^32 + 977) = T * 977 + T4 * 977 * 2^32 + T * 2^32 */"]
+             "/* X = T * (2^32 + 977) = T * 977 + T4 * 977 * 2^32 + T * 2^32. */"]
     body += mul977(A, Pr)
     # X bytes: Pr0..Pr3 | (Pr4 + Pr5*256 + T + T4*977) at bytes 4..7 | carry at byte 8
     X4 = As[1]  # reuse r6-r9 for bytes 4..7, H pair for T4*977
@@ -441,7 +467,8 @@ def k1():
              f"adc {T4}, {Zr}",
              f"add {X4[0]}, {C[0]}", f"adc {X4[1]}, {C[1]}", f"adc {X4[2]}, {Zr}", f"adc {X4[3]}, {Zr}",
              f"adc {T4}, {Zr}",
-             "clr r1"]
+             "clr r1",
+             "/* result += X; c2 = final carry. */"]
     body += chain(Pr[:4] + X4 + [T4] + ["r1"] * 23)
     body += [f"mov {L[0]}, r1", f"adc {L[0]}, r1"]
     fl, c2out = finish_or_call("secp256k1", L[0], False, [r for r in FREE if r != L[0]])

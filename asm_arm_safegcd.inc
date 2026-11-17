@@ -10,6 +10,7 @@
 #ifndef _UECC_ASM_ARM_SAFEGCD_H_
 #define _UECC_ASM_ARM_SAFEGCD_H_
 
+/* Arithmetic shift of the signed 64-bit value hi:lo right by 30. */
 #define S30_SHR30(lo, hi) \
     "lsr " lo ", " lo ", #30 \n\t" \
     "orr " lo ", " lo ", " hi ", lsl #2 \n\t" \
@@ -22,6 +23,7 @@ static void s30_update_de_asm(int32_t *de, const int32_t *t, uint32_t mod_inv30,
     __asm__ volatile (
         ".syntax unified \n\t"
         "push {r4-r11, lr} \n\t"
+        /* Compute md / me from the signs of d and e. */
         "ldm r1, {r4-r7} \n\t"                 /* u, v, q, r */
         "add r3, r0, r3, lsl #2 \n\t"          /* r3 = &d[len] */
         "ldr r8, [r3, #-4] \n\t"               /* d[len - 1] */
@@ -34,6 +36,8 @@ static void s30_update_de_asm(int32_t *de, const int32_t *t, uint32_t mod_inv30,
         "and r8, r6, r8 \n\t"
         "and r9, r7, r9 \n\t"
         "add r11, r8, r9 \n\t"                 /* me = (q & sd) + (r & se) */
+        /* Limb 0: cd / ce, then adjust md / me so that the low 30 bits of
+           cd + md * mod0 and ce + me * mod0 are zero. */
         "ldr r12, [r0] \n\t"                   /* d0 */
         "smull r8, r9, r4, r12 \n\t"           /* cd = u * d0 */
         "smull r1, lr, r6, r12 \n\t"           /* ce = q * d0 */
@@ -47,11 +51,13 @@ static void s30_update_de_asm(int32_t *de, const int32_t *t, uint32_t mod_inv30,
         "bic r12, r12, #0xC0000000 \n\t"
         "sub r11, r11, r12 \n\t"               /* me -= (inv * ce + me) & M30 */
         "ldr r12, [r0, #72] \n\t"              /* mod0 */
-        "smlal r8, r9, r10, r12 \n\t"
-        "smlal r1, lr, r11, r12 \n\t"
+        "smlal r8, r9, r10, r12 \n\t"          /* cd += md * mod0 */
+        "smlal r1, lr, r11, r12 \n\t"          /* ce += me * mod0 */
         S30_SHR30("r8", "r9")
         S30_SHR30("r1", "lr")
         "sub r2, r3, #4 \n\t"                  /* r2 = &d[len - 1] */
+        /* Limbs 1..len-1: accumulate, store the low 30 bits one limb down,
+           and shift the carries. r0 points at d[i - 1]. */
         "1: \n\t"
         "ldr r12, [r0, #4] \n\t"               /* d[i] */
         "smlal r8, r9, r4, r12 \n\t"
@@ -71,6 +77,7 @@ static void s30_update_de_asm(int32_t *de, const int32_t *t, uint32_t mod_inv30,
         "add r0, r0, #4 \n\t"
         "cmp r0, r2 \n\t"
         "bne 1b \n\t"
+        /* Top limbs get the remaining signed carries. */
         "str r8, [r0] \n\t"                    /* d[len - 1] */
         "str r1, [r0, #36] \n\t"               /* e[len - 1] */
         "pop {r4-r11, pc} \n\t"
@@ -91,10 +98,11 @@ static void s30_update_fg_asm(int32_t *fg, const int32_t *t, uint32_t len) {
         "smull r8, r9, r4, r12 \n\t"           /* cf = u * f0 */
         "smull r1, r3, r6, r12 \n\t"           /* cg = q * f0 */
         "ldr r12, [r0, #36] \n\t"              /* g0 */
-        "smlal r8, r9, r5, r12 \n\t"
-        "smlal r1, r3, r7, r12 \n\t"
-        S30_SHR30("r8", "r9")
+        "smlal r8, r9, r5, r12 \n\t"           /* cf += v * g0 */
+        "smlal r1, r3, r7, r12 \n\t"           /* cg += r * g0 */
+        S30_SHR30("r8", "r9")                  /* Low 30 bits are zero. */
         S30_SHR30("r1", "r3")
+        /* Limbs 1..len-1, as in s30_update_de_asm (without the modulus). */
         "1: \n\t"
         "ldr r12, [r0, #4] \n\t"               /* f[i] */
         "smlal r8, r9, r4, r12 \n\t"
@@ -103,16 +111,16 @@ static void s30_update_fg_asm(int32_t *fg, const int32_t *t, uint32_t len) {
         "smlal r8, r9, r5, r12 \n\t"
         "smlal r1, r3, r7, r12 \n\t"
         "bic r12, r8, #0xC0000000 \n\t"
-        "str r12, [r0] \n\t"
+        "str r12, [r0] \n\t"                   /* f[i - 1] */
         "bic r12, r1, #0xC0000000 \n\t"
-        "str r12, [r0, #36] \n\t"
+        "str r12, [r0, #36] \n\t"              /* g[i - 1] */
         S30_SHR30("r8", "r9")
         S30_SHR30("r1", "r3")
         "add r0, r0, #4 \n\t"
         "cmp r0, r2 \n\t"
         "bne 1b \n\t"
-        "str r8, [r0] \n\t"
-        "str r1, [r0, #36] \n\t"
+        "str r8, [r0] \n\t"                    /* f[len - 1] */
+        "str r1, [r0, #36] \n\t"               /* g[len - 1] */
         "pop {r4-r9, pc} \n\t"
         RESUME_SYNTAX
     );

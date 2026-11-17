@@ -41,11 +41,11 @@ if init_size == 1:
     emit("ldmia r1!, {r2}")
     emit("add r1, %s", (size - init_size * 2) * 4)
     emit("ldmia r1!, {r5}")
-    
+
     emit("add r0, %s", (size - init_size) * 4)
     emit("umull r8, r9, r2, r5")
     emit("stmia r0!, {r8, r9}")
-    
+
     emit("sub r0, %s", (size + init_size) * 4)
     emit("sub r1, %s", (size) * 4)
     print ""
@@ -53,26 +53,26 @@ elif init_size == 2:
     emit("ldmia r1!, {r2, r3}")
     emit("add r1, %s", (size - init_size * 2) * 4)
     emit("ldmia r1!, {r5, r6}")
-    
+
     emit("add r0, %s", (size - init_size) * 4)
     print ""
 
     emit("umull r8, r9, r2, r5")
     emit("stmia r0!, {r8}")
     print ""
-    
+
     emit("umull r12, r10, r2, r6")
     emit("adds r9, r9, r12")
     emit("adc r10, r10, #0")
     emit("stmia r0!, {r9}")
     print ""
-    
+
     emit("umull r8, r9, r3, r6")
     emit("adds r10, r10, r8")
     emit("adc r11, r9, #0")
     emit("stmia r0!, {r10, r11}")
     print ""
-    
+
     emit("sub r0, %s", (size + init_size) * 4)
     emit("sub r1, %s", (size) * 4)
 
@@ -115,7 +115,7 @@ for i in xrange(3, s):
     tmp = [acc[1], acc[2]]
     acc = [acc[0], old_acc[0], old_acc[1]]
     old_acc = tmp
-    
+
     # gather non-equal words
     emit("umull r%s, r%s, r%s, r%s", acc[0], acc[1], r[0], r[i])
     for j in xrange(1, (i+1)//2):
@@ -124,16 +124,16 @@ for i in xrange(3, s):
     emit("adds r%s, r%s, r%s", acc[0], acc[0], acc[0])
     emit("adcs r%s, r%s, r%s", acc[1], acc[1], acc[1])
     emit("adc r%s, r%s, r%s", acc[2], acc[2], acc[2])
-    
+
     # add equal word (if any)
     if ((i+1) % 2) != 0:
         mulacc(acc, r[i//2], r[i//2])
-    
+
     # add old accumulator
     emit("adds r%s, r%s, r%s", acc[0], acc[0], old_acc[0])
     emit("adcs r%s, r%s, r%s", acc[1], acc[1], old_acc[1])
     emit("adc r%s, r%s, #0", acc[2], acc[2])
-    
+
     # store
     emit("stmia r0!, {r%s}", acc[0])
     print ""
@@ -142,37 +142,37 @@ regs = list(r)
 for i in xrange(init_size):
     regs = regs[1:] + regs[:1]
     emit("ldmia r1!, {r%s}", regs[5])
-    
+
     for limit in [4, 5]:
         emit("mov r%s, #0", old_acc[1])
         tmp = [acc[1], acc[2]]
         acc = [acc[0], old_acc[0], old_acc[1]]
         old_acc = tmp
-    
+
         # gather non-equal words
         emit("umull r%s, r%s, r%s, r%s", acc[0], acc[1], regs[0], regs[limit])
         for j in xrange(1, (limit+1)//2):
             mulacc(acc, regs[j], regs[limit-j])
-    
+
         emit("ldr r14, [r0]") # load stored value from initial block, and add to accumulator
         emit("adds r%s, r%s, r14", acc[0], acc[0])
         emit("adcs r%s, r%s, #0", acc[1], acc[1])
         emit("adc r%s, r%s, #0", acc[2], acc[2])
-    
+
         # multiply by 2
         emit("adds r%s, r%s, r%s", acc[0], acc[0], acc[0])
         emit("adcs r%s, r%s, r%s", acc[1], acc[1], acc[1])
         emit("adc r%s, r%s, r%s", acc[2], acc[2], acc[2])
-    
+
         # add equal word
         if limit == 4:
             mulacc(acc, regs[2], regs[2])
-    
+
         # add old accumulator
         emit("adds r%s, r%s, r%s", acc[0], acc[0], old_acc[0])
         emit("adcs r%s, r%s, r%s", acc[1], acc[1], old_acc[1])
         emit("adc r%s, r%s, #0", acc[2], acc[2])
-    
+
         # store
         emit("stmia r0!, {r%s}", acc[0])
         print ""

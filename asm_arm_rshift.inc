@@ -19,6 +19,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldr r1, [r0] \n\t"
+            /* w[i] = (w[i] >> 1) | (w[i + 1] << 31), from the low word up. */
             "ldr r2, [r0, #4] \n\t"
             "lsrs r1, r1, #1 \n\t"
             "lsls r3, r2, #31 \n\t"
@@ -54,6 +55,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             "lsls r3, r2, #31 \n\t"
             "orrs r1, r3 \n\t"
             "str r1, [r0, #24] \n\t"
+            /* Top word: shift in a zero. */
             "lsrs r2, r2, #1 \n\t"
             "str r2, [r0, #28] \n\t"
             RESUME_SYNTAX
@@ -72,6 +74,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldr r1, [r0] \n\t"
+            /* w[i] = (w[i] >> 1) | (w[i + 1] << 31), from the low word up. */
             "ldr r2, [r0, #4] \n\t"
             "lsrs r1, r1, #1 \n\t"
             "lsls r3, r2, #31 \n\t"
@@ -102,6 +105,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             "lsls r3, r1, #31 \n\t"
             "orrs r2, r3 \n\t"
             "str r2, [r0, #20] \n\t"
+            /* Top word: shift in a zero. */
             "lsrs r1, r1, #1 \n\t"
             "str r1, [r0, #24] \n\t"
             RESUME_SYNTAX
@@ -120,6 +124,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldr r1, [r0] \n\t"
+            /* w[i] = (w[i] >> 1) | (w[i + 1] << 31), from the low word up. */
             "ldr r2, [r0, #4] \n\t"
             "lsrs r1, r1, #1 \n\t"
             "lsls r3, r2, #31 \n\t"
@@ -145,6 +150,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             "lsls r3, r2, #31 \n\t"
             "orrs r1, r3 \n\t"
             "str r1, [r0, #16] \n\t"
+            /* Top word: shift in a zero. */
             "lsrs r2, r2, #1 \n\t"
             "str r2, [r0, #20] \n\t"
             RESUME_SYNTAX
@@ -163,6 +169,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldr r1, [r0] \n\t"
+            /* w[i] = (w[i] >> 1) | (w[i + 1] << 31), from the low word up. */
             "ldr r2, [r0, #4] \n\t"
             "lsrs r1, r1, #1 \n\t"
             "lsls r3, r2, #31 \n\t"
@@ -183,6 +190,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             "lsls r3, r1, #31 \n\t"
             "orrs r2, r3 \n\t"
             "str r2, [r0, #12] \n\t"
+            /* Top word: shift in a zero. */
             "lsrs r1, r1, #1 \n\t"
             "str r1, [r0, #16] \n\t"
             RESUME_SYNTAX
@@ -208,6 +216,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldmia r0, {r1, r2, r3, r4, r5, r6, r12, lr} \n\t"
+            /* Shift the top word; rrxs shifts the carry into each lower word. */
             "lsrs lr, lr, #1 \n\t"
             "rrxs r12, r12 \n\t"
             "rrxs r6, r6 \n\t"
@@ -233,6 +242,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldmia r0, {r1, r2, r3, r4, r5, r6, lr} \n\t"
+            /* Shift the top word; rrxs shifts the carry into each lower word. */
             "lsrs lr, lr, #1 \n\t"
             "rrxs r6, r6 \n\t"
             "rrxs r5, r5 \n\t"
@@ -257,6 +267,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldmia r0, {r1, r2, r3, r4, r5, lr} \n\t"
+            /* Shift the top word; rrxs shifts the carry into each lower word. */
             "lsrs lr, lr, #1 \n\t"
             "rrxs r5, r5 \n\t"
             "rrxs r4, r4 \n\t"
@@ -280,6 +291,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         __asm__ volatile (
             ".syntax unified \n\t"
             "ldmia r0, {r1, r2, r3, r4, lr} \n\t"
+            /* Shift the top word; rrxs shifts the carry into each lower word. */
             "lsrs lr, lr, #1 \n\t"
             "rrxs r4, r4 \n\t"
             "rrxs r3, r3 \n\t"

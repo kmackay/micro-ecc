@@ -19,7 +19,7 @@ int main() {
     uint8_t public2[64] = {0};
     uint8_t secret1[32] = {0};
     uint8_t secret2[32] = {0};
-    
+
     const struct uECC_Curve_t * curves[5];
     int num_curves = 0;
 #if uECC_SUPPORTS_secp160r1
@@ -37,7 +37,7 @@ int main() {
 #if uECC_SUPPORTS_secp256k1
     curves[num_curves++] = uECC_secp256k1();
 #endif
-    
+
     printf("Testing 256 random private key pairs\n");
 
     for (c = 0; c < num_curves; ++c) {
@@ -60,7 +60,7 @@ int main() {
                 printf("shared_secret() failed (2)\n");
                 return 1;
             }
-        
+
             if (memcmp(secret1, secret2, sizeof(secret1)) != 0) {
                 printf("Shared secrets are not identical!\n");
                 printf("Private key 1 = ");
@@ -85,6 +85,6 @@ int main() {
         }
         printf("\n");
     }
-    
+
     return 0;
 }

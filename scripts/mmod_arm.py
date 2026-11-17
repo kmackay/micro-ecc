@@ -10,6 +10,9 @@ def asm_lines(lines, indent="        "):
     return "\n".join(f'{indent}"{l} \\n\\t"' for l in lines)
 
 def func(name, comment, body, clobbers):
+    """Emits one vli_mmod_fast_<name>() wrapper around the asm body. Body items
+    starting with "#" are emitted as preprocessor lines, "/*" as comments, and
+    everything else as an instruction string."""
     emit(comment)
     emit(f"static void vli_mmod_fast_{name}(uint32_t *result, uint32_t *product) {{")
     emit('    register uint32_t *r0 __asm__("r0") = result;')
@@ -38,9 +41,14 @@ def columns(terms, p_off, L, regs_c, a, res_off=0):
     L: accumulator low register. regs_c: two registers that alternate as carry.
     a: list of registers holding high words. Returns (lines, final carry reg)."""
     lines = []
+    # C is the previous column's (signed) carry; H accumulates this column's.
     C, H = regs_c
     for j, col in enumerate(terms):
-        lines.append(f"/* column {j} */")
+        if j == 1:
+            lines.append(f"/* Column {j}. The previous carry {C} is signed: add it with its sign\n"
+                         f"           extension (asr does not touch the flags, so adc sees the adds carry). */")
+        else:
+            lines.append(f"/* Column {j}. */")
         lines.append(f"ldr {L}, [r1, #{p_off + 4 * j}]")
         if j == 0:
             lines.append(f"mov {H}, #0")
@@ -69,11 +77,16 @@ def columns_mla(terms, L, regs_c, a, one, two):
     lines = []
     C, H = regs_c
     for j, col in enumerate(terms):
-        lines.append(f"/* column {j} */")
+        if j == 1:
+            lines.append(f"/* Column {j}. smlal adds the signed previous carry ({C} * 1); umlal by\n"
+                         f"           {one} or {two} adds a term once or twice. */")
+        else:
+            lines.append(f"/* Column {j}. */")
         lines.append(f"ldr {L}, [r1, #{4 * j}]")
         lines.append(f"mov {H}, #0")
         if j > 0:
             lines.append(f"smlal {L}, {H}, {C}, {one}")
+        # Merge repeated indices so e.g. 2 a6 + a6 becomes one coefficient 3.
         coefs = {}
         for coef, i in col:
             coefs[i] = coefs.get(i, 0) + coef
@@ -96,10 +109,12 @@ def columns_mla(terms, L, regs_c, a, one, two):
 def finish(fold, c2, x, t, u, undo=None):
     """c2: register holding first-fold carry (in {-1,0,1}); x, t, u: temps.
     undo(m): optional specialized fold for m in {0, -1} (adds p & m)."""
-    lines = [f"/* fold s = c2 | 1 (subtract p, or add p if c2 == -1) */",
+    lines = [f"/* Fold s = c2 | 1 (subtract p, or add p if c2 == -1). */",
              f"orr {x}, {c2}, #1"]
     lines += fold(x)
-    lines += [f"/* undo (add p) if c2 == 0 and the previous fold did not carry */",
+    # fold(x) leaves its carry in x. Mask is -1 iff (c2 | carry) == 0.
+    lines += [f"/* Undo (add p) if c2 == 0 and the previous fold did not carry: */",
+              f"/* mask = ((c2 | carry) == 0) ? -1 : 0, from the sign bit of (v | -v). */",
               f"orr {t}, {c2}, {x}",
               f"rsb {u}, {t}, #0",
               f"orr {t}, {t}, {u}",
@@ -107,7 +122,7 @@ def finish(fold, c2, x, t, u, undo=None):
     lines += (undo or fold)(c2)
     return lines
 
-def wrap(lines):
+def wrap(lines):  # Unused.
     res = []
     for l in lines:
         if l.startswith("/*"):
@@ -131,26 +146,29 @@ P256_COLS = [
 
 def p256_body(mla):
     R = ["r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9"]
-    body = ["/* a0..a7 = product[8..15] -> r2..r9 */",
+    body = ["/* a0..a7 = product[8..15] -> r2-r9. */",
             "add r12, r1, #32",
             "ldm r12, {r2-r9}"]
     if mla:
-        body += ["/* keep result pointer in product[15]; r0 = 1, r14 = 2 */",
+        body += ["/* r0 = 1 and r14 = 2 are umlal multipliers, so save the result pointer in\n"
+                 "           product[15] (a7 is already in r9). Results go to product[0..7]. */",
                  "str r0, [r1, #60]",
                  "mov r0, #1",
                  "mov r14, #2"]
         cols, c = columns_mla(P256_COLS, "r10", ("r12", "r11"), R, "r0", "r14")
         body += cols
-        body += ["/* reload result words; fold carry: r += c * (2^224 - 2^192 - 2^96 + 1) */",
+        body += ["/* Reload result words; fold carry: r += c * (2^224 - 2^192 - 2^96 + 1). */",
                  "ldr r0, [r1, #60]",
                  "ldm r1, {r2-r9}"]
     else:
         cols, c = columns(P256_COLS, 0, "r10", ("r12", "r11"), R)
         body += cols
-        body += ["/* reload result words; fold carry: r += c * (2^224 - 2^192 - 2^96 + 1) */",
+        body += ["/* Reload result words; fold carry: r += c * (2^224 - 2^192 - 2^96 + 1). */",
                  "ldm r0, {r2-r9}"]
     temps = [x for x in ["r1", "r10", "r11", "r12", "r14"] if x != c]
     s, mp, t = temps[0], temps[1], temps[2]
+    # Adds the words [c, s, s, s - c, m, m, m - c, c + m] (see the function
+    # comment); the carry out (in {-1, 0, 1}) replaces cr.
     def fold(cr):
         return [f"asr {s}, {cr}, #31",
                 f"rsb {mp}, {cr}, #0",
@@ -169,7 +187,7 @@ def p256_body(mla):
                 f"adc {cr}, {s}, #0"]
     body += fold(c)
     x = temps[3]
-    def undo(m):  # r += p & m
+    def undo(m):  # r += p & m; p = [-1, -1, -1, 0, 0, 0, 1, -1].
         return [f"and {t}, {m}, #1",
                 f"adds {R[0]}, {R[0]}, {m}",
                 f"adcs {R[1]}, {R[1]}, {m}",
@@ -190,8 +208,8 @@ def p256():
          "   back using 2^256 = 2^224 - 2^192 - 2^96 + 1 (mod p). Folding c adds the\n"
          "   two's complement words of c * (2^224 - 2^192 - 2^96 + 1):\n"
          "   [c, s, s, s - c, m, m, m - c, c + m] (s = c >> 31, m = -c >> 31).\n"
-         "   With fast multiply-accumulate (uECC_ARM_USE_UMAAL), positive terms are\n"
-         "   accumulated with umlal (coefficients 1 and 2 in registers). */")
+         "   This version accumulates positive terms with umlal (multipliers 1 and 2\n"
+         "   in registers) and uses product[] as scratch. */")
     clob = ["r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r14"]
     emit("#if uECC_ARM_USE_UMAAL")
     func("secp256r1", comment, p256_body(True), clob)
@@ -215,17 +233,18 @@ P224_COLS = [
 
 def p224():
     R = ["r2", "r3", "r4", "r5", "r6", "r7", "r8"]
-    body = ["ldm r1!, {r2-r8}",
+    body = ["/* r = t = product[0..6]; r1 -> a0; a4..a6 -> r9-r11. */",
+            "ldm r1!, {r2-r8}",
             "ldr r9, [r1, #16]",
             "ldr r10, [r1, #20]",
             "ldr r11, [r1, #24]",
             "mov r12, #0",
-            "/* r -= 2^128 * (a4, a5, a6) */",
+            "/* r -= 2^128 * (a4, a5, a6); r12 = signed top carry. */",
             "subs r6, r6, r9",
             "sbcs r7, r7, r10",
             "sbcs r8, r8, r11",
             "sbc r12, r12, #0",
-            "/* B = (a0, a1, a2, a3) + (a4, a5, a6, 0) -> (r9, r10, r11, r14), carry -> r1 */",
+            "/* B = (a0, a1, a2, a3) + (a4, a5, a6, 0) -> (r9, r10, r11, r14), carry -> r1. */",
             "ldr r14, [r1, #0]",
             "adds r9, r9, r14",
             "ldr r14, [r1, #4]",
@@ -236,7 +255,7 @@ def p224():
             "mov r1, #0",
             "adcs r14, r14, #0",
             "adc r1, r1, #0",
-            "/* r -= B */",
+            "/* r -= B (5 words). */",
             "subs r2, r2, r9",
             "sbcs r3, r3, r10",
             "sbcs r4, r4, r11",
@@ -245,15 +264,16 @@ def p224():
             "sbcs r7, r7, #0",
             "sbcs r8, r8, #0",
             "sbc r12, r12, #0",
-            "/* r += 2^96 * B */",
+            "/* r += 2^96 * B. */",
             "adds r5, r5, r9",
             "adcs r6, r6, r10",
             "adcs r7, r7, r11",
             "adcs r8, r8, r14",
             "adc r12, r12, r1",
-            "/* fold carry: r += c * (2^96 - 1) */"]
+            "/* Fold carry: r += c * (2^96 - 1). */"]
     c = "r12"
     s, mp, t, x = "r1", "r9", "r10", "r11"
+    # Adds the words [-c, m, m, c + m, s, s, s]; carry out replaces cr.
     def fold(cr):
         return [f"asr {s}, {cr}, #31",
                 f"rsb {t}, {cr}, #0",
@@ -267,7 +287,7 @@ def p224():
                 f"adcs {R[5]}, {R[5]}, {s}",
                 f"adcs {R[6]}, {R[6]}, {s}",
                 f"adc {cr}, {s}, #0"]
-    def undo(m):  # r += p & m
+    def undo(m):  # r += p & m; p = [1, 0, 0, -1, -1, -1, -1].
         return [f"and {t}, {m}, #1",
                 f"adds {R[0]}, {R[0]}, {t}",
                 f"adcs {R[1]}, {R[1]}, #0",
@@ -292,22 +312,25 @@ def p224():
 def p192():
     R = ["r2", "r3", "r4", "r5", "r6", "r7"]
     A = ["r8", "r9", "r10", "r11", "r12", "r14"]
-    body = ["ldm r1!, {r2-r7}",
+    body = ["/* r = t = product[0..5]; a0..a5 = product[6..11] -> r8-r12, r14. */",
+            "ldm r1!, {r2-r7}",
             "ldm r1, {r8-r12, r14}",
             "mov r1, #0",
-            "/* + s1 = (a0, a1, a2, a3, a4, a5) */",
+            "/* r += s1 = (a0, a1, a2, a3, a4, a5); carries accumulate in r1. */",
             "adds r2, r2, r8", "adcs r3, r3, r9", "adcs r4, r4, r10",
             "adcs r5, r5, r11", "adcs r6, r6, r12", "adcs r7, r7, r14",
             "adc r1, r1, #0",
-            "/* + s2 = (0, 0, a0, a1, a2, a3) */",
+            "/* r += s2 = (0, 0, a0, a1, a2, a3). */",
             "adds r4, r4, r8", "adcs r5, r5, r9", "adcs r6, r6, r10", "adcs r7, r7, r11",
             "adc r1, r1, #0",
-            "/* + s3 = (a4, a5, a4, a5, 0, 0) */",
+            "/* r += s3 = (a4, a5, a4, a5, 0, 0). */",
             "adds r2, r2, r12", "adcs r3, r3, r14", "adcs r4, r4, r12", "adcs r5, r5, r14",
             "adcs r6, r6, #0", "adcs r7, r7, #0",
             "adc r1, r1, #0",
-            "/* fold carry: r += c * (2^64 + 1) */"]
+            "/* Fold carry: r += c * (2^64 + 1). */"]
     s, t, x, u = "r8", "r9", "r10", "r11"
+    # Adds the words [c, s, c + s, s, s, s]; carry out replaces cr. Also used
+    # with cr = -1 for the undo step (adds p).
     def fold(cr):
         return [f"asr {s}, {cr}, #31",
                 f"add {t}, {cr}, {s}",
@@ -333,14 +356,15 @@ def p192():
 def p160():
     R = ["r2", "r3", "r4", "r5", "r6"]
     A = ["r7", "r8", "r9", "r10", "r11"]
-    body = ["ldm r1!, {r2-r6}",
+    body = ["/* r = lo -> r2-r6; hi -> r7-r11. */",
+            "ldm r1!, {r2-r6}",
             "ldm r1, {r7-r11}",
             "mov r12, #0",
-            "/* + hi */",
+            "/* r += hi. */",
             "adds r2, r2, r7", "adcs r3, r3, r8", "adcs r4, r4, r9",
             "adcs r5, r5, r10", "adcs r6, r6, r11",
             "adc r12, r12, #0",
-            "/* + hi * 2^31 */",
+            "/* r += hi * 2^31: word j = (a[j] << 31) | (a[j-1] >> 1); a4 >> 1 goes to carry. */",
             "lsl r14, r7, #31",
             "adds r2, r2, r14"]
     for j in range(1, 5):
@@ -349,7 +373,7 @@ def p160():
                  f"adcs {R[j]}, {R[j]}, r14"]
     body += ["lsr r14, r11, #1",
              "adc r12, r12, r14",
-             "/* fold carry (c < 2^31 + 3): r += c * (2^31 + 1) */",
+             "/* Fold carry (c < 2^31 + 3): r += c * (2^31 + 1) = [c + (c << 31), (c >> 1) + carry]. */",
              "lsl r7, r12, #31",
              "adds r7, r7, r12",
              "lsr r8, r12, #1",
@@ -359,6 +383,7 @@ def p160():
              "adcs r5, r5, #0", "adcs r6, r6, #0",
              "adc r12, r12, #0"]
     s, t, x, u = "r7", "r8", "r9", "r10"
+    # For cr in {-1, 0, 1}: adds the words [c + (c << 31), s, s, s, s].
     def fold(cr):
         return [f"asr {s}, {cr}, #31",
                 f"add {t}, {cr}, {cr}, lsl #31",
@@ -380,11 +405,13 @@ def p160():
 # ===========================================================================
 def k1(umaal):
     R = ["r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9"]
-    body = ["ldm r1!, {r2-r9}",
+    body = ["/* r = lo -> r2-r9; r1 -> hi; r10 = 977 (1024 - 47). */",
+            "ldm r1!, {r2-r9}",
             "mov r10, #1024",
             "sub r10, r10, #47"]
     if umaal:
-        body += ["/* r += hi * 977 (umaal chain, r11 = carry) and r += hi * 2^32 (flags) */",
+        body += ["/* r += hi * 977 (umaal chain, carry in r11) and r += hi * 2^32 (adcs chain).\n"
+                 "           umaal does not touch the flags, so the two carry chains interleave. */",
                  "mov r11, #0",
                  "mov r14, #0"]
         for j in range(8):
@@ -395,7 +422,8 @@ def k1(umaal):
         body += ["adcs r12, r12, r11",
                  "adc r14, r14, #0"]
     else:
-        body += ["/* r += hi * 977 (umlal + flags) */"]
+        body += ["/* r += hi * 977: umlal gives each high word in r11, added to the next word.\n"
+                 "           umlal does not touch the flags, so the adds/adcs carry chain runs across it. */"]
         for j in range(8):
             body += [f"ldr r12, [r1, #{4 * j}]"]
             if j > 0:
@@ -403,7 +431,7 @@ def k1(umaal):
             body += ["mov r11, #0",
                      f"umlal {R[j]}, r11, r12, r10"]
         body += ["adc r11, r11, #0",
-                 "/* r += hi * 2^32 */"]
+                 "/* r += hi * 2^32; top word + carries -> T = r14:r12. */"]
         for j in range(7):
             body += [f"ldr r12, [r1, #{4 * j}]",
                      f"{'adds' if j == 0 else 'adcs'} {R[j+1]}, {R[j+1]}, r12"]
@@ -411,7 +439,8 @@ def k1(umaal):
                  "mov r14, #0",
                  "adcs r12, r12, r11",
                  "adc r14, r14, #0"]
-    body += ["/* fold T = r14:r12 (< 2^33): r += T * (2^32 + 977) */",
+    body += ["/* Fold T = r14:r12 (< 2^33): r += T * (2^32 + 977). r11:r2 = r2 + lo(T) * 977,\n"
+             "           r11 += hi(T) * 977, then add T at word 1 with r11. */",
              "mov r11, #0",
              "umlal r2, r11, r12, r10",
              "mul r1, r14, r10",
@@ -424,14 +453,15 @@ def k1(umaal):
              "adcs r5, r5, #0", "adcs r6, r6, #0", "adcs r7, r7, #0",
              "adcs r8, r8, #0", "adcs r9, r9, #0",
              "adc r11, r11, #0",
-             "/* c2 = r11 in {0, 1}: fold +1 (subtract p) */",
+             "/* c2 = r11 in {0, 1}: fold +1, i.e. add 2^32 + 977 (subtract p). */",
              "mov r12, #0",
              "adds r2, r2, r10",
              "adcs r3, r3, #1",
              "adcs r4, r4, #0", "adcs r5, r5, #0", "adcs r6, r6, #0",
              "adcs r7, r7, #0", "adcs r8, r8, #0", "adcs r9, r9, #0",
              "adc r12, r12, #0",
-             "/* undo (fold -1, i.e. add p) if c2 == 0 and the fold did not carry */",
+             "/* Undo (add p) if c2 == 0 and the fold did not carry: m = (c2 | carry) - 1, then add\n"
+             "           m * (2^32 + 977) = [m * 977, 2 * m, m, ...], i.e. -(2^32 + 977) = p mod 2^256. */",
              "orr r11, r11, r12",
              "sub r11, r11, #1",
              "mul r12, r11, r10",
@@ -472,15 +502,21 @@ T1_CLOBBERS = ["r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9"]
 def t1_columns(terms, n, signed=True):
     """Signed column sums. r0 = result, r1 = product, r2 = column low word,
     r3/r4 = carry (alternating), r5 = 0, r6 = loaded term."""
-    lines = ["movs r5, #0"]
+    lines = ["/* r5 = 0 (Thumb-1 adcs/sbcs take no immediate). */",
+             "movs r5, #0"]
     C, H = "r4", "r3"
     for j, col in enumerate(terms):
-        lines.append(f"/* column {j} */")
+        if j == 1:
+            lines.append(f"/* Column {j}. Sign-extend the previous carry {C} into {H} first, since\n"
+                         f"           asrs sets the flags and would clobber the adds carry. */")
+        else:
+            lines.append(f"/* Column {j}. */")
         lines.append(f"ldr r2, [r1, #{4 * j}]")
         if j == 0:
             lines.append(f"movs {H}, #0")
         else:
             lines += [f"asrs {H}, {C}, #31", f"adds r2, r2, {C}", f"adcs {H}, r5"]
+        # Merge repeated indices so each high word is loaded only once.
         coefs = {}
         order = []
         for coef, i in col:
@@ -513,15 +549,18 @@ def t1_finish(fold, undo, c2, regs):
     """c2: register holding the first-fold carry (in {-1, 0, 1}).
     fold(c, regs) -> (lines, k): fold c using registers regs (not c); k = carry.
     undo(m, regs) -> lines: r += p & m (m in {0, -1})."""
-    lines = ["mov r8, " + c2]
+    lines = ["/* Save c2 in r8 (registers are scarce). */",
+             "mov r8, " + c2]
+    # c2 is saved, so it goes last in the pool and may be reused as a temp.
     pool = [r for r in regs if r != c2] + [c2]
     x = pool[0]
-    lines += ["/* fold s = c2 | 1 (subtract p, or add p if c2 == -1) */",
+    lines += ["/* Fold s = c2 | 1 (subtract p, or add p if c2 == -1). */",
               f"movs {x}, #1", f"orrs {x}, {c2}"]
     fl, k = fold(x, [r for r in pool if r != x])
     lines += fl
     u, v = [r for r in pool if r != k][:2]
-    lines += ["/* undo (add p) if c2 == 0 and the previous fold did not carry */",
+    lines += ["/* Undo (add p) if c2 == 0 and the previous fold did not carry: */",
+              "/* mask = ((c2 | carry) == 0) ? -1 : 0, from the sign bit of (v | -v). */",
               f"mov {u}, r8", f"orrs {u}, {k}",
               f"rsbs {v}, {u}, #0", f"orrs {v}, {u}",
               f"asrs {v}, {v}, #31", f"mvns {v}, {v}"]
@@ -536,6 +575,8 @@ def t1_func(name, comment, body):
 def t1_p256():
     body, c = t1_columns(P256_COLS, 8)
     def fold(cr, regs):
+        # Word values [c, s, s, s - c, m, m, m - c, c + m], then add them to
+        # result[] in memory; the carry out ends up in s.
         s, m, x3, x6, x7, R = regs[:6]
         return ([f"asrs {s}, {cr}, #31",
                  f"rsbs {m}, {cr}, #0",
@@ -549,7 +590,7 @@ def t1_p256():
         b, z, R = regs[:3]
         return ([f"movs {b}, #1", f"ands {b}, {m}", f"movs {z}, #0"]
                 + t1_chain("r0", [m, m, m, z, z, z, b, m], R))
-    body.append("/* fold carry: r += c * (2^224 - 2^192 - 2^96 + 1) */")
+    body.append("/* Fold carry: r += c * (2^224 - 2^192 - 2^96 + 1). */")
     fl, k = fold(c, [r for r in T1_POOL if r != c])
     body += fl
     body += t1_finish(fold, undo, k, T1_POOL)
@@ -560,6 +601,7 @@ def t1_p256():
 def t1_p224():
     body, c = t1_columns(P224_COLS, 7)
     def fold(cr, regs):
+        # Word values [-c, m, m, c + m, s, s, s]; carry out in s.
         s, m, x0, x3, R = regs[:5]
         return ([f"asrs {s}, {cr}, #31",
                  f"rsbs {x0}, {cr}, #0",
@@ -571,7 +613,7 @@ def t1_p224():
         b, z, R = regs[:3]
         return ([f"movs {b}, #1", f"ands {b}, {m}", f"movs {z}, #0"]
                 + t1_chain("r0", [b, z, z, m, m, m, m], R))
-    body.append("/* fold carry: r += c * (2^96 - 1) */")
+    body.append("/* Fold carry: r += c * (2^96 - 1). */")
     fl, k = fold(c, [r for r in T1_POOL if r != c])
     body += fl
     body += t1_finish(fold, undo, k, T1_POOL)
@@ -592,15 +634,17 @@ P192_COLS = [
 def t1_p192():
     body, c = t1_columns(P192_COLS, 6)
     def fold(cr, regs):
+        # Word values [c, s, c + s, s, s, s]; carry out in s.
         s, x2, R = regs[:3]
         return ([f"asrs {s}, {cr}, #31",
                  f"adds {x2}, {cr}, {s}"]
                 + t1_chain("r0", [cr, s, x2, s, s, s], R)
                 + [f"movs {R}, #0", f"adcs {s}, {R}"]), s
     def undo(m, regs):
+        # p = [-1, -1, -2, -1, -1, -1].
         x2, R = regs[:2]
         return [f"adds {x2}, {m}, {m}"] + t1_chain("r0", [m, m, x2, m, m, m], R)
-    body.append("/* fold carry: r += c * (2^64 + 1) */")
+    body.append("/* Fold carry: r += c * (2^64 + 1). */")
     fl, k = fold(c, [r for r in T1_POOL if r != c])
     body += fl
     body += t1_finish(fold, undo, k, T1_POOL)
@@ -610,10 +654,11 @@ def t1_p192():
             "   version. */", body)
 
 def t1_p160():
-    body = ["movs r5, #0"]
+    body = ["/* r5 = 0. */", "movs r5, #0"]
     C, H = "r4", "r3"
     for j in range(5):
-        body.append(f"/* column {j}: p[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) */")
+        body.append("/* Column 0: lo[j] + a[j] + ((a[j] << 31) | (a[j-1] >> 1)) + carry. */"
+                    if j == 0 else f"/* Column {j}. */")
         body.append(f"ldr r2, [r1, #{4 * j}]")
         body.append(f"movs {H}, #0")
         if j > 0:
@@ -626,14 +671,16 @@ def t1_p160():
         body += ["adds r2, r2, r6", f"adcs {H}, r5",
                  f"str r2, [r0, #{4 * j}]"]
         C, H = H, C
-    body += ["ldr r7, [r1, #36]", "lsrs r7, r7, #1", f"adds {C}, {C}, r7",
-             "/* fold carry (c < 2^31 + 3): r += c * (2^31 + 1) */"]
+    body += ["/* Top carry c += a4 >> 1. */",
+             "ldr r7, [r1, #36]", "lsrs r7, r7, #1", f"adds {C}, {C}, r7",
+             "/* Fold carry (c < 2^31 + 3): r += c * (2^31 + 1) = [c + (c << 31), (c >> 1) + carry]. */"]
     x0, x1, R, k = [r for r in ["r1", "r2", "r6", "r7", "r3", "r4"] if r != C][:4]
     body += [f"lsrs {x1}, {C}, #1", f"lsls {x0}, {C}, #31",
              f"adds {x0}, {x0}, {C}", f"adcs {x1}, r5"]
     body += t1_chain("r0", [x0, x1, "r5", "r5", "r5"], R)
     body += [f"movs {k}, #0", f"adcs {k}, {k}"]
     def fold(cr, regs):
+        # For cr in {-1, 0, 1}: word values [c + (c << 31), s, s, s, s].
         s, x0, R = regs[:3]
         return ([f"asrs {s}, {cr}, #31",
                  f"lsls {x0}, {cr}, #31",
@@ -641,6 +688,7 @@ def t1_p160():
                 + t1_chain("r0", [x0, s, s, s, s], R)
                 + [f"movs {R}, #0", f"adcs {s}, {R}"]), s
     def undo(m, regs):
+        # p = [2^31 - 1, -1, -1, -1, -1].
         b, R = regs[:2]
         return [f"lsrs {b}, {m}, #1"] + t1_chain("r0", [b, m, m, m, m], R)
     body += t1_finish(fold, undo, k, T1_POOL)
@@ -650,12 +698,15 @@ def t1_p160():
 
 def t1_k1():
     # results are accumulated in product[0..7] and copied to result at the end.
-    body = ["mov r8, r0",
+    body = ["/* r8 = result pointer; r9 = 977 (0xF4 * 4 + 1); r5 = 0. */",
+            "mov r8, r0",
             "movs r2, #0xF4", "lsls r2, r2, #2", "adds r2, r2, #1", "mov r9, r2",
             "movs r5, #0"]
     C, H = "r4", "r3"
     for j in range(8):
-        body.append(f"/* column {j}: p[j] + lo(a[j] * 977) + a[j-1] + carry */")
+        body.append(f"/* Column 0: lo[j] + a[j] * 977 + a[j-1] + carry. a[j] * 977 is built\n"
+                    f"           from two 16x16 muls ({H}:r6); its high word joins the carry. */"
+                    if j == 0 else f"/* Column {j}. */")
         body += [f"ldr {H}, [r1, #{32 + 4 * j}]",
                  f"uxth r6, {H}",
                  f"lsrs {H}, {H}, #16",
@@ -675,9 +726,10 @@ def t1_k1():
         body.append(f"str r2, [r1, #{4 * j}]")
         C, H = H, C
     A, B = C, H  # C holds the carry
-    body += ["/* T = a7 + carry -> r2:r6 */",
+    body += ["/* T = a7 + carry -> r2:r6 (r2 in {0, 1}). */",
              "ldr r6, [r1, #60]", "movs r2, #0", f"adds r6, r6, {C}", "adcs r2, r5",
-             "/* fold T: r += T * (2^32 + 977) */",
+             "/* Fold T: r += T * (2^32 + 977). lo(T) * 977 via 16-bit halves; hi(T) * 977 is\n"
+             "           977 & -hi(T). Words added: [lo, hi + lo(T), hi(T) + carry]. r0 is a temp. */",
              f"uxth {A}, r6", f"lsrs {B}, r6, #16", "mov r7, r9",
              f"muls {A}, r7, {A}", f"muls {B}, r7, {B}",
              f"lsls r0, {B}, #16", f"lsrs {B}, {B}, #16",
@@ -686,15 +738,16 @@ def t1_k1():
              f"adds {B}, {B}, r7", f"adds {B}, {B}, r6", "adcs r2, r5"]
     body += t1_chain("r1", [A, B, "r2", "r5", "r5", "r5", "r5", "r5"], "r6")
     body += ["movs r0, #0", "adcs r0, r0",
-             "/* c2 = r0 in {0, 1}: fold +1 (subtract p) */",
+             "/* c2 = r0 in {0, 1}: fold +1, i.e. add 2^32 + 977 (subtract p). */",
              "mov r7, r9", "movs r3, #1"]
     body += t1_chain("r1", ["r7", "r3", "r5", "r5", "r5", "r5", "r5", "r5"], "r6")
     body += ["movs r4, #0", "adcs r4, r4",
-             "/* undo (add p) if c2 == 0 and the fold did not carry */",
+             "/* Undo (add p) if c2 == 0 and the fold did not carry: m = (c2 | carry) - 1,\n"
+             "           add [m * 977, 2 * m, m, ...] = m * (2^32 + 977). */",
              "orrs r0, r4", "subs r0, r0, #1",
              "mov r7, r9", "muls r7, r0, r7", "adds r3, r0, r0"]
     body += t1_chain("r1", ["r7", "r3", "r0", "r0", "r0", "r0", "r0", "r0"], "r6")
-    body += ["/* copy to result */",
+    body += ["/* Copy product[0..7] to result. */",
              "mov r0, r8",
              "ldm r1!, {r2-r5}", "stm r0!, {r2-r5}",
              "ldm r1!, {r2-r5}", "stm r0!, {r2-r5}"]
@@ -707,12 +760,13 @@ def t1_k1():
 emit("/* Copyright 2015, Kenneth MacKay. Licensed under the BSD 2-clause license. */")
 emit("")
 emit("/* Constant-time fast reductions (vli_mmod_fast) for ARM, Thumb-2 and Thumb-1.")
-emit("   Generated by scripts/mmod_arm.py. Each routine reduces a")
-emit("   2 * num_words product to the fully reduced result in [0, p). result may")
-emit("   alias product. The final steps are branch-free: after folding the top")
-emit("   carry, c2 in {-1, 0, 1} remains; folding +1 is the same as subtracting p")
-emit("   (and -1 as adding p) modulo 2^N, so we fold (c2 | 1) and then fold -1 again")
-emit("   if c2 was 0 and that fold did not carry (the value was already < p). */")
+emit("   Generated by scripts/mmod_arm.py. Each routine reduces a 2 * num_words")
+emit("   product to the fully reduced result in [0, p). result may alias product;")
+emit("   some versions also use product as scratch. The final steps are branch-free:")
+emit("   after folding the top carry, c2 in {-1, 0, 1} remains; folding +1 is the")
+emit("   same as subtracting p (and -1 as adding p) modulo 2^N, so we fold (c2 | 1)")
+emit("   and then fold -1 again if c2 was 0 and that fold did not carry (the value")
+emit("   was already < p). */")
 emit("")
 emit("#ifndef _UECC_ASM_ARM_MMOD_H_")
 emit("#define _UECC_ASM_ARM_MMOD_H_")

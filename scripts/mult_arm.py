@@ -71,7 +71,7 @@ else:
         emit("stmia r0!, {r%s}", acc[0])
         print ""
         acc = acc[1:] + acc[:1]
-    
+
     emit("umull r%s, r%s, r%s, r%s", acc[3], acc[4], rx[init_size-1], ry[init_size-1])
     emit("adds r%s, r%s, r%s", acc[0], acc[0], acc[3])
     emit("adc r%s, r%s, r%s", acc[1], acc[1], acc[4])
@@ -166,14 +166,14 @@ for row in xrange(full_rows):
     emit("stmia r0!, {r%s}", acc[0])
     print ""
     acc = acc[1:] + acc[:1]
-    
+
     emit("umull r%s, r%s, r%s, r%s", acc[3], acc[4], x_regs[2], y_regs[2])
     emit("adds r%s, r%s, r%s", acc[0], acc[0], acc[3])
     emit("adc r%s, r%s, r%s", acc[1], acc[1], acc[4])
     emit("stmia r0!, {r%s}", acc[0])
     emit("stmia r0!, {r%s}", acc[1])
     print ""
-    
+
     prev_size = prev_size + 3
     if row < full_rows - 1:
         #### reset x, y and z pointers
@@ -184,5 +184,5 @@ for row in xrange(full_rows):
         #### load x and y registers
         emit("ldmia r1!, {%s}", ",".join(["r%s" % (rx[i]) for i in xrange(3)]))
         emit("ldmia r2!, {%s}", ",".join(["r%s" % (ry[i]) for i in xrange(3)]))
-        
+
         print ""

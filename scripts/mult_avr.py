@@ -186,7 +186,7 @@ for row in xrange(full_rows):
     emit("st z+, r%s", acc[0])
     emit("st z+, r%s", acc[1])
     print ""
-    
+
     prev_size = prev_size + 10
     if row < full_rows - 1:
         #### reset x, y and z pointers

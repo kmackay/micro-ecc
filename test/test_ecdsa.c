@@ -29,7 +29,7 @@ int main() {
 #if uECC_SUPPORTS_secp256k1
     curves[num_curves++] = uECC_secp256k1();
 #endif
-    
+
     printf("Testing 256 signatures\n");
     for (c = 0; c < num_curves; ++c) {
         for (i = 0; i < 256; ++i) {
@@ -41,7 +41,7 @@ int main() {
                 return 1;
             }
             memcpy(hash, public, sizeof(hash));
-            
+
             if (!uECC_sign(private, hash, sizeof(hash), sig, curves[c])) {
                 printf("uECC_sign() failed\n");
                 return 1;
@@ -54,6 +54,6 @@ int main() {
         }
         printf("\n");
     }
-    
+
     return 0;
 }

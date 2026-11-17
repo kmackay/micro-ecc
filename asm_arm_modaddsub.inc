@@ -28,20 +28,22 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left + right, in r4..r11. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "adds r4, r4, r8 \n\t"
             "adcs r5, r5, r9 \n\t"
             "adcs r6, r6, r10 \n\t"
             "adcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldmia r1, {r8, r9, r10, r11} \n\t"
             "ldmia r2, {r1, r2, r12, lr} \n\t"
             "adcs r8, r8, r1 \n\t"
             "adcs r9, r9, r2 \n\t"
             "adcs r10, r10, r12 \n\t"
             "adcs r11, r11, lr \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result -= mod */
+            "sbc r12, r12, r12 \n\t"  /* c = carry - 1 (0 if the add carried). */
+            /* result -= mod. */
             "ldmia r3!, {r1, r2, lr} \n\t"
             "subs r4, r4, r1 \n\t"
             "sbcs r5, r5, r2 \n\t"
@@ -53,10 +55,10 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
             "ldmia r3!, {r1, r2} \n\t"
             "sbcs r10, r10, r1 \n\t"
             "sbcs r11, r11, r2 \n\t"
-            "sbc r1, r1, r1 \n\t"
-            "and r1, r1, r12 \n\t"
-            "sub r3, r3, #32 \n\t"
-            /* result += mod & mask */
+            "sbc r1, r1, r1 \n\t"  /* b = -borrow. */
+            "and r1, r1, r12 \n\t"  /* Add mod back iff borrow and no carry. */
+            "sub r3, r3, #32 \n\t"  /* Rewind r3 to mod. */
+            /* result += mod & b (ldm / and leave the carry intact). */
             "ldmia r3!, {r2, lr} \n\t"
             "and r2, r2, r1 \n\t"
             "and lr, lr, r1 \n\t"
@@ -93,19 +95,21 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left + right, in r4..r10. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "adds r4, r4, r8 \n\t"
             "adcs r5, r5, r9 \n\t"
             "adcs r6, r6, r10 \n\t"
             "adcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldmia r1, {r8, r9, r10} \n\t"
             "ldmia r2, {r11, r12, lr} \n\t"
             "adcs r8, r8, r11 \n\t"
             "adcs r9, r9, r12 \n\t"
             "adcs r10, r10, lr \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result -= mod */
+            "sbc r12, r12, r12 \n\t"  /* c = carry - 1 (0 if the add carried). */
+            /* result -= mod. */
             "ldmia r3!, {r1, r2, r11, lr} \n\t"
             "subs r4, r4, r1 \n\t"
             "sbcs r5, r5, r2 \n\t"
@@ -115,10 +119,10 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
             "sbcs r8, r8, r1 \n\t"
             "sbcs r9, r9, r2 \n\t"
             "sbcs r10, r10, lr \n\t"
-            "sbc r1, r1, r1 \n\t"
-            "and r1, r1, r12 \n\t"
-            "sub r3, r3, #28 \n\t"
-            /* result += mod & mask */
+            "sbc r1, r1, r1 \n\t"  /* b = -borrow. */
+            "and r1, r1, r12 \n\t"  /* Add mod back iff borrow and no carry. */
+            "sub r3, r3, #28 \n\t"  /* Rewind r3 to mod. */
+            /* result += mod & b (ldm / and leave the carry intact). */
             "ldmia r3!, {r2, r11, lr} \n\t"
             "and r2, r2, r1 \n\t"
             "and r11, r11, r1 \n\t"
@@ -152,18 +156,20 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left + right, in r4..r9. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "adds r4, r4, r8 \n\t"
             "adcs r5, r5, r9 \n\t"
             "adcs r6, r6, r10 \n\t"
             "adcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldmia r1, {r8, r9} \n\t"
             "ldmia r2, {r10, r11} \n\t"
             "adcs r8, r8, r10 \n\t"
             "adcs r9, r9, r11 \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result -= mod */
+            "sbc r12, r12, r12 \n\t"  /* c = carry - 1 (0 if the add carried). */
+            /* result -= mod. */
             "ldmia r3!, {r1, r2, r10, r11, lr} \n\t"
             "subs r4, r4, r1 \n\t"
             "sbcs r5, r5, r2 \n\t"
@@ -172,10 +178,10 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
             "sbcs r8, r8, lr \n\t"
             "ldr r1, [r3], #4 \n\t"
             "sbcs r9, r9, r1 \n\t"
-            "sbc r1, r1, r1 \n\t"
-            "and r1, r1, r12 \n\t"
-            "sub r3, r3, #24 \n\t"
-            /* result += mod & mask */
+            "sbc r1, r1, r1 \n\t"  /* b = -borrow. */
+            "and r1, r1, r12 \n\t"  /* Add mod back iff borrow and no carry. */
+            "sub r3, r3, #24 \n\t"  /* Rewind r3 to mod. */
+            /* result += mod & b (ldm / and leave the carry intact). */
             "ldmia r3!, {r2, r10, r11, lr} \n\t"
             "and r2, r2, r1 \n\t"
             "and r10, r10, r1 \n\t"
@@ -206,27 +212,29 @@ uECC_VLI_API void uECC_vli_modAdd(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left + right, in r4..r8. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "adds r4, r4, r8 \n\t"
             "adcs r5, r5, r9 \n\t"
             "adcs r6, r6, r10 \n\t"
             "adcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldr r8, [r1] \n\t"
             "ldr r9, [r2] \n\t"
             "adcs r8, r8, r9 \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result -= mod */
+            "sbc r12, r12, r12 \n\t"  /* c = carry - 1 (0 if the add carried). */
+            /* result -= mod. */
             "ldmia r3!, {r1, r2, r9, r10, lr} \n\t"
             "subs r4, r4, r1 \n\t"
             "sbcs r5, r5, r2 \n\t"
             "sbcs r6, r6, r9 \n\t"
             "sbcs r7, r7, r10 \n\t"
             "sbcs r8, r8, lr \n\t"
-            "sbc r1, r1, r1 \n\t"
-            "and r1, r1, r12 \n\t"
-            "sub r3, r3, #20 \n\t"
-            /* result += mod & mask */
+            "sbc r1, r1, r1 \n\t"  /* b = -borrow. */
+            "and r1, r1, r12 \n\t"  /* Add mod back iff borrow and no carry. */
+            "sub r3, r3, #20 \n\t"  /* Rewind r3 to mod. */
+            /* result += mod & b (ldm / and leave the carry intact). */
             "ldmia r3!, {r2, r9, r10, r11, lr} \n\t"
             "and r2, r2, r1 \n\t"
             "and r9, r9, r1 \n\t"
@@ -270,20 +278,22 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left - right, in r4..r11. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "subs r4, r4, r8 \n\t"
             "sbcs r5, r5, r9 \n\t"
             "sbcs r6, r6, r10 \n\t"
             "sbcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldmia r1, {r8, r9, r10, r11} \n\t"
             "ldmia r2, {r1, r2, r12, lr} \n\t"
             "sbcs r8, r8, r1 \n\t"
             "sbcs r9, r9, r2 \n\t"
             "sbcs r10, r10, r12 \n\t"
             "sbcs r11, r11, lr \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result += mod & m */
+            "sbc r12, r12, r12 \n\t"  /* m = -borrow. */
+            /* result += mod & m (ldm / and leave the carry intact). */
             "ldmia r3!, {r1, r2, lr} \n\t"
             "and r1, r1, r12 \n\t"
             "and r2, r2, r12 \n\t"
@@ -319,19 +329,21 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left - right, in r4..r10. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "subs r4, r4, r8 \n\t"
             "sbcs r5, r5, r9 \n\t"
             "sbcs r6, r6, r10 \n\t"
             "sbcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldmia r1, {r8, r9, r10} \n\t"
             "ldmia r2, {r11, r12, lr} \n\t"
             "sbcs r8, r8, r11 \n\t"
             "sbcs r9, r9, r12 \n\t"
             "sbcs r10, r10, lr \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result += mod & m */
+            "sbc r12, r12, r12 \n\t"  /* m = -borrow. */
+            /* result += mod & m (ldm / and leave the carry intact). */
             "ldmia r3!, {r1, r2, r11, lr} \n\t"
             "and r1, r1, r12 \n\t"
             "and r2, r2, r12 \n\t"
@@ -364,18 +376,20 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left - right, in r4..r9. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "subs r4, r4, r8 \n\t"
             "sbcs r5, r5, r9 \n\t"
             "sbcs r6, r6, r10 \n\t"
             "sbcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldmia r1, {r8, r9} \n\t"
             "ldmia r2, {r10, r11} \n\t"
             "sbcs r8, r8, r10 \n\t"
             "sbcs r9, r9, r11 \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result += mod & m */
+            "sbc r12, r12, r12 \n\t"  /* m = -borrow. */
+            /* result += mod & m (ldm / and leave the carry intact). */
             "ldmia r3!, {r1, r2, r10, r11, lr} \n\t"
             "and r1, r1, r12 \n\t"
             "and r2, r2, r12 \n\t"
@@ -406,17 +420,19 @@ uECC_VLI_API void uECC_vli_modSub(uECC_word_t *result,
     {
         __asm__ volatile (
             ".syntax unified \n\t"
+            /* result = left - right, in r4..r8. Low 4 words first. */
             "ldmia r1!, {r4, r5, r6, r7} \n\t"
             "ldmia r2!, {r8, r9, r10, r11} \n\t"
             "subs r4, r4, r8 \n\t"
             "sbcs r5, r5, r9 \n\t"
             "sbcs r6, r6, r10 \n\t"
             "sbcs r7, r7, r11 \n\t"
+            /* Upper words. Temps reuse registers that are no longer needed. */
             "ldr r8, [r1] \n\t"
             "ldr r9, [r2] \n\t"
             "sbcs r8, r8, r9 \n\t"
-            "sbc r12, r12, r12 \n\t"
-            /* result += mod & m */
+            "sbc r12, r12, r12 \n\t"  /* m = -borrow. */
+            /* result += mod & m (ldm / and leave the carry intact). */
             "ldmia r3!, {r1, r2, r9, r10, lr} \n\t"
             "and r1, r1, r12 \n\t"
             "and r2, r2, r12 \n\t"

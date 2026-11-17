@@ -25,7 +25,7 @@ int main() {
 
     int i;
     int c;
-    
+
     const struct uECC_Curve_t * curves[5];
     int num_curves = 0;
 #if uECC_SUPPORTS_secp160r1
@@ -43,7 +43,7 @@ int main() {
 #if uECC_SUPPORTS_secp256k1
     curves[num_curves++] = uECC_secp256k1();
 #endif
-    
+
     printf("Testing compression and decompression of %d random EC points\n",
            uECC_TEST_NUMBER_OF_ITERATIONS);
 
@@ -51,7 +51,7 @@ int main() {
         for (i = 0; i < uECC_TEST_NUMBER_OF_ITERATIONS; ++i) {
             printf(".");
             fflush(stdout);
-            
+
             memset(public, 0, sizeof(public));
             memset(decompressed_point, 0, sizeof(decompressed_point));
 

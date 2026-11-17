@@ -24,12 +24,16 @@ def pass1(n, op):
     """result regs = left op right, carry chain left in the flags.
     Returns lines. Uses r1 (left), r2 (right)."""
     Rg = R(n)
-    lines = [f"ldmia r1!, {rl(Rg[:4])}",
+    lines = [f"/* result = left {'+' if op == 'add' else '-'} right, in r4..r{3 + n}. Low 4 words first. */",
+             f"ldmia r1!, {rl(Rg[:4])}",
              f"ldmia r2!, {rl(['r8', 'r9', 'r10', 'r11'])}"]
     first, rest = ("adds", "adcs") if op == "add" else ("subs", "sbcs")
     for i, t in enumerate(["r8", "r9", "r10", "r11"]):
         lines.append(f"{first if i == 0 else rest} {Rg[i]}, {Rg[i]}, {t}")
     k = n - 4
+    # Temps for the upper words of right: the unused high result regs, then
+    # r12, lr, and finally r1 / r2 (both pointers are dead after these loads).
+    lines.append("/* Upper words. Temps reuse registers that are no longer needed. */")
     pool = [f"r{4 + n + i}" for i in range(8 - n)] + ["r12", "lr", "r1", "r2"]
     temps = sortregs(pool[:k])
     if k == 1:
@@ -42,7 +46,9 @@ def pass1(n, op):
 
 def mod_pass(n, op, temps, mask=None):
     """result regs op= (mod [& mask]), chaining from a fresh carry. Loads mod
-    via r3 (advanced). Returns lines."""
+    via r3 (advanced). Returns lines.
+    mod is loaded in chunks of len(temps) words; ldm / ldr / and do not set the
+    flags, so the carry chain runs across chunks."""
     Rg = R(n)
     lines = []
     first, rest = ("adds", "adcs") if op == "add" else ("subs", "sbcs")
@@ -68,8 +74,8 @@ def free_after(n, exclude):
 def modsub(n):
     m = "r12"
     lines = pass1(n, "sub")
-    lines += [f"sbc {m}, {m}, {m}",             # m = -borrow
-              "/* result += mod & m */"]
+    lines += [(f"sbc {m}, {m}, {m}", "m = -borrow."),
+              "/* result += mod & m (ldm / and leave the carry intact). */"]
     lines += mod_pass(n, "add", free_after(n, [m]), m)
     lines.append(f"stmia r0, {rl(R(n))}")
     return lines
@@ -77,15 +83,15 @@ def modsub(n):
 def modadd(n):
     c = "r12"
     lines = pass1(n, "add")
-    lines += [f"sbc {c}, {c}, {c}",             # c = carry - 1
-              "/* result -= mod */"]
+    lines += [(f"sbc {c}, {c}, {c}", "c = carry - 1 (0 if the add carried)."),
+              "/* result -= mod. */"]
     temps = free_after(n, [c])
     lines += mod_pass(n, "sub", temps)
     b = "r1"
-    lines += [f"sbc {b}, {b}, {b}",             # b = -borrow
-              f"and {b}, {b}, {c}",             # add mod back iff borrow and no carry
-              f"sub r3, r3, #{4 * n}",
-              "/* result += mod & mask */"]
+    lines += [(f"sbc {b}, {b}, {b}", "b = -borrow."),
+              (f"and {b}, {b}, {c}", "Add mod back iff borrow and no carry."),
+              (f"sub r3, r3, #{4 * n}", "Rewind r3 to mod."),
+              "/* result += mod & b (ldm / and leave the carry intact). */"]
     lines += mod_pass(n, "add", [t for t in temps if t != b], b)
     lines.append(f"stmia r0, {rl(R(n))}")
     return lines
@@ -94,7 +100,9 @@ def modadd(n):
 def asm_block(lines, indent="        "):
     res = [f'{indent}__asm__ volatile (', f'{indent}    ".syntax unified \\n\\t"']
     for l in lines:
-        if l.startswith("/*"):
+        if isinstance(l, tuple):  # (instruction, trailing comment)
+            res.append(f'{indent}    "{l[0]} \\n\\t"  /* {l[1]} */')
+        elif l.startswith("/*"):
             res.append(f"{indent}    {l}")
         else:
             res.append(f'{indent}    "{l} \\n\\t"')
