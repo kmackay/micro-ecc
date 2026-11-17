@@ -49,14 +49,17 @@ uECC_VLI_API void uECC_vli_clear(uECC_word_t *vli, wordcount_t num_words) {
         "1: \n\t"
         : "+x" (vli)
         : [num] "r" (num_words)
-    /* The ':' is inside the #if since older avr-gcc rejects an empty clobber list. */
+        : "memory"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
-        : "r30", "r31", "cc"
+          , "r30", "r31", "cc"
     #endif
     );
 }
 #define asm_clear 1
 
+/* noinline: the "+y" operand needs Y (r28:r29), which a caller with a stack
+   frame uses as its frame pointer, so inlining can fail to allocate it. */
+__attribute__((noinline))
 uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordcount_t num_words) {
     __asm__ volatile (
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
@@ -73,7 +76,7 @@ uECC_VLI_API void uECC_vli_set(uECC_word_t *dest, const uECC_word_t *src, wordco
         "1: \n\t"
         : "+x" (dest), "+y" (src)
         : [num] "r" ((uint8_t)(num_words * 2))
-        : "r0"
+        : "r0", "memory"
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
           , "r30", "r31", "cc"
     #endif
@@ -107,10 +110,10 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
         : "+x" (vli)
     #if (uECC_MAX_WORDS != uECC_MIN_WORDS)
         : [num] "r" (num_words), [jump] "r" ((uint8_t)(3 * (num_words - 1)))
-        : "r0", "r30", "r31", "cc"
+        : "r0", "r30", "r31", "cc", "memory"
     #else
         : [num] "r" (num_words)
-        : "r0", "cc"
+        : "r0", "cc", "memory"
     #endif
     );
 }
@@ -223,7 +226,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         , [num] "+d" (num_words)
         :
     #endif
-        : "cc"
+        : "cc", "memory"
     );
     return carry;
 }
@@ -328,7 +331,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         , [num] "+d" (num_words)
         :
     #endif
-        : "cc"
+        : "cc", "memory"
     );
     return carry;
 }
@@ -555,8 +558,12 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         : "+x" (left), "+z" (result), "+r" (r20)
         :
         : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
-          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
-          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
+          "r11", "r12", "r13", "r14", "r15",
+    #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1 || \
+         uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+          "r16", "r17", /* Not used by the secp224r1 squarer. */
+    #endif
+          "r18", "r19", "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc", "memory"
     );
 }
 #define asm_square 1
@@ -596,7 +603,7 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         : "+z" (result), "+x" (left), "+y" (right), [i] "+r" (num_words),
           [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
-        : "cc"
+        : "cc", "memory"
     );
     return left_byte;
 }
@@ -629,7 +636,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         : "+z" (result), "+x" (left), "+y" (right), [i] "+r" (num_words),
           [left] "=&r" (left_byte), [right] "=&r" (right_byte)
         :
-        : "cc"
+        : "cc", "memory"
     );
     return left_byte;
 }
@@ -725,9 +732,9 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         : "+z" (result), "+x" (left), "+y" (right),
           [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2),
           [zero] "+r" (zero), [num] "+r" (num_words),
-          [k] "=&r" (k), [i] "=&r" (i)
+          [k] "=&d" (k), [i] "=&d" (i)
         :
-        : "r0", "cc"
+        : "r0", "cc", "memory"
     );
 }
 #define asm_mult 1
@@ -814,7 +821,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
           [k] "=&a" (k)
         : [orig] "r" (left), [max] "r" ((uint8_t)(2 * num_words)),
           [num] "r" (num_words)
-        : "r0", "r26", "r27", "r30", "r31", "cc"
+        : "r0", "r26", "r27", "r30", "r31", "cc", "memory"
     );
 }
 #define asm_square 1

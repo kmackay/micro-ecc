@@ -15,6 +15,7 @@
 /* Computes result = product % p (secp160r1), constant time.
    Column sums of lo + hi + hi * 2^31 (2^160 = 2^31 + 1 (mod p)); the carry
    is folded back the same way, then p is subtracted once if needed. */
+__attribute__((noinline))
 static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
         /* Column 0: p[0] + a[0] + (a[0] << 31). */
@@ -395,7 +396,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
         "std Y+19, r24 \n\t"
         :
         : "y" (result), "z" (product)
-        : "r0", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "memory"
+        : "r0", "r12", "r13", "r14", "r15", "r16", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp160r1 1
@@ -405,6 +406,7 @@ static void vli_mmod_fast_secp160r1(uint8_t *result, uint8_t *product) {
 /* Computes result = product % p (secp192r1), constant time.
    Column sums of t + s1 + s2 + s3, then the carry c is folded back using
    2^192 = 2^64 + 1 (mod p), and p is added or subtracted once. */
+__attribute__((noinline))
 static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
         /* Column 0: p[0] + a[0] + a[4]. */
@@ -831,7 +833,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         "std Y+23, r24 \n\t"
         :
         : "y" (result), "z" (product)
-        : "r0", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "memory"
+        : "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp192r1 1
@@ -841,6 +843,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
 /* Computes result = product % p (secp224r1), constant time.
    Column sums of t + s1 + s2 - d1 - d2, then the carry c is folded back
    using 2^224 = 2^96 - 1 (mod p), and p is added or subtracted once. */
+__attribute__((noinline))
 static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
         /* Column 0: p[0] - a[0] - a[4]. */
@@ -1364,7 +1367,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         "std Y+27, r24 \n\t"
         :
         : "y" (result), "z" (product)
-        : "r0", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "memory"
+        : "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp224r1 1
@@ -1375,6 +1378,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
    Column sums of t + 2 s1 + 2 s2 + s3 + s4 - d1 - d2 - d3 - d4, then the
    carry c is folded back using 2^256 = 2^224 - 2^192 - 2^96 + 1 (mod p), and
    p is added or subtracted once. */
+__attribute__((noinline))
 static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
         /* Preload a[5]. */
@@ -2175,7 +2179,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         "std Y+31, r24 \n\t"
         :
         : "y" (result), "z" (product)
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "memory"
+        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp256r1 1
@@ -2186,6 +2190,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
    Column sums of lo + hi * 977 + hi * 2^32 (2^256 = 2^32 + 977 (mod p)); the
    top carry is folded back the same way, then p is subtracted once if
    needed. */
+__attribute__((noinline))
 static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
     __asm__ volatile (
         /* K = 977; Zr = 0 (mul clobbers r1). */
@@ -3005,7 +3010,7 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         "std Y+31, r24 \n\t"
         :
         : "y" (result), "z" (product)
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "memory"
+        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp256k1 1

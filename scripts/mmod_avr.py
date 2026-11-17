@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generates asm_avr_mmod.inc: constant-time fast reductions (vli_mmod_fast) for AVR."""
+import re
 import sys
 
 LOOPED = "--looped" in sys.argv
@@ -127,6 +128,10 @@ def written(lines):
             regs |= {f"r{n}", f"r{n + 1}"}
         elif op not in ("st", "std", "cp", "cpc", "cpi", "tst", "push", "out", "sbrs", "sbrc"):
             regs.add(a[0])
+        for x in a:  # pointer pre-decrement / post-increment
+            for p, pair in (("X", (26, 27)), ("Y", (28, 29)), ("Z", (30, 31))):
+                if x.upper() in (p + "+", "-" + p):
+                    regs |= {f"r{pair[0]}", f"r{pair[1]}"}
     return regs
 
 def stored_cache(regs, base, between, xs):
@@ -213,9 +218,19 @@ def finish(curve, c2, signed, regs, cached=None):
     return lines
 
 def func(name, comment, body, clobbers, c2=None, signed=False):
+    # Clobber exactly the registers the body writes (r1 is restored to zero;
+    # Y and Z are the inputs and must not be written).
+    w = {r for r in written(body) if re.fullmatch(r"r\d+", r)} - {"r1"}
+    assert not w & {"r28", "r29", "r30", "r31"}, (name, w)
+    assert w <= set(clobbers), (name, w - set(clobbers))
+    clobbers = [c for c in clobbers if c in w]
     emit(comment)
     if c2 is not None:
         emit(f"static const struct uECC_Curve_t curve_{name};")
+    # noinline: the "y" operand needs Y (r28:r29), the frame pointer of any
+    # caller with a stack frame. If inlined, GCC fails to allocate it and
+    # clang silently clobbers the caller's frame pointer.
+    emit("__attribute__((noinline))")
     emit(f"static void vli_mmod_fast_{name}(uint8_t *result, uint8_t *product) {{")
     if c2 is not None:
         emit("    uint8_t c2;")
@@ -231,7 +246,7 @@ def func(name, comment, body, clobbers, c2=None, signed=False):
     else:
         emit("        :")
     emit('        : "y" (result), "z" (product)')
-    emit("        : " + ", ".join(f'"{c}"' for c in clobbers) + ', "memory"')
+    emit("        : " + ", ".join(f'"{c}"' for c in clobbers) + ', "cc", "memory"')
     emit("    );")
     if c2 is not None:
         emit(f"    vli_mmod_finish_avr(result, curve_{name}.p, c2, {len(P[name]) * 4});")
@@ -299,7 +314,7 @@ static void vli_mmod_finish_avr(uint8_t *result, const uint8_t *p, int8_t c2, ui
         : [cnt] "=&r" (cnt), [t] "=&r" (t), [u] "=&r" (u), [bm] "=&r" (bm),
           [m] "=&r" (m), [s] "=&r" (s)
         : [r] "r" (result), [p] "r" (p), [c2] "r" (c2), [n] "r" (num_bytes)
-        : "r26", "r27", "r30", "r31", "memory"
+        : "r26", "r27", "r30", "r31", "cc", "memory"
     );
 }
 '''

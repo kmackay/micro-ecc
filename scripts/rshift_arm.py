@@ -3,7 +3,8 @@
 
 Thumb-2 / ARM: load all words with one ldm, shift the top word with lsrs and
 rotate the carry down through the rest with rrxs, then store with one stm.
-Uses r1-r6, r12 and lr (never r7 / r11, so frame pointers are not disturbed).
+Uses r1-r6, r12 and lr for 8 words, and r1..r(n-1) and lr for n < 8 (never
+r7 / r11, so frame pointers are not disturbed).
 
 Thumb-1: no rrx, so each word is combined with the low bit of the word above:
 w[i] = (w[i] >> 1) | (w[i + 1] << 31), streaming upwards with ldr / str.
@@ -72,7 +73,8 @@ def func(gen, thumb1):
         if thumb1:
             emit('            : "r1", "r2", "r3", "cc", "memory"')
         else:
-            emit('            : "r1", "r2", "r3", "r4", "r5", "r6", "r12", "lr", "cc", "memory"')
+            regs = T2_REGS[:n - 1] + ["lr"] if n < 8 else T2_REGS
+            emit("            : " + ", ".join(f'"{r}"' for r in regs) + ', "cc", "memory"')
         emit("        );")
         emit("        return;")
         emit("    }")

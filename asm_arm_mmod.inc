@@ -172,7 +172,7 @@ static void vli_mmod_fast_secp160r1(uint32_t *result, uint32_t *product) {
         RESUME_SYNTAX
         : "+r" (r0), "+r" (r1)
         :
-        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "cc", "memory"
+        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp160r1 1
@@ -346,7 +346,7 @@ static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
         RESUME_SYNTAX
         : "+r" (r0), "+r" (r1)
         :
-        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "cc", "memory"
+        : "r2", "r3", "r4", "r5", "r6", "r8", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp192r1 1
@@ -550,7 +550,7 @@ static void vli_mmod_fast_secp224r1(uint32_t *result, uint32_t *product) {
         RESUME_SYNTAX
         : "+r" (r0), "+r" (r1)
         :
-        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "cc", "memory"
+        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp224r1 1
@@ -875,7 +875,7 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
         RESUME_SYNTAX
         : "+r" (r0), "+r" (r1)
         :
-        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "cc", "memory"
+        : "r2", "r3", "r4", "r5", "r6", "r7", "r8", "cc", "memory"
     );
 }
 #define asm_mmod_fast_secp256r1 1

@@ -254,7 +254,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             RESUME_SYNTAX
             : "+r" (r0)
             :
-            : "r1", "r2", "r3", "r4", "r5", "r6", "r12", "lr", "cc", "memory"
+            : "r1", "r2", "r3", "r4", "r5", "r6", "lr", "cc", "memory"
         );
         return;
     }
@@ -278,7 +278,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             RESUME_SYNTAX
             : "+r" (r0)
             :
-            : "r1", "r2", "r3", "r4", "r5", "r6", "r12", "lr", "cc", "memory"
+            : "r1", "r2", "r3", "r4", "r5", "lr", "cc", "memory"
         );
         return;
     }
@@ -301,7 +301,7 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
             RESUME_SYNTAX
             : "+r" (r0)
             :
-            : "r1", "r2", "r3", "r4", "r5", "r6", "r12", "lr", "cc", "memory"
+            : "r1", "r2", "r3", "r4", "lr", "cc", "memory"
         );
         return;
     }

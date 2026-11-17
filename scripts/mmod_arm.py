@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generates asm_arm_mmod.inc: constant-time fast reductions for Thumb-2 / ARM."""
+import re
 import sys
 
 out = []
@@ -560,8 +561,22 @@ def t1_finish(fold, undo, c2, regs):
 
 T1_POOL = ["r1", "r2", "r3", "r4", "r5", "r6", "r7"]
 
+def regs_mentioned(body):
+    """Registers named by the instructions of body (expanding rA-rB ranges)."""
+    regs = set()
+    for item in body:
+        if not isinstance(item, str) or item.startswith("#") or item.startswith("/*"):
+            continue
+        for a, b in re.findall(r"\br(\d+)\s*-\s*r(\d+)", item):
+            regs.update(f"r{k}" for k in range(int(a), int(b) + 1))
+        regs.update(re.findall(r"\br\d+\b", item))
+    return regs
+
 def t1_func(name, comment, body):
-    func(name, comment, body, T1_CLOBBERS)
+    # Clobber only the registers the body actually uses (all of them are
+    # written), across every preprocessor branch.
+    used = regs_mentioned(body)
+    func(name, comment, body, [r for r in T1_CLOBBERS if r in used])
 
 def t1_p256():
     body, c = t1_columns(P256_COLS, 8)

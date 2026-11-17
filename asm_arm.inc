@@ -19,6 +19,14 @@
     #define uECC_MIN_WORDS 5
 #endif
 
+/* Operand constraints. An output only needs an early-clobber '&' if it is
+   written before the asm has finished reading an input-only operand (outputs
+   never share registers with each other, and the input value of a '+' operand
+   is in its own register). REG_RW / REG_WRITE are used by the small add / sub
+   loops: the level 1 ARM / Thumb-2 versions read the input-only [lend] after
+   writing their outputs, so they need the '&'. The level 0 versions have no
+   input-only operands and do not need it, but without it GCC allocates
+   registers slightly worse in callers that inline them (e.g. modInv). */
 #if (uECC_PLATFORM == uECC_arm_thumb)
     #define REG_RW "+&l"
     #define REG_WRITE "=&l"
@@ -28,14 +36,15 @@
 #endif
 
 #if (uECC_PLATFORM == uECC_arm_thumb || uECC_PLATFORM == uECC_arm_thumb2)
-    #define REG_RW_LO "+&l"
-    #define REG_WRITE_LO "=&l"
+    #define REG_RW_LO "+l"
 #else
-    #define REG_RW_LO "+&r"
-    #define REG_WRITE_LO "=&r"
+    #define REG_RW_LO "+r"
 #endif
 
-#if (uECC_PLATFORM == uECC_arm_thumb2)
+/* GCC assembles inline asm for Thumb-1 / ARM in divided syntax, so templates
+   switch to unified syntax and switch back at the end. Clang's integrated
+   assembler always uses unified syntax and rejects ".syntax divided". */
+#if (uECC_PLATFORM == uECC_arm_thumb2) || defined(__clang__)
     #define RESUME_SYNTAX
 #else
     #define RESUME_SYNTAX ".syntax divided \n\t"
@@ -101,8 +110,8 @@
         ".syntax unified \n\t" \
         BODY \
         RESUME_SYNTAX \
-        : [dptr] "+&l" (result), [lptr] "+&l" (left), [rptr] "+&l" (right), \
-          [out] "=&l" (OUT) \
+        : [dptr] "+l" (result), [lptr] "+l" (left), [rptr] "+l" (right), \
+          [out] "=l" (OUT) \
         : \
         : "r4", "r5", "r6", "cc", "memory" \
     )
@@ -278,7 +287,7 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         BODY \
         RESUME_SYNTAX \
         : [dptr] REG_RW_LO (result), [lptr] REG_RW_LO (left), [rptr] REG_RW_LO (right), \
-          [out] "=&l" (OUT) \
+          [out] "=l" (OUT) \
         : \
         : "r4", "r5", "r6", "r8", "r9", "r10", "r12", "cc", "memory" \
     )
@@ -689,7 +698,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "bne  2b \n\t"
         RESUME_SYNTAX
         : [r0] "+l" (result), [r1] "+l" (left), [r2] "+l" (right), [r3] "+l" (num_words),
-          [r4] "=&l" (r4), [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
+          [r4] "=l" (r4), [r5] "=l" (r5), [r6] "=l" (r6), [r7] "=l" (r7)
         :
         : "r8", "r9", "r10", "r11", "r12", "cc", "memory"
     );
@@ -703,11 +712,14 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 /* Karatsuba sub-multiplies (3x3 and 4x4 words), called with bl from the
    unrolled multiplies in asm_arm_mult_square.inc (shared to save flash). The
    asm label fixes the symbol name, and "used" keeps them although they are only
-   referenced from asm. */
+   referenced from asm. They are global (hidden) rather than static: with LTO,
+   the compiler cannot see the references from the asm, and may place a static
+   function in a different partition than its callers, where its local symbol
+   is not visible to the linker. */
 #if (uECC_SUPPORTS_secp160r1 || uECC_SUPPORTS_secp192r1 || uECC_SUPPORTS_secp224r1)
-static __attribute__((naked, noinline, used))
+__attribute__((naked, noinline, used, visibility("hidden")))
 void uECC_vli_mul3_thumb1(void) __asm__("uECC_vli_mul3_thumb1");
-static __attribute__((naked, noinline, used))
+__attribute__((naked, noinline, used, visibility("hidden")))
 void uECC_vli_mul3_thumb1(void) {
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -718,9 +730,9 @@ void uECC_vli_mul3_thumb1(void) {
 #endif
 
 #if (uECC_SUPPORTS_secp224r1 || uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
-static __attribute__((naked, noinline, used))
+__attribute__((naked, noinline, used, visibility("hidden")))
 void uECC_vli_mul4_thumb1(void) __asm__("uECC_vli_mul4_thumb1");
-static __attribute__((naked, noinline, used))
+__attribute__((naked, noinline, used, visibility("hidden")))
 void uECC_vli_mul4_thumb1(void) {
     __asm__ volatile (
         ".syntax unified \n\t"
@@ -763,7 +775,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
             RESUME_SYNTAX
             : "+l" (r0), "+l" (r1), "+l" (r2)
             :
-            : "r3", "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
+            : "r3", "r8", "r9", "r10", "r12", "r14", "cc", "memory"
         );
         return;
     }
@@ -943,7 +955,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "bne  5b \n\t"
         RESUME_SYNTAX
         : [r0] "+l" (r0), [r1] "+l" (r1), [r2] "+l" (r2),
-          [r3] "=&l" (r3), [r4] "=&l" (r4), [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
+          [r3] "=l" (r3), [r4] "=l" (r4), [r5] "=l" (r5), [r6] "=l" (r6), [r7] "=l" (r7)
         :
         : "r8", "r9", "r10", "r11", "r12", "cc", "memory"
     );
@@ -988,6 +1000,9 @@ uECC_VLI_API uECC_word_t uECC_vli_add(uECC_word_t *result,
         "sbcs %[left], %[left], %[left] \n\t"
         "adds %[left], %[left], #1 \n\t"          /* left = carry (0 or 1). */
         RESUME_SYNTAX
+        /* All outputs are written before the last read of [lend], so they need
+           the '&' (for the pointers, only if GCC knows that left_end has the
+           same value, e.g. result == left + num_words). */
         : [dptr] REG_RW (result), [lptr] REG_RW (left), [rptr] REG_RW (right),
           [left] REG_WRITE (left_word), [right] REG_WRITE (right_word)
         : [lend] "r" (left_end)
@@ -1047,6 +1062,9 @@ uECC_VLI_API uECC_word_t uECC_vli_sub(uECC_word_t *result,
         "sbcs %[left], %[left], %[left] \n\t"
         "rsbs %[left], %[left], #0 \n\t"          /* left = borrow (0 or 1). */
         RESUME_SYNTAX
+        /* All outputs are written before the last read of [lend], so they need
+           the '&' (for the pointers, only if GCC knows that left_end has the
+           same value, e.g. result == left + num_words). */
         : [dptr] REG_RW (result), [lptr] REG_RW (left), [rptr] REG_RW (right),
           [left] REG_WRITE (left_word), [right] REG_WRITE (right_word)
         : [lend] "r" (left_end)
@@ -1139,8 +1157,8 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
 
         "str %[c0], [%[result], %[k]] \n\t" /* result[num_words * 2 - 1] = c0 */
         RESUME_SYNTAX
-        : [c0] "+r" (c0), [c1] "+r" (c1), [c2] "+r" (c2),
-          [k] "+r" (k), [i] "=&r" (i), [t0] "=&r" (t0), [t1] "=&r" (t1)
+        : [c0] "+&r" (c0), [c1] "+&r" (c1), [c2] "+&r" (c2),
+          [k] "+&r" (k), [i] "=&r" (i), [t0] "=&r" (t0), [t1] "=&r" (t1)
         : [result] "r" (result), [left] "r" (left), [right] "r" (right),
           [last_word] "r" ((num_words - 1) * 4)
         : "cc", "memory"
@@ -1240,7 +1258,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "pop {%[r0]} \n\t"               /* pop result off the stack */
 
         RESUME_SYNTAX
-        : [r3] "+l" (num_words), [r4] "=&l" (r4),
+        : [r3] "+&l" (num_words), [r4] "=&l" (r4),
           [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
         : [r0] "l" (result), [r1] "l" (left), [r2] "l" (right)
         : "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
@@ -1315,8 +1333,8 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
 
         "str %[c0], [%[result], %[k]] \n\t" /* result[num_words * 2 - 1] = c0 */
         RESUME_SYNTAX
-        : [c0] "+r" (c0), [c1] "+r" (c1), [c2] "+r" (c2),
-          [k] "+r" (k), [i] "=&r" (i), [tt] "=&r" (tt), [t0] "=&r" (t0), [t1] "=&r" (t1)
+        : [c0] "+&r" (c0), [c1] "+&r" (c1), [c2] "+&r" (c2),
+          [k] "+&r" (k), [i] "=&r" (i), [tt] "=&r" (tt), [t0] "=&r" (t0), [t1] "=&r" (t1)
         : [result] "r" (result), [left] "r" (left), [last_word] "r" ((num_words - 1) * 4)
         : "cc", "memory"
     );
@@ -1425,7 +1443,7 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
         "pop {%[r0]} \n\t"               /* pop result off the stack */
 
         RESUME_SYNTAX
-        : [r2] "+l" (num_words), [r3] "=&l" (r3), [r4] "=&l" (r4),
+        : [r2] "+&l" (num_words), [r3] "=&l" (r3), [r4] "=&l" (r4),
           [r5] "=&l" (r5), [r6] "=&l" (r6), [r7] "=&l" (r7)
         : [r0] "l" (result), [r1] "l" (left)
         : "r8", "r9", "r10", "r11", "r12", "r14", "cc", "memory"
