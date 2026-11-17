@@ -16,10 +16,11 @@ Possible values for uECC_PLATFORM are defined below: */
 #define uECC_arm_thumb2 5
 #define uECC_arm64      6
 #define uECC_avr        7
+#define uECC_msp430     8
 
-/* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 4, or 8 bytes).
-If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on your
-platform. */
+/* If desired, you can define uECC_WORD_SIZE as appropriate for your platform (1, 2, 4, or 8
+bytes). If uECC_WORD_SIZE is not explicitly defined then it will be automatically set based on
+your platform. */
 
 /* Optimization level; trade speed for code size.
    Larger values produce code that is faster but larger.
@@ -46,7 +47,28 @@ faster somewhat faster, but increases the code size. */
        but constant-time.
 If uECC_SAFEGCD is not explicitly defined then it will be automatically set based on your
 platform: 1, except at optimization level 0 (smallest code), at level 1 on ARM, and on 8-bit
-platforms and Thumb-1, where it is 0. */
+platforms and Thumb-1, where it is 0, and with 16-bit words (uECC_WORD_SIZE == 2), where it
+is 2. */
+
+/* uECC_MSP430_HWMULT - MSP430 (classic CPU) only: selects how uECC multiplies (the assembly
+   multiplication, reductions and inversion helpers, and the multiplications in the C code that
+   can involve secret data):
+   16 - the 16x16-bit hardware multiplier (MPY, or the MPY16-compatible registers of MPY32).
+   0  - constant-time software multiplication.
+If uECC_MSP430_HWMULT is not explicitly defined then it is set from the device header
+(<msp430.h>, selected with -mmcu): 16 if the device has MPY or MPY32, otherwise 0 (also 0 if
+there is no device header, e.g. when compiling with only -mcpu). GCC's -mhwmult option does not
+affect it; -mhwmult only selects the multiplication routines used by compiler-generated code.
+To avoid using the hardware multiplier on a device that has one, define uECC_MSP430_HWMULT as 0
+(and optionally compile with -mhwmult=none). */
+
+/* uECC_MSP430_DISABLE_INTERRUPTS - MSP430 only, with uECC_MSP430_HWMULT == 16. If enabled
+(defined as nonzero, the default), the assembly code disables interrupts while it uses the
+hardware multiplier, since an interrupt handler that also uses the multiplier would corrupt
+the result. SR is saved and restored, so GIE returns to its previous state. This delays
+interrupts by up to one multiplication: for 256-bit curves, about 3,500 cycles at optimization
+levels 3 and 4, and about 5,300 cycles at levels 1 and 2. Define it as 0 if no interrupt
+handler uses the multiplier (or if they save and restore its state). */
 
 /* uECC_VLI_NATIVE_LITTLE_ENDIAN - If enabled (defined as nonzero), this will switch to native
 little-endian format for *all* arrays passed in and out of the public API. This includes public

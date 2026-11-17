@@ -12,6 +12,8 @@
         #define uECC_PLATFORM uECC_arm_thumb
     #elif defined(__arm__) || defined(_M_ARM)
         #define uECC_PLATFORM uECC_arm
+    #elif defined(__MSP430__) && !defined(__MSP430X__)
+        #define uECC_PLATFORM uECC_msp430
     #elif defined(__aarch64__)
         #define uECC_PLATFORM uECC_arm64
     #elif defined(__i386__) || defined(_M_IX86) || defined(_X86_) || defined(__I86__)
@@ -36,6 +38,8 @@
 #ifndef uECC_WORD_SIZE
     #if uECC_PLATFORM == uECC_avr
         #define uECC_WORD_SIZE 1
+    #elif (uECC_PLATFORM == uECC_msp430) || defined(__MSP430__)
+        #define uECC_WORD_SIZE 2
     #elif (uECC_PLATFORM == uECC_x86_64 || uECC_PLATFORM == uECC_arm64)
         #define uECC_WORD_SIZE 8
     #else
@@ -43,7 +47,8 @@
     #endif
 #endif
 
-#if (uECC_WORD_SIZE != 1) && (uECC_WORD_SIZE != 4) && (uECC_WORD_SIZE != 8)
+#if (uECC_WORD_SIZE != 1) && (uECC_WORD_SIZE != 2) && (uECC_WORD_SIZE != 4) && \
+    (uECC_WORD_SIZE != 8)
     #error "Unsupported value for uECC_WORD_SIZE"
 #endif
 
@@ -51,6 +56,12 @@
     #pragma message ("uECC_WORD_SIZE must be 1 for AVR")
     #undef uECC_WORD_SIZE
     #define uECC_WORD_SIZE 1
+#endif
+
+#if ((uECC_PLATFORM == uECC_msp430) && (uECC_WORD_SIZE != 2))
+    #pragma message ("uECC_WORD_SIZE must be 2 for MSP430")
+    #undef uECC_WORD_SIZE
+    #define uECC_WORD_SIZE 2
 #endif
 
 #if ((uECC_PLATFORM == uECC_arm || uECC_PLATFORM == uECC_arm_thumb || \
@@ -80,6 +91,16 @@ typedef uint16_t uECC_dword_t;
 #define uECC_WORD_BITS 8
 #define uECC_WORD_BITS_SHIFT 3
 #define uECC_WORD_BITS_MASK 0x07
+
+#elif (uECC_WORD_SIZE == 2)
+
+typedef uint16_t uECC_word_t;
+typedef uint32_t uECC_dword_t;
+
+#define HIGH_BIT_SET 0x8000
+#define uECC_WORD_BITS 16
+#define uECC_WORD_BITS_SHIFT 4
+#define uECC_WORD_BITS_MASK 0x0F
 
 #elif (uECC_WORD_SIZE == 4)
 

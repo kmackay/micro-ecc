@@ -21,6 +21,17 @@
     0x##a, 0x##b, 0x##c, 0x##d, 0x##e, 0x##f, 0x##g, 0x##h
 #define BYTES_TO_WORDS_4(a, b, c, d) 0x##a, 0x##b, 0x##c, 0x##d
 
+#elif (uECC_WORD_SIZE == 2)
+
+#define num_words_secp160r1 10
+#define num_words_secp192r1 12
+#define num_words_secp224r1 14
+#define num_words_secp256r1 16
+#define num_words_secp256k1 16
+
+#define BYTES_TO_WORDS_8(a, b, c, d, e, f, g, h) 0x##b##a, 0x##d##c, 0x##f##e, 0x##h##g
+#define BYTES_TO_WORDS_4(a, b, c, d) 0x##b##a, 0x##d##c
+
 #elif (uECC_WORD_SIZE == 4)
 
 #define num_words_secp160r1 5
@@ -250,9 +261,109 @@ static void vli_mmod_fold_select8(uint8_t *r, int16_t c, const int8_t *digits,
     }
     vli_mmod_select8(r, (int8_t)acc, (int8_t)cmp, p, num_bytes);
 }
+
+/* Computes result = product % p, given the terms and digits tables (see above). */
+#define MMOD_NIST(result, product, terms, digits, p, num_bytes) do { \
+    int16_t c_ = vli_mmod_columns8((result), (product), (terms), (num_bytes)); \
+    vli_mmod_fold_select8((result), c_, (digits), (p), (num_bytes)); \
+} while (0)
 #endif /* uECC_MMOD8_NIST_C */
 #undef uECC_MMOD8_NIST_C
 #endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 1) && C reduction needed */
+
+#if (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 2) && \
+    ((uECC_SUPPORTS_secp160r1 && !asm_mmod_fast_secp160r1) || \
+     (uECC_SUPPORTS_secp192r1 && !asm_mmod_fast_secp192r1) || \
+     (uECC_SUPPORTS_secp224r1 && !asm_mmod_fast_secp224r1) || \
+     (uECC_SUPPORTS_secp256r1 && !asm_mmod_fast_secp256r1) || \
+     (uECC_SUPPORTS_secp256k1 && !asm_mmod_fast_secp256k1))
+/* vli_mmod_columns16 and vli_mmod_fold_select16 are only used by the NIST
+   (secp192r1 / secp224r1 / secp256r1) C reductions. */
+#define uECC_MMOD16_NIST_C ((uECC_SUPPORTS_secp192r1 && !asm_mmod_fast_secp192r1) || \
+                            (uECC_SUPPORTS_secp224r1 && !asm_mmod_fast_secp224r1) || \
+                            (uECC_SUPPORTS_secp256r1 && !asm_mmod_fast_secp256r1))
+/* 16-bit constant-time fast reductions. Same approach as the 8-bit versions above,
+   with 16-bit columns and 32-bit accumulators (two columns per 32-bit word). */
+#if uECC_MMOD16_NIST_C
+/* See vli_mmod_columns8. */
+static int32_t vli_mmod_columns16(uint16_t *result,
+                                  const uint16_t *product,
+                                  const uint8_t *terms,
+                                  wordcount_t num_words) {
+    int32_t carry = 0;
+    wordcount_t w;
+    for (w = 0; w < num_words; w += 2) {
+        int32_t a0 = product[w] + carry;
+        int32_t a1 = product[w + 1];
+        uint8_t e;
+        while ((e = *terms++) != 0xFF) {
+            const uint16_t *src = product + num_words + 2 * (e & 0x7F);
+            if (e & 0x80) {
+                a0 -= src[0]; a1 -= src[1];
+            } else {
+                a0 += src[0]; a1 += src[1];
+            }
+        }
+        result[w] = (uint16_t)a0;
+        a1 += a0 >> 16;
+        result[w + 1] = (uint16_t)a1;
+        carry = a1 >> 16;
+    }
+    return carry;
+}
+#endif /* uECC_MMOD16_NIST_C */
+
+/* See vli_mmod_select8. */
+static void vli_mmod_select16(uint16_t *r, int16_t c2, int16_t cmp, const uint16_t *p,
+                              wordcount_t num_words) {
+    uint32_t sum;
+    uint16_t ge, neg, pos, m, s;
+    wordcount_t i;
+    ge = (uint16_t)~(uint16_t)cmp;             /* 0xFFFF if r >= p */
+    neg = (uint16_t)(0 - ((uint16_t)c2 >> 15)); /* 0xFFFF if c2 < 0 */
+    pos = (uint16_t)(0 - ((uint16_t)(0 - (uint16_t)c2) >> 15)); /* 0xFFFF if c2 > 0 */
+    s = pos | (~(neg | pos) & ge);             /* subtract p */
+    m = neg | s;                               /* add or subtract p */
+    sum = s & 1;                               /* r + ~p + 1 = r - p */
+    for (i = 0; i < num_words; ++i) {
+        sum += (uint32_t)r[i] + (uint16_t)((p[i] & m) ^ s);
+        r[i] = (uint16_t)sum;
+        sum >>= 16;
+    }
+}
+
+#if uECC_MMOD16_NIST_C
+/* See vli_mmod_fold_select8. */
+static void vli_mmod_fold_select16(uint16_t *r, int32_t c, const int8_t *digits,
+                                   const uint16_t *p, wordcount_t num_words) {
+    int32_t acc = 0;
+    int32_t cmp = 0;
+    wordcount_t i;
+    for (i = 0; i < num_words; ++i) {
+        acc += r[i];
+        if ((i & 1) == 0) {
+            int8_t d = digits[i >> 1];
+            if (d > 0) {
+                acc += c;
+            } else if (d < 0) {
+                acc -= c;
+            }
+        }
+        r[i] = (uint16_t)acc;
+        acc >>= 16;
+        cmp += (int32_t)r[i] - p[i];           /* Track the borrow of r - p. */
+        cmp >>= 16;
+    }
+    vli_mmod_select16(r, (int16_t)acc, (int16_t)cmp, p, num_words);
+}
+
+#define MMOD_NIST(result, product, terms, digits, p, num_words) do { \
+    int32_t c_ = vli_mmod_columns16((result), (product), (terms), (num_words)); \
+    vli_mmod_fold_select16((result), c_, (digits), (p), (num_words)); \
+} while (0)
+#endif /* uECC_MMOD16_NIST_C */
+#undef uECC_MMOD16_NIST_C
+#endif /* (uECC_OPTIMIZATION_LEVEL > 0) && (uECC_WORD_SIZE == 2) && C reduction needed */
 
 #if uECC_SUPPORTS_secp160r1
 
@@ -412,6 +523,53 @@ static void vli_mmod_fast_secp160r1(uint32_t *result, uint32_t *product) {
 
     MMOD_FINISH(mmod_fold_secp160r1, result, c);
 }
+#elif uECC_WORD_SIZE == 2
+/* Word i of x * 2^15 (x has n words, i in [0, n]). */
+#define SHL15_SECP160R1(x, i, n) \
+    ((uint16_t)(((i) < (n) ? (uint32_t)(x)[i] << 15 : 0) | ((i) > 0 ? (x)[(i) - 1] >> 1 : 0)))
+
+/* Same approach as the 32-bit version, one 16-bit column at a time: hi * 2^31 is
+   hi * 2^15 shifted up 1 word. */
+static void vli_mmod_fast_secp160r1(uint16_t *result, uint16_t *product) {
+    const uint16_t *hi = product + 10;
+    const uint16_t *p = curve_secp160r1.p;
+    uint16_t c[2];
+    uint32_t acc;
+    int32_t cmp = 0;
+    uint8_t i;
+
+    /* result = lo + hi + hi * 2^31 (2^160 = 2^31 + 1 (mod p)); carry -> c. */
+    acc = (uint32_t)product[0] + hi[0];
+    result[0] = (uint16_t)acc;
+    acc >>= 16;
+    for (i = 1; i < 10; ++i) {
+        acc += (uint32_t)product[i] + hi[i] + SHL15_SECP160R1(hi, i - 1, 10);
+        result[i] = (uint16_t)acc;
+        acc >>= 16;
+    }
+    for (i = 10; i < 12; ++i) {
+        acc += SHL15_SECP160R1(hi, i - 1, 10);
+        c[i - 10] = (uint16_t)acc;
+        acc >>= 16;
+    }
+
+    /* Fold the carry the same way, tracking the borrow of r - p. */
+    acc = 0;
+    for (i = 0; i < 10; ++i) {
+        acc += result[i];
+        if (i < 2) {
+            acc += c[i];
+        }
+        if (i >= 1 && i < 4) {
+            acc += SHL15_SECP160R1(c, i - 1, 2);
+        }
+        result[i] = (uint16_t)acc;
+        acc >>= 16;
+        cmp += (int32_t)result[i] - p[i];
+        cmp >>= 16;
+    }
+    vli_mmod_select16(result, (int16_t)acc, (int16_t)cmp, p, 10);
+}
 #else /* uECC_WORD_SIZE == 1 */
 /* Byte i of x * 2^7 (x has n bytes, i in [0, n]). */
 #define SHL7_SECP160R1(x, i, n) \
@@ -538,10 +696,10 @@ static void vli_mmod_fast_secp192r1(uint32_t *result, uint32_t *product) {
 #if (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp192r1)
 /* Computes result = product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-#if uECC_WORD_SIZE == 1
+#if (uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 2)
 /* Sums the terms column by column, then folds the carry using digits
    (see vli_mmod_columns8 and vli_mmod_fold_select8). */
-static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
+static void vli_mmod_fast_secp192r1(uECC_word_t *result, uECC_word_t *product) {
     static const uint8_t terms[] = {
         0, 4, 0xFF,
         1, 5, 0xFF,
@@ -550,8 +708,7 @@ static void vli_mmod_fast_secp192r1(uint8_t *result, uint8_t *product) {
         4, 2, 0xFF,
         5, 3, 0xFF };
     static const int8_t digits[] = { 1, 0, 1, 0, 0, 0 }; /* 2^192 = 2^64 + 1 */
-    int16_t c = vli_mmod_columns8(result, product, terms, num_words_secp192r1);
-    vli_mmod_fold_select8(result, c, digits, curve_secp192r1.p, num_words_secp192r1);
+    MMOD_NIST(result, product, terms, digits, curve_secp192r1.p, num_words_secp192r1);
 }
 #elif uECC_WORD_SIZE == 4
 /* r += c * (2^64 + 1), where 2^192 = 2^64 + 1 (mod p). Returns the carry. */
@@ -764,6 +921,7 @@ static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
     uECC_word_t e0[num_words_secp224r1];
     uECC_word_t f0[num_words_secp224r1];
     uECC_word_t d1[num_words_secp224r1];
+    (void)curve; /* Required by the curve->mod_sqrt signature. */
 
     /* s = a; using constant instead of random value */
     mod_sqrt_secp224r1_rp(d0, e0, f0, a, a);           /* RP (d0, e0, f0, c, s) */
@@ -840,10 +998,10 @@ static void vli_mmod_fast_secp224r1(uint32_t *result, uint32_t *product)
 #if (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp224r1)
 /* Computes result = product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-#if uECC_WORD_SIZE == 1
+#if (uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 2)
 /* Sums the terms column by column, then folds the carry using digits
    (see vli_mmod_columns8 and vli_mmod_fold_select8). */
-static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
+static void vli_mmod_fast_secp224r1(uECC_word_t *result, uECC_word_t *product) {
     static const uint8_t terms[] = {
         0x80 | 0, 0x80 | 4, 0xFF,
         0x80 | 1, 0x80 | 5, 0xFF,
@@ -853,8 +1011,7 @@ static void vli_mmod_fast_secp224r1(uint8_t *result, uint8_t *product) {
         2, 6, 0x80 | 5, 0xFF,
         3, 0x80 | 6, 0xFF };
     static const int8_t digits[] = { -1, 0, 0, 1, 0, 0, 0 }; /* 2^224 = 2^96 - 1 */
-    int16_t c = vli_mmod_columns8(result, product, terms, num_words_secp224r1);
-    vli_mmod_fold_select8(result, c, digits, curve_secp224r1.p, num_words_secp224r1);
+    MMOD_NIST(result, product, terms, digits, curve_secp224r1.p, num_words_secp224r1);
 }
 #elif uECC_WORD_SIZE == 4
 /* r += c * (2^96 - 1), where 2^224 = 2^96 - 1 (mod p). Returns the carry. */
@@ -1096,10 +1253,10 @@ static void vli_mmod_fast_secp256r1(uint32_t *result, uint32_t *product) {
 #if (uECC_OPTIMIZATION_LEVEL > 0 && !asm_mmod_fast_secp256r1)
 /* Computes result = product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
-#if uECC_WORD_SIZE == 1
+#if (uECC_WORD_SIZE == 1) || (uECC_WORD_SIZE == 2)
 /* Sums the terms column by column, then folds the carry using digits
    (see vli_mmod_columns8 and vli_mmod_fold_select8). */
-static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
+static void vli_mmod_fast_secp256r1(uECC_word_t *result, uECC_word_t *product) {
     static const uint8_t terms[] = {
         0, 1, 0x80 | 3, 0x80 | 4, 0x80 | 5, 0x80 | 6, 0xFF,
         1, 2, 0x80 | 4, 0x80 | 5, 0x80 | 6, 0x80 | 7, 0xFF,
@@ -1111,8 +1268,7 @@ static void vli_mmod_fast_secp256r1(uint8_t *result, uint8_t *product) {
         7, 7, 7, 0, 0x80 | 2, 0x80 | 3, 0x80 | 4, 0x80 | 5, 0xFF };
     /* 2^256 = 2^224 - 2^192 - 2^96 + 1 */
     static const int8_t digits[] = { 1, 0, 0, -1, 0, 0, -1, 1 };
-    int16_t c = vli_mmod_columns8(result, product, terms, num_words_secp256r1);
-    vli_mmod_fold_select8(result, c, digits, curve_secp256r1.p, num_words_secp256r1);
+    MMOD_NIST(result, product, terms, digits, curve_secp256r1.p, num_words_secp256r1);
 }
 #elif uECC_WORD_SIZE == 4
 /* r += c * (2^224 - 2^192 - 2^96 + 1), where 2^256 = 2^224 - 2^192 - 2^96 + 1
@@ -1468,6 +1624,47 @@ static void vli_mmod_fast_secp256k1(uint8_t *result, uint8_t *product) {
         cmp >>= 8;
     }
     vli_mmod_select8(result, (int8_t)acc, (int8_t)cmp, p, 32);
+}
+#elif (uECC_WORD_SIZE == 2)
+/* Column i of x * (2^32 + 977) before carries (x has n words). */
+#define OMEGA16_SECP256K1(x, i, n) \
+    (((i) < (n) ? uECC_MUL_WORD((x)[i], 977) : 0) + \
+     ((i) >= 2 && (i) - 2 < (n) ? (x)[(i) - 2] : 0))
+
+/* Same approach as the 8-bit version, one 16-bit column at a time. */
+static void vli_mmod_fast_secp256k1(uint16_t *result, uint16_t *product) {
+    const uint16_t *hi = product + 16;
+    const uint16_t *p = curve_secp256k1.p;
+    uint16_t c[3];
+    uint32_t acc = 0;
+    int32_t cmp = 0;
+    uint8_t i;
+
+    /* result = lo + hi * 977 + hi * 2^32 (2^256 = 2^32 + 977 (mod p)); carry -> c. */
+    for (i = 0; i < 16; ++i) {
+        acc += product[i] + OMEGA16_SECP256K1(hi, i, 16);
+        result[i] = (uint16_t)acc;
+        acc >>= 16;
+    }
+    for (i = 16; i < 19; ++i) {
+        acc += OMEGA16_SECP256K1(hi, i, 16);
+        c[i - 16] = (uint16_t)acc;
+        acc >>= 16;
+    }
+
+    /* Fold the carry the same way, tracking the borrow of r - p. */
+    acc = 0;
+    for (i = 0; i < 16; ++i) {
+        acc += result[i];
+        if (i < 5) {
+            acc += OMEGA16_SECP256K1(c, i, 3);
+        }
+        result[i] = (uint16_t)acc;
+        acc >>= 16;
+        cmp += (int32_t)result[i] - p[i];
+        cmp >>= 16;
+    }
+    vli_mmod_select16(result, (int16_t)acc, (int16_t)cmp, p, 16);
 }
 #else
 static void omega_mult_secp256k1(uECC_word_t *result, const uECC_word_t *right);

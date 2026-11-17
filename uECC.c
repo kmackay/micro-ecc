@@ -94,6 +94,8 @@
     #if (uECC_OPTIMIZATION_LEVEL == 0) || uECC_ARM_COMPACT_L1 || (uECC_WORD_SIZE == 1) || \
         (uECC_PLATFORM == uECC_arm_thumb)
         #define uECC_SAFEGCD 0
+    #elif (uECC_WORD_SIZE == 2)
+        #define uECC_SAFEGCD 2
     #else
         #define uECC_SAFEGCD 1
     #endif
@@ -114,6 +116,22 @@
     #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
         #undef uECC_MAX_WORDS
         #define uECC_MAX_WORDS 32
+    #endif
+#elif (uECC_WORD_SIZE == 2)
+    #if uECC_SUPPORTS_secp160r1
+        #define uECC_MAX_WORDS 12 /* Due to the size of curve_n. */
+    #endif
+    #if uECC_SUPPORTS_secp192r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 12
+    #endif
+    #if uECC_SUPPORTS_secp224r1
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 14
+    #endif
+    #if (uECC_SUPPORTS_secp256r1 || uECC_SUPPORTS_secp256k1)
+        #undef uECC_MAX_WORDS
+        #define uECC_MAX_WORDS 16
     #endif
 #elif (uECC_WORD_SIZE == 4)
     #if uECC_SUPPORTS_secp160r1
@@ -191,6 +209,19 @@ static void bcopy(uint8_t *dst,
 
 #if (uECC_PLATFORM == uECC_avr)
     #include "asm_avr.inc"
+#endif
+
+#if (uECC_PLATFORM == uECC_msp430)
+    #include "asm_msp430.inc"
+#endif
+
+/* Word multiplication hooks (the platform asm may define them, e.g. as constant-time
+   software multiplies on MSP430 without a hardware multiplier). */
+#ifndef uECC_MUL_WORD
+    #define uECC_MUL_WORD(a, b) ((uECC_dword_t)(a) * (b))       /* full product */
+#endif
+#ifndef uECC_MUL_WORD_LO
+    #define uECC_MUL_WORD_LO(a, b) ((uECC_word_t)((0u + (a)) * (b))) /* low word */
 #endif
 
 #if default_RNG_defined
@@ -408,7 +439,7 @@ static void muladd(uECC_word_t a,
     *r1 += (p1 + (*r0 < p0));
     *r2 += ((*r1 < p1) || (*r1 == p1 && *r0 < p0));
 #else
-    uECC_dword_t p = (uECC_dword_t)a * b;
+    uECC_dword_t p = uECC_MUL_WORD(a, b);
     uECC_dword_t r01 = ((uECC_dword_t)(*r1) << uECC_WORD_BITS) | *r0;
     r01 += p;
     *r2 += (r01 < p);
@@ -490,7 +521,7 @@ static void mul2add(uECC_word_t a,
     *r1 += (p1 + (*r0 < p0));
     *r2 += ((*r1 < p1) || (*r1 == p1 && *r0 < p0));
 #else
-    uECC_dword_t p = (uECC_dword_t)a * b;
+    uECC_dword_t p = uECC_MUL_WORD(a, b);
     uECC_dword_t r01 = ((uECC_dword_t)(*r1) << uECC_WORD_BITS) | *r0;
     *r2 += (p >> (uECC_WORD_BITS * 2 - 1));
     p *= 2;
@@ -634,7 +665,7 @@ static uECC_word_t vli_mac(uECC_word_t a, uECC_word_t b, uECC_word_t c, uECC_wor
     *carry = r1 + (r0 < *carry);
     return r0;
 #else
-    uECC_dword_t p = (uECC_dword_t)a * b + c + *carry;
+    uECC_dword_t p = uECC_MUL_WORD(a, b) + c + *carry;
     *carry = (uECC_word_t)(p >> uECC_WORD_BITS);
     return (uECC_word_t)p;
 #endif
@@ -659,7 +690,7 @@ static void vli_montStep(uECC_word_t *t,
                          const uECC_word_t *mod,
                          uECC_word_t inv,
                          wordcount_t num_words) {
-    uECC_word_t m = (uECC_word_t)((0u + t[0]) * inv);
+    uECC_word_t m = uECC_MUL_WORD_LO(t[0], inv);
     uECC_word_t carry = 0;
     wordcount_t j;
     (void)vli_mac(m, mod[0], t[0], &carry);
@@ -1073,13 +1104,16 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
     #define S14_MAC(acc, a, b) ((acc) += (int32_t)(a) * (b))
 #endif
 /* acc >>= 14 (arithmetic). */
+#ifndef S14_MUL_LO
+    #define S14_MUL_LO(a, b) ((0u + (a)) * (b))    /* low 16 bits are used */
+#endif
 #ifndef S14_SHR
     #define S14_SHR(acc) ((acc) >>= 14)
 #endif
 
 /* Limbs and matrix entries fit in 16 bits; use native-width integers where that is
    cheaper (on 32-bit platforms 16-bit types need extra sign / zero extensions). */
-#if (uECC_WORD_SIZE == 1)
+#if (uECC_WORD_SIZE <= 2)
 typedef int16_t s14_t;
 typedef uint16_t s14_ut;
 #else
@@ -1189,8 +1223,8 @@ static void s14_update_de(s14_t *d,
     S14_MAC(cd, v, ei);
     S14_MAC(ce, q, di);
     S14_MAC(ce, r, ei);
-    md -= (s14_t)((uint16_t)((0u + mod_inv14) * (uint16_t)cd + (uint16_t)md) & S14_MASK);
-    me -= (s14_t)((uint16_t)((0u + mod_inv14) * (uint16_t)ce + (uint16_t)me) & S14_MASK);
+    md -= (s14_t)((uint16_t)(S14_MUL_LO(mod_inv14, (uint16_t)cd) + (uint16_t)md) & S14_MASK);
+    me -= (s14_t)((uint16_t)(S14_MUL_LO(mod_inv14, (uint16_t)ce) + (uint16_t)me) & S14_MASK);
     S14_MAC(cd, mod[0], md);
     S14_MAC(ce, mod[0], me);
     S14_SHR(cd);
@@ -1289,7 +1323,7 @@ uECC_VLI_API void uECC_vli_modInv(uECC_word_t *result,
 
     vli_to_s14(m, mod, num_words, len);
     /* inv = 1 / mod (mod 2^16), by Newton iteration (valid to 3 bits initially). */
-    m0 = (uint16_t)m[0] | (uint16_t)((uint16_t)m[1] << 14);
+    m0 = (uint16_t)(VLI_BYTE(mod, 0) | ((uint16_t)VLI_BYTE(mod, 1) << 8));
     inv = m0;
     /* (0u + x): unsigned products, even where uint16_t promotes to int. */
     inv = (uint16_t)((0u + inv) * (uint16_t)(2u - (0u + m0) * inv));
