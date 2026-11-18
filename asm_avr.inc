@@ -216,48 +216,40 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 wordcount_t num_words) {
     /* num_words should already be in r18. */
     register wordcount_t r18 __asm__("r18") = num_words;
-
-    __asm__ volatile (
-        "push r18 \n\t"
+    //L1uTongwei: To fix issue #154, we need to divide the asm code, because the code is too long.
+    FAST_MULT_ENVIRONMENT("push r18 \n\t");
 #if (uECC_MIN_WORDS == 20)
-        FAST_MULT_ASM_20
-        "pop r18 \n\t"
-    #if (uECC_MAX_WORDS > 20)
-        FAST_MULT_ASM_20_TO_24
-    #endif
-    #if (uECC_MAX_WORDS > 24)
-        FAST_MULT_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_MULT_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 24)
-        FAST_MULT_ASM_24
-        "pop r18 \n\t"
-    #if (uECC_MAX_WORDS > 24)
-        FAST_MULT_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_MULT_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 28)
-        FAST_MULT_ASM_28
-        "pop r18 \n\t"
-    #if (uECC_MAX_WORDS > 28)
-        FAST_MULT_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 32)
-        FAST_MULT_ASM_32
-        "pop r18 \n\t"
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_20);
+    FAST_MULT_ENVIRONMENT("pop r18 \n\t");
+#if (uECC_MAX_WORDS > 20)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_20_TO_24);
 #endif
-        "2: \n\t"
-        "eor r1, r1 \n\t"
-        : "+x" (left), "+y" (right), "+z" (result)
-        : "r" (r18)
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
-          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r19", "r20",
-          "r21", "r22", "r23", "r24", "r25", "cc"
-    );
+#if (uECC_MAX_WORDS > 24)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_24_TO_28);
+#endif
+#if (uECC_MAX_WORDS > 28)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_28_TO_32);
+#endif
+#elif (uECC_MIN_WORDS == 24)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_24);
+    FAST_MULT_ENVIRONMENT("pop r18 \n\t");
+#if (uECC_MAX_WORDS > 24)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_24_TO_28);
+#endif
+#if (uECC_MAX_WORDS > 28)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_28_TO_32);
+#endif
+#elif (uECC_MIN_WORDS == 28)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_28)
+    FAST_MULT_ENVIRONMENT("pop r18 \n\t");
+#if (uECC_MAX_WORDS > 28)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_28_TO_32);
+#endif
+#elif (uECC_MIN_WORDS == 32)
+    FAST_MULT_ENVIRONMENT(FAST_MULT_ASM_32);
+    FAST_MULT_ENVIRONMENT("pop r18 \n\t");
+#endif
+    FAST_MULT_ENVIRONMENT("2: \n\t eor r1, r1 \n\t");
 }
 #define asm_mult 1
 
@@ -268,48 +260,40 @@ uECC_VLI_API void uECC_vli_square(uECC_word_t *result,
                                   wordcount_t num_words) {
     /* num_words should already be in r20. */
     register wordcount_t r20 __asm__("r20") = num_words;
-
-    __asm__ volatile (
-        "push r20 \n\t"
+    //L1uTongwei: these code are the same as mult.
+    FAST_SQUARE_ENVIRONMENT("push r20 \n\t");
 #if (uECC_MIN_WORDS == 20)
-        FAST_SQUARE_ASM_20
-        "pop r20 \n\t"
-    #if (uECC_MAX_WORDS > 20)
-        FAST_SQUARE_ASM_20_TO_24
-    #endif
-    #if (uECC_MAX_WORDS > 24)
-        FAST_SQUARE_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_SQUARE_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 24)
-        FAST_SQUARE_ASM_24
-        "pop r20 \n\t"
-    #if (uECC_MAX_WORDS > 24)
-        FAST_SQUARE_ASM_24_TO_28
-    #endif
-    #if (uECC_MAX_WORDS > 28)
-        FAST_SQUARE_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 28)
-        FAST_SQUARE_ASM_28
-        "pop r20 \n\t"
-    #if (uECC_MAX_WORDS > 28)
-        FAST_SQUARE_ASM_28_TO_32
-    #endif
-#elif (uECC_MIN_WORDS == 32)
-        FAST_SQUARE_ASM_32
-        "pop r20 \n\t"
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_20);
+    FAST_SQUARE_ENVIRONMENT("pop r20 \n\t");
+#if (uECC_MAX_WORDS > 20)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_20_TO_24);
 #endif
-        "2: \n\t"
-        "eor r1, r1 \n\t"
-        : "+x" (left), "+z" (result)
-        : "r" (r20)
-        : "r0", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
-          "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
-          "r21", "r22", "r23", "r24", "r25", "r28", "r29", "cc"
-    );
+#if (uECC_MAX_WORDS > 24)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_24_TO_28);
+#endif
+#if (uECC_MAX_WORDS > 28)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_28_TO_32);
+#endif
+#elif (uECC_MIN_WORDS == 24)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_24);
+    FAST_SQUARE_ENVIRONMENT("pop r20 \n\t");
+#if (uECC_MAX_WORDS > 24)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_24_TO_28);
+#endif
+#if (uECC_MAX_WORDS > 28)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_28_TO_32);
+#endif
+#elif (uECC_MIN_WORDS == 28)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_28);
+    FAST_SQUARE_ENVIRONMENT("pop r20 \n\t");
+#if (uECC_MAX_WORDS > 28)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_28_TO_32);
+#endif
+#elif (uECC_MIN_WORDS == 32)
+    FAST_SQUARE_ENVIRONMENT(FAST_SQUARE_ASM_32);
+    FAST_SQUARE_ENVIRONMENT("pop r20 \n\t");
+#endif
+    FAST_SQUARE_ENVIRONMENT("2: \n\t eor r1, r1 \n\t");
 }
 #define asm_square 1
 #endif /* uECC_SQUARE_FUNC */
