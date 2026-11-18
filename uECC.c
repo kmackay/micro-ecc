@@ -1532,10 +1532,26 @@ static void XYcZ_addC(uECC_word_t * X1,
     uECC_vli_set(X1, t7, num_words);                  /* move x3' to output */
 }
 
-static void select_ptr(uECC_word_t condition, uECC_word_t *val0, uECC_word_t *val1, uECC_word_t **out0, uECC_word_t **out1) {
+/* Constant-time selection for the scalar multiplication. The compiler must not turn a
+   secret-dependent choice into a branch or an indexed load, so bits are extracted with
+   shifts and masks (no '!', comparisons or array indexing), and the mask passes through an
+   empty asm statement so the optimizer cannot see that it is 0 or all ones. */
+
+/* Returns bit 'bit' of vli (0 or 1). */
+static uECC_word_t vli_bit(const uECC_word_t *vli, bitcount_t bit) {
+    return (vli[bit >> uECC_WORD_BITS_SHIFT] >> (bit & uECC_WORD_BITS_MASK)) & 1;
+}
+
+/* Sets *out0 = (condition ? val0 : val1) and *out1 to the other one. condition must be 0
+   or 1. */
+static void select_ptr(uECC_word_t condition,
+                       uECC_word_t *val0,
+                       uECC_word_t *val1,
+                       uECC_word_t **out0,
+                       uECC_word_t **out1) {
     uintptr_t mask = -(intptr_t)condition;
 #if defined(__GNUC__)
-    asm volatile("" : "+g"(mask));
+    __asm__ volatile ("" : "+g" (mask));
 #endif
     *out0 = (uECC_word_t *)(((uintptr_t)val0 & mask) | ((uintptr_t)val1 & ~mask));
     *out1 = (uECC_word_t *)(((uintptr_t)val1 & mask) | ((uintptr_t)val0 & ~mask));
@@ -1554,7 +1570,7 @@ static void EccPoint_mult(uECC_word_t * result,
     uECC_word_t z[uECC_MAX_WORDS];
     uECC_word_t sub[uECC_MAX_WORDS];
     bitcount_t i;
-    uECC_word_t nb;
+    uECC_word_t b;
     wordcount_t num_words = curve->num_words;
     uECC_word_t *x0, *x1, *y0, *y1;
 
@@ -1564,26 +1580,27 @@ static void EccPoint_mult(uECC_word_t * result,
     XYcZ_initial_double(Rx[1], Ry[1], Rx[0], Ry[0], initial_Z, curve);
     uECC_vli_modSub(sub, Rx[0], Rx[1], curve->p, num_words);
 
+    /* (x0, y0) = R[b] and (x1, y1) = R[1 - b], where b is the current scalar bit. */
     for (i = num_bits - 2; i > 0; --i) {
-        nb = !uECC_vli_testBit(scalar, i);
-        select_ptr(nb, Rx[0], Rx[1], &x0, &x1);
-        select_ptr(nb, Ry[0], Ry[1], &y0, &y1);
+        b = vli_bit(scalar, i);
+        select_ptr(b, Rx[1], Rx[0], &x0, &x1);
+        select_ptr(b, Ry[1], Ry[0], &y0, &y1);
         XYcZ_addC(x0, y0, x1, y1, sub, curve);
         XYcZ_add(x1, y1, x0, y0, sub, curve);
     }
 
-    nb = !uECC_vli_testBit(scalar, 0);
-    select_ptr(nb, Rx[0], Rx[1], &x0, &x1);
-    select_ptr(nb, Ry[0], Ry[1], &y0, &y1);
+    b = vli_bit(scalar, 0);
+    select_ptr(b, Rx[1], Rx[0], &x0, &x1);
+    select_ptr(b, Ry[1], Ry[0], &y0, &y1);
     XYcZ_addC(x0, y0, x1, y1, sub, curve);
 
     /* Find final 1/Z value. */
     uECC_vli_modSub(z, Rx[1], Rx[0], curve->p, num_words); /* X1 - X0 */
-    uECC_vli_modMult_fast(z, z, y0, curve);        /* Yb * (X1 - X0) */
+    uECC_vli_modMult_fast(z, z, y0, curve);                /* Yb * (X1 - X0) */
     uECC_vli_modMult_fast(z, z, point, curve);             /* xP * Yb * (X1 - X0) */
     uECC_vli_modInv(z, z, curve->p, num_words);            /* 1 / (xP * Yb * (X1 - X0)) */
     uECC_vli_modMult_fast(z, z, point + num_words, curve); /* yP / (xP * Yb * (X1 - X0)) */
-    uECC_vli_modMult_fast(z, z, x0, curve);        /* Xb * yP / (xP * Yb * (X1 - X0)) */
+    uECC_vli_modMult_fast(z, z, x0, curve);                /* Xb * yP / (xP * Yb * (X1 - X0)) */
     /* End 1/Z calculation */
 
     XYcZ_add(x1, y1, x0, y0, sub, curve);
@@ -1599,9 +1616,12 @@ static uECC_word_t regularize_k(const uECC_word_t * const k,
                                 uECC_Curve curve) {
     wordcount_t num_n_words = BITS_TO_WORDS(curve->num_n_bits);
     bitcount_t num_n_bits = curve->num_n_bits;
-    uECC_word_t carry = uECC_vli_add(k0, k, curve->n, num_n_words) ||
-        (num_n_bits < ((bitcount_t)num_n_words * uECC_WORD_SIZE * 8) &&
-         uECC_vli_testBit(k0, num_n_bits));
+    /* carry = (k + n >= 2^num_n_bits), combined with '|' rather than '||' so there is no
+       branch on the secret carry or bit (the num_n_bits comparison is public). */
+    uECC_word_t carry = uECC_vli_add(k0, k, curve->n, num_n_words);
+    if (num_n_bits < ((bitcount_t)num_n_words * uECC_WORD_SIZE * 8)) {
+        carry |= vli_bit(k0, num_n_bits);
+    }
     uECC_vli_add(k1, k0, curve->n, num_n_words);
     return carry;
 }
@@ -1637,23 +1657,24 @@ static uECC_word_t EccPoint_compute_public_key(uECC_word_t *result,
                                                uECC_Curve curve) {
     uECC_word_t tmp1[uECC_MAX_WORDS];
     uECC_word_t tmp2[uECC_MAX_WORDS];
-    uECC_word_t *p2[2] = {tmp1, tmp2};
+    uECC_word_t *scalar, *other;
     uECC_word_t *initial_Z = 0;
     uECC_word_t carry;
 
     /* Regularize the bitcount for the private key so that attackers cannot use a side channel
        attack to learn the number of leading zeros. */
     carry = regularize_k(private_key, tmp1, tmp2, curve);
+    select_ptr(carry, tmp1, tmp2, &scalar, &other);
 
     /* If an RNG function was specified, try to get a random initial Z value to improve
        protection against side-channel attacks. */
     if (g_rng_function) {
-        if (!uECC_generate_random_int(p2[carry], curve->p, curve->num_words)) {
+        if (!uECC_generate_random_int(other, curve->p, curve->num_words)) {
             return 0;
         }
-        initial_Z = p2[carry];
+        initial_Z = other;
     }
-    EccPoint_mult(result, curve->G, p2[!carry], initial_Z, curve->num_n_bits + 1, curve);
+    EccPoint_mult(result, curve->G, scalar, initial_Z, curve->num_n_bits + 1, curve);
 
     if (EccPoint_isZero(result, curve)) {
         return 0;
@@ -1776,7 +1797,7 @@ int uECC_shared_secret(const uint8_t *public_key,
     uECC_word_t _private[uECC_MAX_WORDS];
 
     uECC_word_t tmp[uECC_MAX_WORDS];
-    uECC_word_t *p2[2] = {_private, tmp};
+    uECC_word_t *scalar, *other;
     uECC_word_t *initial_Z = 0;
     uECC_word_t carry;
     wordcount_t num_words = curve->num_words;
@@ -1789,17 +1810,18 @@ int uECC_shared_secret(const uint8_t *public_key,
     /* Regularize the bitcount for the private key so that attackers cannot use a side channel
        attack to learn the number of leading zeros. */
     carry = regularize_k(_private, _private, tmp, curve);
+    select_ptr(carry, _private, tmp, &scalar, &other);
 
     /* If an RNG function was specified, try to get a random initial Z value to improve
        protection against side-channel attacks. */
     if (g_rng_function) {
-        if (!uECC_generate_random_int(p2[carry], curve->p, num_words)) {
+        if (!uECC_generate_random_int(other, curve->p, num_words)) {
             return 0;
         }
-        initial_Z = p2[carry];
+        initial_Z = other;
     }
 
-    EccPoint_mult(_public, _public, p2[!carry], initial_Z, curve->num_n_bits + 1, curve);
+    EccPoint_mult(_public, _public, scalar, initial_Z, curve->num_n_bits + 1, curve);
     vli_toBytes(secret, num_bytes, _public);
     return !EccPoint_isZero(_public, curve);
 }
@@ -1961,7 +1983,7 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
 
     uECC_word_t tmp[uECC_MAX_WORDS];
     uECC_word_t s[uECC_MAX_WORDS];
-    uECC_word_t *k2[2] = {tmp, s};
+    uECC_word_t *scalar, *other;
     uECC_word_t *initial_Z = 0;
 #if uECC_LE_DIRECT
     uECC_word_t *p = (uECC_word_t *)signature;
@@ -1979,15 +2001,16 @@ static int uECC_sign_with_k_internal(const uint8_t *private_key,
     }
 
     carry = regularize_k(k, tmp, s, curve);
+    select_ptr(carry, tmp, s, &scalar, &other);
     /* If an RNG function was specified, try to get a random initial Z value to improve
        protection against side-channel attacks. */
     if (g_rng_function) {
-        if (!uECC_generate_random_int(k2[carry], curve->p, num_words)) {
+        if (!uECC_generate_random_int(other, curve->p, num_words)) {
             return 0;
         }
-        initial_Z = k2[carry];
+        initial_Z = other;
     }
-    EccPoint_mult(p, curve->G, k2[!carry], initial_Z, num_n_bits + 1, curve);
+    EccPoint_mult(p, curve->G, scalar, initial_Z, num_n_bits + 1, curve);
     if (uECC_vli_isZero(p, num_words)) {
         return 0;
     }
@@ -2385,10 +2408,11 @@ void uECC_point_mult(uECC_word_t *result,
                      uECC_Curve curve) {
     uECC_word_t tmp1[uECC_MAX_WORDS];
     uECC_word_t tmp2[uECC_MAX_WORDS];
-    uECC_word_t *p2[2] = {tmp1, tmp2};
+    uECC_word_t *k, *other;
     uECC_word_t carry = regularize_k(scalar, tmp1, tmp2, curve);
 
-    EccPoint_mult(result, point, p2[!carry], 0, curve->num_n_bits + 1, curve);
+    select_ptr(carry, tmp1, tmp2, &k, &other);
+    EccPoint_mult(result, point, k, 0, curve->num_n_bits + 1, curve);
 }
 
 #endif /* uECC_ENABLE_VLI_API */
