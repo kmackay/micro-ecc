@@ -838,21 +838,26 @@ uECC_VLI_API void uECC_vli_rshift1(uECC_word_t *vli, wordcount_t num_words) {
     register uECC_word_t *r12 __asm__("r12") = vli;
     register uint16_t r13 __asm__("r13") = (uint16_t)num_words;
     __asm__ volatile (
+    /* The target is computed from label 3 itself: an address past the chain (3f + 4 * MAX)
+       can be shifted by linker relaxation, which shortens the last element (0(r12)) to
+       @r12. */
     #if !uECC_MSP430_ONE_SIZE && uECC_MSP430_LARGE
-        "rla r13 \n\t"
-        "rla r13 \n\t"
-        "mova #3f + 4 * " uECC_MSP430_STR(uECC_MAX_WORDS) ", r14 \n\t"
-        "suba r13, r14 \n\t" /* r14 = 3: + 4 * (MAX - num_words) */
+        "mov #" uECC_MSP430_STR(uECC_MAX_WORDS) ", r14 \n\t"
+        "sub r13, r14 \n\t"
+        "rla r14 \n\t"
+        "rla r14 \n\t"
+        "mova #3f, r13 \n\t"
+        "adda r14, r13 \n\t" /* r13 = 3: + 4 * (MAX - num_words) */
         "clrc \n\t"
-        "bra r14 \n\t"
+        "bra r13 \n\t"
     #elif !uECC_MSP430_ONE_SIZE
-        "rla r13 \n\t"
-        "rla r13 \n\t"
-        "sub #3f + 4 * " uECC_MSP430_STR(uECC_MAX_WORDS) ", r13 \n\t"
-        "inv r13 \n\t"
-        "inc r13 \n\t"    /* r13 = 3: + 4 * (MAX - num_words) */
+        "mov #" uECC_MSP430_STR(uECC_MAX_WORDS) ", r14 \n\t"
+        "sub r13, r14 \n\t"
+        "rla r14 \n\t"
+        "rla r14 \n\t"
+        "add #3f, r14 \n\t" /* r14 = 3: + 4 * (MAX - num_words) */
         "clrc \n\t"
-        "br r13 \n\t"
+        "br r14 \n\t"
     #else
         "clrc \n\t"
     #endif
