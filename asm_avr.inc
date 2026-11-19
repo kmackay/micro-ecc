@@ -905,12 +905,17 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
                                 const uECC_word_t *left,
                                 const uECC_word_t *right,
                                 wordcount_t num_words) {
-    volatile uECC_word_t *r = result;
     uint8_t r0 = 0;
     uint8_t r1 = 0;
     uint8_t r2 = 0;
     uint8_t zero = 0;
     uint8_t k, i;
+
+    /* manually allocate right to register Y to work around bug in GCC 15.2 */
+    register uint8_t yl asm("r28");
+    register uint8_t yh asm("r29");
+    yl = (uint8_t)(unsigned)right;
+    yh = (uint8_t)(((unsigned)right) >> 8);
 
     __asm__ volatile (
         "ldi %[k], 1 \n\t" /* k = 1; k < num_words; ++k */
@@ -986,7 +991,7 @@ uECC_VLI_API void uECC_vli_mult(uECC_word_t *result,
         "st z+, %[r0] \n\t"  /* Store last result byte. */
         "eor r1, r1 \n\t" /* fix r1 to be 0 again */
 
-        : "+z" (result), "+x" (left), "+y" (right),
+        : "+z" (result), "+x" (left), "+r" (yl), "+r" (yh),
           [r0] "+r" (r0), [r1] "+r" (r1), [r2] "+r" (r2),
           [zero] "+r" (zero), [num] "+r" (num_words),
           [k] "=&r" (k), [i] "=&r" (i)
