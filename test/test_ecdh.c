@@ -11,7 +11,7 @@ void vli_print(uint8_t *vli, unsigned int size) {
     }
 }
 
-int main() {
+int main(void) {
     int i, c;
     uint8_t private1[32] = {0};
     uint8_t private2[32] = {0};

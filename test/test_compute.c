@@ -13,7 +13,7 @@ void vli_print(char *str, uint8_t *vli, unsigned int size) {
     printf("\n");
 }
 
-int main() {
+int main(void) {
     int i;
     int success;
     uint8_t private[32];

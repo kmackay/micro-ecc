@@ -57,7 +57,7 @@ static int default_RNG(uint8_t *dest, unsigned size) {
             close(fd);
             return 0;
         }
-        left -= bytes_read;
+        left -= (size_t)bytes_read;
         ptr += bytes_read;
     }
     
