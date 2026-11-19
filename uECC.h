@@ -68,6 +68,9 @@ the same endianness. */
 #ifndef uECC_SUPPORTS_secp256k1
     #define uECC_SUPPORTS_secp256k1 1
 #endif
+#ifndef uECC_SUPPORTS_secp521r1
+    #define uECC_SUPPORTS_secp521r1 1
+#endif
 
 /* Specifies whether compressed point format is supported.
    Set to 0 to disable point compression/decompression functions. */
@@ -97,6 +100,9 @@ uECC_Curve uECC_secp256r1(void);
 #endif
 #if uECC_SUPPORTS_secp256k1
 uECC_Curve uECC_secp256k1(void);
+#endif
+#if uECC_SUPPORTS_secp521r1
+uECC_Curve uECC_secp521r1(void);
 #endif
 
 /* uECC_RNG_Function type
